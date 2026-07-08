@@ -1,0 +1,47 @@
+# Variables d'environnement (JAMAIS commiter les vraies clés)
+.env
+.env.local
+.env.production
+
+# Flutter / Dart
+app/build/
+app/.dart_tool/
+app/.packages
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/local.properties
+app/android/app/debug/
+app/android/app/profile/
+app/android/app/release/
+app/ios/Pods/
+app/ios/.symlinks/
+app/ios/Flutter/Flutter.framework
+app/ios/Flutter/Flutter.podspec
+app/ios/Flutter/Generated.xcconfig
+app/ios/Flutter/app.flx
+app/ios/Flutter/engine/
+app/ios/ServiceDefinitions.json
+app/ios/Runner/GeneratedPluginRegistrant.*
+*.iml
+*.lock
+!pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node.js (scripts + admin dashboard)
+node_modules/
+admin_dashboard/.next/
+admin_dashboard/out/
+
+# Divers
+*.log
