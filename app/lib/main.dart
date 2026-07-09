@@ -1,121 +1,124 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
-  runApp(const MyApp());
+/// Point d'entree de l'application Otaku Verse.
+/// On initialise dotenv (pour lire les cles depuis .env)
+/// puis Supabase avant de lancer l'app.
+void main() async {
+  // Obligatoire avant d'appeler du code async dans main()
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Charge les variables depuis le fichier .env
+  await dotenv.load(fileName: ".env");
+
+  // Initialise Supabase avec l'URL et la cle anon
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+  );
+
+  runApp(const OtakuVerseApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// Widget racine de l'application
+class OtakuVerseApp extends StatelessWidget {
+  const OtakuVerseApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Otaku Verse',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        brightness: Brightness.dark,
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const ConnexionTestPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+/// Page temporaire qui affiche si la connexion a Supabase fonctionne.
+/// On la remplacera par le vrai ecran d'accueil a l'etape 3.
+class ConnexionTestPage extends StatefulWidget {
+  const ConnexionTestPage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<ConnexionTestPage> createState() => _ConnexionTestPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _ConnexionTestPageState extends State<ConnexionTestPage> {
+  String _status = 'Test en cours...';
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _testConnexion();
+  }
+
+  /// Teste la connexion a Supabase.
+  /// Si l'initialisation s'est bien passee, le client existe et on est connecte.
+  Future<void> _testConnexion() async {
+    try {
+      final supabase = Supabase.instance.client;
+      // Requete simple : demander les donnees d'une table qui n'existe pas encore
+      // Ca retourne une liste vide (pas une erreur) si la connexion est OK
+      await supabase.from('_test_connexion').select().limit(1);
+      // Si on arrive ici sans exception de type reseau, la connexion fonctionne
+      setState(() {
+        _status = 'Connexion a Supabase reussie !';
+      });
+    } catch (e) {
+      // Une erreur 404 ou "relation does not exist" = connexion OK, table absente (normal)
+      final erreur = e.toString();
+      if (erreur.contains('does not exist') || erreur.contains('404') || erreur.contains('42P01')) {
+        setState(() {
+          _status = 'Connexion a Supabase reussie !';
+        });
+      } else {
+        setState(() {
+          _status = 'Erreur : $e';
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
+      backgroundColor: Colors.black,
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'OTAKU VERSE',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 40),
+              Text(
+                _status,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: _status.contains('reussie')
+                      ? Colors.greenAccent
+                      : _status.contains('Erreur')
+                          ? Colors.redAccent
+                          : Colors.white70,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
       ),
     );
   }

@@ -2,33 +2,34 @@
 
 Derniere mise a jour : 2026-07-09
 Version en cours : V1
-Module en cours : Setup Flutter (Etape 1)
+Module en cours : Supabase connecte (Etape 2)
 
 ## Termine et teste
 - Etape 0 : structure de dossiers, .gitignore, .env.example, repo Git init
-- Etape 1 : projet Flutter cree dans app/, compile et tourne sur emulateur Android (Pixel 8)
-  - Flutter 3.44.5 stable
-  - Android SDK 36.1.0
-  - Android Studio installe
-  - Structure lib/core, lib/features, lib/shared en place
+- Etape 1 : projet Flutter cree, compile et tourne sur emulateur Android (Pixel 8)
+- Etape 2 : Supabase connecte
+  - Projet Supabase cree (houbjgugzznytilkfwyf.supabase.co)
+  - .env configure avec URL + anon key (jamais commite)
+  - Flutter connecte a Supabase via supabase_flutter + flutter_dotenv
+  - Test de connexion reussi sur emulateur
 
 ## En cours
-- Etape 1 terminee, en attente du push par Tariq
+- Etape 2 terminee, en attente du push par Tariq
 
 ## Prochaine etape
-- Etape 2 : Fondations Supabase
-  - Creer le projet Supabase (compte gratuit)
-  - Configurer .env avec les vraies cles
-  - Connecter Flutter a Supabase (test de connexion simple)
+- Etape 3 : Design system (fondations visuelles)
+  - Palette de couleurs, typographie, composants de base
+  - Ecran de demo avec tous les composants pour validation
 
 ## Decisions techniques prises
-- Org ID pour l'app : com.otakuverse
+- Org ID : com.otakuverse
 - Nom du projet Dart : otaku_verse
-- Test prioritaire sur emulateur Android (Pixel 8), telephone physique a tester aussi
+- Gestion des cles : flutter_dotenv (.env comme asset Flutter, gitignore)
+- Packages installes : supabase_flutter ^2.8.0, flutter_dotenv ^5.2.1
 
 ## Problemes connus / points d'attention
-- Flutter non accessible depuis le bash de Claude Code (PATH Windows seulement) — les commandes flutter seront lancees par Tariq dans PowerShell
-- Gradle timeout / NDK corrompu / Windows Security ont bloque au premier build — resolu manuellement par Tariq
+- Flutter non accessible depuis bash de Claude Code — commandes lancees par Tariq
+- La page de test de connexion est temporaire (sera remplacee etape 3)
 
 ## Dernier commit pousse
-- Etape 0 : "Etape 0 : structure initiale du projet + .gitignore + .env.example + PROGRESS.md"
+- Etape 1 : "Etape 1 : projet Flutter initialise, compile et tourne sur emulateur Android"
