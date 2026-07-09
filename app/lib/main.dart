@@ -5,6 +5,8 @@ import 'core/theme.dart';
 import 'features/auth/auth_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
+import 'features/quiz/quiz_service.dart';
+import 'features/quiz/quiz_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,14 +72,52 @@ class _AuthGateState extends State<AuthGate> {
 }
 
 /// Ecran d'accueil temporaire apres connexion.
-class AccueilTemporaire extends StatelessWidget {
+class AccueilTemporaire extends StatefulWidget {
   final AuthService authService;
 
   const AccueilTemporaire({super.key, required this.authService});
 
   @override
+  State<AccueilTemporaire> createState() => _AccueilTemporaireState();
+}
+
+class _AccueilTemporaireState extends State<AccueilTemporaire> {
+  bool _chargement = false;
+
+  Future<void> _lancerQuiz() async {
+    setState(() => _chargement = true);
+
+    try {
+      final quizService = QuizService();
+      final questions = await quizService.recupererQuestions(nombre: 10);
+
+      if (!mounted) return;
+
+      if (questions.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucune question disponible')),
+        );
+        setState(() => _chargement = false);
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => QuizPage(questions: questions)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e')),
+      );
+    }
+
+    if (mounted) setState(() => _chargement = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = authService.utilisateurActuel;
+    final user = widget.authService.utilisateurActuel;
 
     return Scaffold(
       body: SafeArea(
@@ -97,11 +137,29 @@ class AccueilTemporaire extends StatelessWidget {
                 style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.accent),
               ),
               const SizedBox(height: 40),
+
+              // Bouton JOUER
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _chargement ? null : _lancerQuiz,
+                  child: _chargement
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Text('JOUER'),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Bouton deconnexion
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () async {
-                    await authService.deconnexion();
+                    await widget.authService.deconnexion();
                   },
                   child: const Text('SE DECONNECTER'),
                 ),
