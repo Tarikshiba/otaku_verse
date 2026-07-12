@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../quiz/quiz_service.dart';
+import '../progression/progression_service.dart';
 import 'combat_models.dart';
 import 'combat_service.dart';
 
@@ -47,6 +48,14 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
 
   // Phase d'affichage : 'question', 'feedback', 'termine'
   String _phase = 'question';
+
+  // Compteur de bonnes reponses (pour le calcul d'XP)
+  int _bonnesReponses = 0;
+
+  // Donnees de progression (remplies a la fin du combat)
+  int _xpGagne = 0;
+  Map<String, dynamic>? _profilMisAJour;
+  bool _progressionChargee = false;
 
   // --- ANIMATIONS ---
   // Shake quand le joueur prend des degats
@@ -156,6 +165,9 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
       difficulte: widget.params.difficulte,
     );
 
+    // Compter les bonnes reponses
+    if (joueurCorrect) _bonnesReponses++;
+
     setState(() {
       _dernierResultat = resultat;
       _phase = 'feedback';
@@ -193,6 +205,8 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
         if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
           _afficherOnomatopee('K.O. !', OtakuColors.warning);
         }
+        // Calculer et sauvegarder la progression
+        _finaliserCombat();
         Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
           setState(() => _phase = 'termine');
@@ -202,6 +216,32 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
         setState(() {});
       }
     });
+  }
+
+  /// Calcule l'XP gagnee et met a jour le profil dans Supabase
+  Future<void> _finaliserCombat() async {
+    final victoire = _etat.vainqueur == 'joueur';
+    final ko = _etat.pvBot <= 0;
+    final sansDegat = _etat.pvJoueur == CombatState.pvDepart;
+
+    _xpGagne = ProgressionService.calculerXpCombat(
+      bonnesReponses: _bonnesReponses,
+      victoire: victoire,
+      ko: ko,
+      sansDegat: sansDegat,
+    );
+
+    try {
+      final progressionService = ProgressionService();
+      _profilMisAJour = await progressionService.mettreAJourApresComabat(
+        xpGagne: _xpGagne,
+        victoire: victoire,
+      );
+    } catch (_) {
+      // En cas d'erreur reseau, on affiche quand meme le resultat
+    }
+
+    if (mounted) setState(() => _progressionChargee = true);
   }
 
   /// Index de la question actuelle (0-based pour acceder a la liste)
@@ -593,64 +633,115 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     final egalite = _etat.vainqueur == 'egalite';
     final ko = _etat.pvBot <= 0 || _etat.pvJoueur <= 0;
 
+    // Infos de progression
+    final niveau = _profilMisAJour?['niveau'] ?? 1;
+    final ancienNiveau = _profilMisAJour?['ancien_niveau'] ?? niveau;
+    final aMonteDeNiveau = niveau > ancienNiveau;
+    final rangActuel = _profilMisAJour?['rang'] ?? 'Debutant';
+
     return Scaffold(
       backgroundColor: OtakuColors.background,
       body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                victoire ? 'VICTOIRE !' : (egalite ? 'EGALITE' : 'DEFAITE...'),
-                style: OtakuTypo.impact.copyWith(
-                  fontSize: 36,
-                  color: victoire ? OtakuColors.success : (egalite ? OtakuColors.warning : OtakuColors.error),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              if (ko)
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Titre victoire/defaite
                 Text(
-                  'K.O. !',
-                  style: OtakuTypo.headlineLarge.copyWith(color: OtakuColors.warning),
+                  victoire ? 'VICTOIRE !' : (egalite ? 'EGALITE' : 'DEFAITE...'),
+                  style: OtakuTypo.impact.copyWith(
+                    fontSize: 36,
+                    color: victoire ? OtakuColors.success : (egalite ? OtakuColors.warning : OtakuColors.error),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                if (ko)
+                  Text(
+                    'K.O. !',
+                    style: OtakuTypo.headlineLarge.copyWith(color: OtakuColors.warning),
+                  ),
+
+                const SizedBox(height: 20),
+
+                // Stats PV
+                Text('PV restants : ${_etat.pvJoueur}/${CombatState.pvDepart}',
+                    style: OtakuTypo.bodyLarge),
+                Text('PV du bot : ${_etat.pvBot}/${CombatState.pvDepart}',
+                    style: OtakuTypo.bodySmall),
+
+                const SizedBox(height: 20),
+
+                // --- XP GAGNEE ---
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: OtakuColors.surface,
+                    border: Border.all(color: OtakuColors.accent),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        '+$_xpGagne XP',
+                        style: OtakuTypo.headlineLarge.copyWith(color: OtakuColors.accent),
+                      ),
+                      const SizedBox(height: 4),
+                      if (_progressionChargee) ...[
+                        Text(
+                          'Niveau $niveau — $rangActuel',
+                          style: OtakuTypo.bodySmall,
+                        ),
+                        if (aMonteDeNiveau)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              'LEVEL UP !',
+                              style: OtakuTypo.impact.copyWith(fontSize: 18),
+                            ),
+                          ),
+                      ] else
+                        const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                    ],
+                  ),
                 ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              Text('PV restants : ${_etat.pvJoueur}/${CombatState.pvDepart}',
-                  style: OtakuTypo.bodyLarge),
-              Text('PV du bot : ${_etat.pvBot}/${CombatState.pvDepart}',
-                  style: OtakuTypo.bodySmall),
-
-              const SizedBox(height: 40),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CombatPage(
-                            questions: widget.questions..shuffle(),
-                            params: widget.params,
+                // Boutons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CombatPage(
+                              questions: widget.questions..shuffle(),
+                              params: widget.params,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    child: const Text('REJOUER'),
-                  ),
-                  const SizedBox(width: 16),
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(context).popUntil((route) => route.isFirst);
-                    },
-                    child: const Text('ACCUEIL'),
-                  ),
-                ],
-              ),
-            ],
+                        );
+                      },
+                      child: const Text('REJOUER'),
+                    ),
+                    const SizedBox(width: 16),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      },
+                      child: const Text('ACCUEIL'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
