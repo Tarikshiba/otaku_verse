@@ -23,16 +23,17 @@ reutilisera ce moteur de combat.
 - Etape 5 : 20 questions One Piece importees dans Supabase via script Node.js
 - Etape 6 : moteur de combat complet (PV, degats, combo, bot, parametrage, paysage force, animations shake + onomatopees)
 - Etape 7 : progression (XP, niveaux, rangs) + table profiles dans Supabase, affichage XP en fin de combat
+- Etape 8 : ecran profil (stats, niveau, rang, barre XP, skin rotatif, taux de victoire)
 
-## En cours — Etape 8 (profil joueur)
+## En cours — Etape 9 (recompenses de base)
 
 ### A faire
-- Ecran profil : stats (niveau, rang, XP, combats joues/gagnes), historique des combats
-- Skin 3D fixe rotatif (un seul skin par defaut en V1)
-- Accessible depuis l'accueil
+- Defis quotidiens (generation automatique, reset a minuit)
+- Recompense de connexion quotidienne
+- Badges de base (Premier Pas, Sans Egratignure, Fidele, etc.)
 
 ## Prochaine etape
-- Etape 9 : recompenses de base (defis quotidiens, connexion quotidienne, badges)
+- Etape 10 : ecran d'accueil final (assembler tous les elements)
 
 ## Decisions techniques prises
 - Couleur d'accent : violet electrique #7B2FF7
@@ -57,4 +58,4 @@ reutilisera ce moteur de combat.
 - 20 questions One Piece en base (le combat s'adapte au nombre reel)
 
 ## Dernier commit pousse
-- "Etape 7 : progression (XP, niveaux, rangs) + table profiles Supabase" (2026-07-12)
+- "Etape 8 : ecran profil (stats, niveau, rang, skin rotatif, barre XP)" (2026-07-12)

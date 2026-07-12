@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../quiz/quiz_service.dart';
 import '../progression/progression_service.dart';
+import '../rewards/rewards_service.dart';
 import 'combat_models.dart';
 import 'combat_service.dart';
 
@@ -218,7 +219,7 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     });
   }
 
-  /// Calcule l'XP gagnee et met a jour le profil dans Supabase
+  /// Calcule l'XP gagnee et met a jour le profil + defis + badges dans Supabase
   Future<void> _finaliserCombat() async {
     final victoire = _etat.vainqueur == 'joueur';
     final ko = _etat.pvBot <= 0;
@@ -236,6 +237,14 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
       _profilMisAJour = await progressionService.mettreAJourApresComabat(
         xpGagne: _xpGagne,
         victoire: victoire,
+      );
+
+      // Mettre a jour les defis quotidiens
+      final rewardsService = RewardsService();
+      await rewardsService.mettreAJourDefis(
+        victoire: victoire,
+        ko: ko,
+        bonnesReponses: _bonnesReponses,
       );
     } catch (_) {
       // En cas d'erreur reseau, on affiche quand meme le resultat

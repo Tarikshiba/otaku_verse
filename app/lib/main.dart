@@ -8,6 +8,7 @@ import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
 import 'features/combat/combat_setup_page.dart';
 import 'features/profile/profile_page.dart';
+import 'features/rewards/rewards_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -142,6 +143,21 @@ class _AccueilTemporaireState extends State<AccueilTemporaire> {
                       );
                     },
                     child: const Text('PROFIL'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Bouton RECOMPENSES
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const RewardsPage()),
+                      );
+                    },
+                    child: const Text('RECOMPENSES'),
                   ),
                 ),
                 const SizedBox(height: 12),
