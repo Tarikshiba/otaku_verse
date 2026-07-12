@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../quiz/quiz_service.dart';
@@ -6,8 +7,9 @@ import 'combat_models.dart';
 import 'combat_service.dart';
 
 /// === ECRAN DE COMBAT ===
-/// Affiche en mode PAYSAGE force : deux personnages face a face,
+/// Mode PAYSAGE force : deux personnages face a face,
 /// barres de PV, question au centre, 4 choix, timer.
+/// Inclut des animations de shake et des onomatopees visuelles.
 
 class CombatPage extends StatefulWidget {
   final List<Question> questions;
@@ -23,13 +25,13 @@ class CombatPage extends StatefulWidget {
   State<CombatPage> createState() => _CombatPageState();
 }
 
-class _CombatPageState extends State<CombatPage> {
+class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
   final CombatService _combatService = CombatService();
 
   // Etat du combat
   late CombatState _etat;
 
-  // Nombre reel de questions pour ce combat (peut etre < 10 si la base en a moins)
+  // Nombre reel de questions pour ce combat
   late int _nbQuestionsReelles;
 
   // Timer par question (20 secondes)
@@ -46,17 +48,63 @@ class _CombatPageState extends State<CombatPage> {
   // Phase d'affichage : 'question', 'feedback', 'termine'
   String _phase = 'question';
 
+  // --- ANIMATIONS ---
+  // Shake quand le joueur prend des degats
+  late AnimationController _shakeJoueur;
+  // Shake quand le bot prend des degats
+  late AnimationController _shakeBot;
+  // Onomatopee qui apparait et disparait
+  late AnimationController _onomatopeeController;
+  late Animation<double> _onomatopeeOpacity;
+  late Animation<double> _onomatopeeScale;
+  String _onomatopeeTexte = '';
+  Color _onomatopeeCouleur = OtakuColors.accent;
+
   @override
   void initState() {
     super.initState();
     _nbQuestionsReelles = widget.questions.length;
     _etat = CombatState(nbQuestions: _nbQuestionsReelles);
+
+    // Shake joueur (court, rapide)
+    _shakeJoueur = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    // Shake bot
+    _shakeBot = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    // Onomatopee (apparait en gros, puis disparait)
+    _onomatopeeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _onomatopeeOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _onomatopeeController,
+        curve: const Interval(0.5, 1.0), // Reste visible 50% du temps, puis fade
+      ),
+    );
+    _onomatopeeScale = Tween<double>(begin: 0.5, end: 1.5).animate(
+      CurvedAnimation(
+        parent: _onomatopeeController,
+        curve: Curves.elasticOut,
+      ),
+    );
+
     _demarrerTour();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _shakeJoueur.dispose();
+    _shakeBot.dispose();
+    _onomatopeeController.dispose();
     super.dispose();
   }
 
@@ -70,7 +118,7 @@ class _CombatPageState extends State<CombatPage> {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_tempsRestant <= 0) {
         timer.cancel();
-        _validerReponse(null); // Temps ecoule = pas de reponse
+        _validerReponse(null);
       } else {
         setState(() => _tempsRestant--);
       }
@@ -84,7 +132,15 @@ class _CombatPageState extends State<CombatPage> {
     _validerReponse(lettre);
   }
 
-  /// Valide la reponse, joue le tour, affiche le feedback
+  /// Affiche une onomatopee animee
+  void _afficherOnomatopee(String texte, Color couleur) {
+    _onomatopeeTexte = texte;
+    _onomatopeeCouleur = couleur;
+    _onomatopeeController.reset();
+    _onomatopeeController.forward();
+  }
+
+  /// Valide la reponse, joue le tour, declenche les animations
   void _validerReponse(String? reponse) {
     final question = widget.questions[_indexQuestion];
     final joueurCorrect = reponse == question.bonneReponse;
@@ -105,16 +161,42 @@ class _CombatPageState extends State<CombatPage> {
       _phase = 'feedback';
     });
 
+    // --- Declencher les animations selon le resultat ---
+    if (resultat.degatsInfliges > 0) {
+      _shakeBot.reset();
+      _shakeBot.forward();
+    }
+    if (resultat.degatsSubis > 0) {
+      _shakeJoueur.reset();
+      _shakeJoueur.forward();
+    }
+
+    // Onomatopee selon le cas
+    if (resultat.comboJoueurDeclenche) {
+      _afficherOnomatopee('COMBO !', OtakuColors.accent);
+    } else if (resultat.comboBotDeclenche) {
+      _afficherOnomatopee('BOOM !', OtakuColors.error);
+    } else if (resultat.joueurCorrect && resultat.degatsInfliges > 0) {
+      _afficherOnomatopee('HIT !', OtakuColors.success);
+    } else if (!joueurCorrect && reponse != null) {
+      _afficherOnomatopee('MISS...', OtakuColors.textMuted);
+    }
+
     // Apres 2.5 secondes, passer au tour suivant ou terminer
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (!mounted) return;
 
-      // Incrementer la question APRES le feedback (pas avant)
       _etat.questionActuelle++;
 
-      // Combat termine si : K.O., ou on a epuise toutes les questions
       if (_etat.estTermine) {
-        setState(() => _phase = 'termine');
+        // Onomatopee de fin
+        if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
+          _afficherOnomatopee('K.O. !', OtakuColors.warning);
+        }
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (!mounted) return;
+          setState(() => _phase = 'termine');
+        });
       } else {
         _demarrerTour();
         setState(() {});
@@ -136,82 +218,152 @@ class _CombatPageState extends State<CombatPage> {
     return Scaffold(
       backgroundColor: OtakuColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            children: [
-              // --- BARRES DE PV ---
-              _buildBarresPV(),
-              const SizedBox(height: 12),
+        child: Stack(
+          children: [
+            // Contenu principal
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                children: [
+                  // --- BARRES DE PV ---
+                  _buildBarresPV(),
+                  const SizedBox(height: 12),
 
-              // --- QUESTION ---
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Timer + numero de question
-                    Row(
+                  // --- QUESTION ---
+                  Expanded(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          'Q${_etat.questionActuelle > _nbQuestionsReelles ? _nbQuestionsReelles : _etat.questionActuelle}/$_nbQuestionsReelles',
-                          style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted),
+                        // Timer + numero de question
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Q${_etat.questionActuelle}/$_nbQuestionsReelles',
+                              style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted),
+                            ),
+                            const SizedBox(width: 16),
+                            _buildTimer(),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        _buildTimer(),
+                        const SizedBox(height: 12),
+
+                        // Texte de la question
+                        Text(
+                          question.question,
+                          style: OtakuTypo.bodyLarge,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 4 choix en grille 2x2
+                        _buildChoix(question),
+
+                        // Feedback du tour
+                        if (_phase == 'feedback' && _dernierResultat != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: _buildFeedback(),
+                          ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-
-                    // Texte de la question
-                    Text(
-                      question.question,
-                      style: OtakuTypo.bodyLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 4 choix en grille 2x2 (adapte au mode paysage)
-                    _buildChoix(question),
-
-                    // Feedback du tour
-                    if (_phase == 'feedback' && _dernierResultat != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: _buildFeedback(),
-                      ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+
+            // --- ONOMATOPEE EN OVERLAY ---
+            _buildOnomatopeeOverlay(),
+          ],
         ),
       ),
     );
   }
 
-  /// Barres de PV joueur (gauche) et bot (droite)
+  /// Overlay des onomatopees (COMBO!, HIT!, BOOM!, K.O.!)
+  Widget _buildOnomatopeeOverlay() {
+    return AnimatedBuilder(
+      animation: _onomatopeeController,
+      builder: (context, child) {
+        if (!_onomatopeeController.isAnimating && _onomatopeeController.status != AnimationStatus.forward) {
+          return const SizedBox.shrink();
+        }
+        return Center(
+          child: Opacity(
+            opacity: _onomatopeeOpacity.value,
+            child: Transform.scale(
+              scale: _onomatopeeScale.value,
+              child: Text(
+                _onomatopeeTexte,
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                  color: _onomatopeeCouleur,
+                  letterSpacing: 4,
+                  shadows: [
+                    Shadow(
+                      color: _onomatopeeCouleur.withValues(alpha: 0.5),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Barres de PV joueur (gauche) et bot (droite) avec shake
   Widget _buildBarresPV() {
     return Row(
       children: [
-        // Joueur (gauche)
-        Expanded(child: _buildBarrePV(
-          label: 'TOI',
-          pv: _etat.pvJoueur,
-          combo: _etat.comboJoueur,
-          alignDroite: false,
-        )),
+        // Joueur (gauche) — shake si touche
+        Expanded(
+          child: AnimatedBuilder(
+            animation: _shakeJoueur,
+            builder: (context, child) {
+              final offset = _shakeJoueur.isAnimating
+                  ? sin(_shakeJoueur.value * pi * 6) * 4
+                  : 0.0;
+              return Transform.translate(
+                offset: Offset(offset, 0),
+                child: child,
+              );
+            },
+            child: _buildBarrePV(
+              label: 'TOI',
+              pv: _etat.pvJoueur,
+              combo: _etat.comboJoueur,
+              alignDroite: false,
+            ),
+          ),
+        ),
         const SizedBox(width: 24),
-        // Indicateur VS
         const Text('VS', style: OtakuTypo.impact),
         const SizedBox(width: 24),
-        // Bot (droite)
-        Expanded(child: _buildBarrePV(
-          label: 'BOT',
-          pv: _etat.pvBot,
-          combo: _etat.comboBot,
-          alignDroite: true,
-        )),
+        // Bot (droite) — shake si touche
+        Expanded(
+          child: AnimatedBuilder(
+            animation: _shakeBot,
+            builder: (context, child) {
+              final offset = _shakeBot.isAnimating
+                  ? sin(_shakeBot.value * pi * 6) * 4
+                  : 0.0;
+              return Transform.translate(
+                offset: Offset(offset, 0),
+                child: child,
+              );
+            },
+            child: _buildBarrePV(
+              label: 'BOT',
+              pv: _etat.pvBot,
+              combo: _etat.comboBot,
+              alignDroite: true,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -224,7 +376,6 @@ class _CombatPageState extends State<CombatPage> {
     required bool alignDroite,
   }) {
     final pourcentage = pv / CombatState.pvDepart;
-    // Couleur selon les PV restants
     Color couleurPV = OtakuColors.success;
     if (pourcentage <= 0.25) {
       couleurPV = OtakuColors.error;
@@ -235,7 +386,6 @@ class _CombatPageState extends State<CombatPage> {
     return Column(
       crossAxisAlignment: alignDroite ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        // Nom + PV
         Row(
           mainAxisAlignment: alignDroite ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
@@ -245,7 +395,6 @@ class _CombatPageState extends State<CombatPage> {
               '$pv/${CombatState.pvDepart}',
               style: OtakuTypo.bodySmall.copyWith(color: couleurPV),
             ),
-            // Indicateur combo
             if (combo > 0) ...[
               const SizedBox(width: 8),
               Container(
@@ -268,7 +417,6 @@ class _CombatPageState extends State<CombatPage> {
           ],
         ),
         const SizedBox(height: 4),
-        // Barre de vie
         ClipRRect(
           borderRadius: BorderRadius.circular(2),
           child: LinearProgressIndicator(
@@ -303,7 +451,7 @@ class _CombatPageState extends State<CombatPage> {
     );
   }
 
-  /// Grille 2x2 des choix de reponse (adapte au paysage)
+  /// Grille 2x2 des choix de reponse
   Widget _buildChoix(Question question) {
     final aRepondu = _reponseChoisie != null;
     final choix = question.choix;
@@ -404,7 +552,8 @@ class _CombatPageState extends State<CombatPage> {
           children: [
             if (r.joueurCorrect) ...[
               if (r.comboJoueurDeclenche)
-                const Text('COMBO !', style: OtakuTypo.impact),
+                const Text('ATTAQUE SPECIALE !',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: OtakuColors.accent)),
               Text(
                 'Tu infliges -${r.degatsInfliges} PV',
                 style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.success),
@@ -421,8 +570,8 @@ class _CombatPageState extends State<CombatPage> {
           children: [
             if (r.botCorrect) ...[
               if (r.comboBotDeclenche)
-                Text('BOT COMBO !',
-                    style: OtakuTypo.impact.copyWith(color: OtakuColors.error)),
+                const Text('BOT SPECIAL !',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: OtakuColors.error)),
               Text(
                 'Bot inflige -${r.degatsSubis} PV',
                 style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.error),
@@ -451,7 +600,6 @@ class _CombatPageState extends State<CombatPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Titre victoire/defaite
               Text(
                 victoire ? 'VICTOIRE !' : (egalite ? 'EGALITE' : 'DEFAITE...'),
                 style: OtakuTypo.impact.copyWith(
@@ -461,7 +609,6 @@ class _CombatPageState extends State<CombatPage> {
               ),
               const SizedBox(height: 8),
 
-              // K.O. ou aux points
               if (ko)
                 Text(
                   'K.O. !',
@@ -470,7 +617,6 @@ class _CombatPageState extends State<CombatPage> {
 
               const SizedBox(height: 24),
 
-              // Stats du combat
               Text('PV restants : ${_etat.pvJoueur}/${CombatState.pvDepart}',
                   style: OtakuTypo.bodyLarge),
               Text('PV du bot : ${_etat.pvBot}/${CombatState.pvDepart}',
@@ -478,13 +624,11 @@ class _CombatPageState extends State<CombatPage> {
 
               const SizedBox(height: 40),
 
-              // Boutons
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
                     onPressed: () {
-                      // Relancer un combat avec les memes parametres
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
