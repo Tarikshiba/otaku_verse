@@ -7,6 +7,7 @@ import 'features/auth/auth_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
 import 'features/combat/combat_setup_page.dart';
+import 'features/profile/profile_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -120,7 +121,7 @@ class _AccueilTemporaireState extends State<AccueilTemporaire> {
                 ),
                 const SizedBox(height: 40),
 
-                // Bouton COMBATTRE (remplace l'ancien JOUER)
+                // Bouton COMBATTRE
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -128,7 +129,22 @@ class _AccueilTemporaireState extends State<AccueilTemporaire> {
                     child: const Text('COMBATTRE'),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+
+                // Bouton PROFIL
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                      );
+                    },
+                    child: const Text('PROFIL'),
+                  ),
+                ),
+                const SizedBox(height: 12),
 
                 // Bouton deconnexion
                 SizedBox(
@@ -137,6 +153,10 @@ class _AccueilTemporaireState extends State<AccueilTemporaire> {
                     onPressed: () async {
                       await widget.authService.deconnexion();
                     },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: OtakuColors.textMuted,
+                      side: const BorderSide(color: OtakuColors.border),
+                    ),
                     child: const Text('SE DECONNECTER'),
                   ),
                 ),

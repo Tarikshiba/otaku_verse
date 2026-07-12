@@ -21,35 +21,18 @@ reutilisera ce moteur de combat.
 - Etape 3 : Design system (theme.dart, violet electrique #7B2FF7)
 - Etape 4 : Authentification (inscription, connexion, deconnexion)
 - Etape 5 : 20 questions One Piece importees dans Supabase via script Node.js
+- Etape 6 : moteur de combat complet (PV, degats, combo, bot, parametrage, paysage force, animations shake + onomatopees)
+- Etape 7 : progression (XP, niveaux, rangs) + table profiles dans Supabase, affichage XP en fin de combat
 
-## En cours — Etape 6 refonte (moteur de combat)
+## En cours — Etape 8 (profil joueur)
 
-### Fait (2026-07-12)
-- Modeles de donnees combat (CombatParams, CombatState, ResultatTour) dans combat_models.dart
-- CombatService : logique degats, simulation bot, gestion combo (3 bonnes reponses = attaque speciale x2 degats)
-- Ecran de parametrage (combat_setup_page.dart) : choix anime + difficulte avant le combat
-- Ecran de combat (combat_page.dart) en mode paysage force :
-  - Barres de PV joueur et bot avec couleurs dynamiques (vert/orange/rouge)
-  - Indicateur de combo en cours (x1, x2...)
-  - Timer 20s par question
-  - Grille 2x2 des choix (adaptee au paysage)
-  - Feedback apres reponse en deux colonnes (joueur gauche / bot droite)
-  - Conditions de fin : K.O. (0 PV) ou decompte a la derniere question
-  - Ecran de resultat : victoire/defaite/egalite, PV restants, bouton rejouer/accueil
-- Accueil modifie : bouton JOUER remplace par COMBATTRE → mene au parametrage combat
-- App entiere forcee en paysage (global dans main.dart)
-- Bugs corriges : overflow ecrans (scrollable), RangeError si < 10 questions, feedback sur mauvaise question, vainqueur incorrect
-- Teste et valide sur emulateur par Tariq (victoire, defaite, egalite OK)
-
-### Reste a faire pour completer l'Etape 6
-- Ajouter des animations d'attaque (meme minimales : flash, shake)
-- Ajouter les onomatopees visuelles (BOOM, K.O.!) lors des coups / combos
-- Validation reponses cote serveur (Edge Function) — peut etre reporte
-- Plus de questions en base (actuellement 20 One Piece, le combat s'adapte au nombre reel)
+### A faire
+- Ecran profil : stats (niveau, rang, XP, combats joues/gagnes), historique des combats
+- Skin 3D fixe rotatif (un seul skin par defaut en V1)
+- Accessible depuis l'accueil
 
 ## Prochaine etape
-- Finir les tests manuels de l'Etape 6 sur emulateur
-- Une fois le combat valide : passer a l'Etape 7 (progression — XP, niveaux, rangs)
+- Etape 9 : recompenses de base (defis quotidiens, connexion quotidienne, badges)
 
 ## Decisions techniques prises
 - Couleur d'accent : violet electrique #7B2FF7
@@ -69,10 +52,9 @@ reutilisera ce moteur de combat.
 
 ## Problemes connus / points d'attention
 - Flutter non accessible depuis bash de Claude Code (Tariq doit tester manuellement)
-- Validation reponses cote client pour l'instant (Edge Function a ajouter — non bloquant pour le test)
-- Les animations de combat sont minimales (pas encore d'attaque visuelle animee, juste du texte de feedback)
+- Validation reponses cote client pour l'instant (Edge Function a ajouter — non bloquant)
 - Pas de personnages visuels encore (juste les barres de PV avec labels TOI / BOT)
+- 20 questions One Piece en base (le combat s'adapte au nombre reel)
 
 ## Dernier commit pousse
-- f2c58f4 : "Etape 6 : moteur de quiz fonctionnel (timer, feedback, resultats, fix RLS)"
-  (c'est l'ancien quiz vertical — le code combat ci-dessus n'est pas encore commit)
+- "Etape 7 : progression (XP, niveaux, rangs) + table profiles Supabase" (2026-07-12)
