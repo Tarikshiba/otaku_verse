@@ -61,6 +61,9 @@ class Question {
 class QuizService {
   final _supabase = Supabase.instance.client;
 
+  /// Acces au client Supabase (utilise par CombatService pour les requetes)
+  SupabaseClient get supabaseClient => _supabase;
+
   /// Recupere un lot de questions aleatoires.
   /// [nombre] : combien de questions on veut
   /// [anime] : filtrer par anime (optionnel)
