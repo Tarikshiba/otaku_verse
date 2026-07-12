@@ -24,16 +24,15 @@ reutilisera ce moteur de combat.
 - Etape 6 : moteur de combat complet (PV, degats, combo, bot, parametrage, paysage force, animations shake + onomatopees)
 - Etape 7 : progression (XP, niveaux, rangs) + table profiles dans Supabase, affichage XP en fin de combat
 - Etape 8 : ecran profil (stats, niveau, rang, barre XP, skin rotatif, taux de victoire)
+- Etape 9 : recompenses (connexion quotidienne +15 XP, 3 defis du jour +30 XP chacun, badges)
 
-## En cours — Etape 9 (recompenses de base)
+## En cours — Etape 10 (ecran d'accueil)
 
 ### A faire
-- Defis quotidiens (generation automatique, reset a minuit)
-- Recompense de connexion quotidienne
-- Badges de base (Premier Pas, Sans Egratignure, Fidele, etc.)
+- Assembler l'ecran d'accueil avec tous les elements (profil rapide, lancer combat, defi du jour, recompense quotidienne)
 
 ## Prochaine etape
-- Etape 10 : ecran d'accueil final (assembler tous les elements)
+- Etape 11 : dashboard admin (Next.js)
 
 ## Decisions techniques prises
 - Couleur d'accent : violet electrique #7B2FF7
@@ -58,4 +57,4 @@ reutilisera ce moteur de combat.
 - 20 questions One Piece en base (le combat s'adapte au nombre reel)
 
 ## Dernier commit pousse
-- "Etape 8 : ecran profil (stats, niveau, rang, skin rotatif, barre XP)" (2026-07-12)
+- "Etape 9 : recompenses (connexion quotidienne, defis du jour, badges)" (2026-07-12)

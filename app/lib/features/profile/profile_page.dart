@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
 import '../progression/progression_service.dart';
 
@@ -174,6 +175,23 @@ class _ProfilePageState extends State<ProfilePage> {
                     const SizedBox(width: 12),
                     _buildStatCard('TAUX', '$tauxVictoire%'),
                   ],
+                ),
+                const SizedBox(height: 20),
+                // Bouton deconnexion
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      await Supabase.instance.client.auth.signOut();
+                      if (!mounted) return;
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: OtakuColors.error,
+                      side: const BorderSide(color: OtakuColors.error),
+                    ),
+                    child: const Text('SE DECONNECTER'),
+                  ),
                 ),
               ],
             ),
