@@ -390,7 +390,7 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(width: 24),
-        const Text('VS', style: OtakuTypo.impact),
+        Text('VS', style: OtakuTypo.impact),
         const SizedBox(width: 24),
         // Bot (droite) — shake si touche
         Expanded(

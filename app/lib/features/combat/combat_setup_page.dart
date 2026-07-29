@@ -116,11 +116,11 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
               // Bouton retour
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.arrow_back, color: OtakuColors.textSecondary, size: 20),
-                    SizedBox(width: 8),
+                    const Icon(Icons.arrow_back, color: OtakuColors.textSecondary, size: 20),
+                    const SizedBox(width: 8),
                     Text('RETOUR', style: OtakuTypo.label),
                   ],
                 ),
@@ -128,16 +128,16 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
               const SizedBox(height: 24),
 
               // Titre
-              const Text('PREPARER LE COMBAT', style: OtakuTypo.headlineLarge),
+              Text('PREPARER LE COMBAT', style: OtakuTypo.headlineLarge),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Choisis ton terrain et la force de ton adversaire.',
                 style: OtakuTypo.bodySmall,
               ),
               const SizedBox(height: 32),
 
               // --- SECTION ANIME ---
-              const Text('ANIME', style: OtakuTypo.label),
+              Text('ANIME', style: OtakuTypo.label),
               const SizedBox(height: 12),
 
               if (_chargementAnimes)
@@ -154,7 +154,7 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
               const SizedBox(height: 28),
 
               // --- SECTION DIFFICULTE ---
-              const Text('DIFFICULTE', style: OtakuTypo.label),
+              Text('DIFFICULTE', style: OtakuTypo.label),
               const SizedBox(height: 12),
               _buildSelectionDifficulte(),
 

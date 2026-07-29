@@ -61,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 60),
-              const Center(
+              Center(
                 child: Text('OTAKU VERSE', style: OtakuTypo.displayLarge),
               ),
               const SizedBox(height: 8),

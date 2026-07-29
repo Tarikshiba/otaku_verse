@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
-Derniere mise a jour : 2026-07-12
+Derniere mise a jour : 2026-07-29
 Version en cours : V1
-Module en cours : combat_engine (Etape 6 refonte)
+Module en cours : refonte design (pre-etape)
 
 ## ATTENTION - CHANGEMENT DE DIRECTION IMPORTANT (2026-07-09)
 
@@ -26,19 +26,38 @@ reutilisera ce moteur de combat.
 - Etape 8 : ecran profil (stats, niveau, rang, barre XP, skin rotatif, taux de victoire)
 - Etape 9 : recompenses (connexion quotidienne +15 XP, 3 defis du jour +30 XP chacun, badges)
 - Etape 10 : ecran accueil style eFootball (top bar, banniere evenement, navigation tabs, boutons raccourcis, quitter, deconnexion dans profil)
+- Etape 11 : dashboard admin Next.js (login securise Drx/Heat, gestion questions CRUD, vue utilisateurs, API routes avec service_role key)
+- Etape 12 : validation serveur — Edge Function "valider-reponse" deployee sur Supabase (anti-triche, le serveur verifie les reponses et calcule les degats)
 
-## En cours — Etape 11 (dashboard admin)
+## En cours — Refonte design (DA V2.1 "Apple rencontre Shonen Jump")
 
-### A faire
-- Next.js + TypeScript + Tailwind : gestion des questions (ajout/modif/desactivation), gestion utilisateurs
-- Connexion securisee reservee a Tariq/Heat
-- Deploiement Vercel
+### DA recue et en cours d'implementation
+Document : OTAKU_VERSE_DA_LIQUID_GLASS.md (10% Liquid Glass, 90% identite manga)
+
+### Refonte etape 1 — FAIT
+- Nouveau theme.dart : palette DA V2.1 complete, Google Fonts (Anton, Bebas Neue, Bangers, Manrope, Space Grotesk)
+- Widget LiquidGlass reutilisable (backdrop blur, bordure, ombre, teinte par mode)
+- Tab bar Liquid Glass flottante avec bouton JOUER central surelevee + glow pulse violet
+- AppShell : navigation par tabs (Accueil, Jouer, Amis, Profil) en mode paysage
+- Accueil placeholder : top bar verre, banniere evenement, raccourcis (Combat, Defis, Rewards)
+
+### Refonte etape 2 — FAIT
+- Hub Jouer : 5 cartes de modes (Solo actif, Division/Events/Duel/Coop "BIENTOT")
+- Chaque carte a sa couleur dominante, icone, gradient, glow si actif
+- Animation stagger a l'entree (cartes montent une par une, 40ms de decalage)
+- Transition Accueil <-> Jouer animee (slide + fade, 400ms easeInOutCubic)
+- Solo lance le combat setup
+
+### Refonte etape 3 — A FAIRE (prochaine)
+- Feedback combat nerveux (~350ms, overshoot, shake, flash)
+- Sequence : flash → shake → texte impact "HIT!" → barre PV se vide → particules
+- Remplacement des animations molles actuelles par des animations punchy
 
 ## Prochaine etape
-- Etape 12 : tests globaux V1
+- Refonte etape 3 : animations de combat nerveuses (le chantier qui change le plus la sensation de jeu)
 
 ## Decisions techniques prises
-- Couleur d'accent : violet electrique #7B2FF7
+- Couleur d'accent : violet electrique #7B2FF7 (peut changer avec la refonte)
 - Auth : email sans confirmation (dev)
 - Navigation auth : StreamBuilder dans AuthGate
 - RLS questions : lecture pour anon + authenticated
@@ -52,12 +71,14 @@ reutilisera ce moteur de combat.
 - Skin joueur V1 : un seul skin fixe en 3D, rotatif dans le profil (pas de collection avant V1.5)
 - Grille de choix 2x2 en paysage (au lieu de liste verticale)
 - L'ancien code quiz (quiz_page.dart, quiz_result_page.dart) est conserve mais plus utilise depuis l'accueil
+- Dashboard admin : acces restreint a Drx@otaku.admin et Heat@otaku.admin
+- Validation reponses : Edge Function cote serveur (fallback local si hors-ligne = reponse consideree fausse)
 
 ## Problemes connus / points d'attention
 - Flutter non accessible depuis bash de Claude Code (Tariq doit tester manuellement)
-- Validation reponses cote client pour l'instant (Edge Function a ajouter — non bloquant)
-- Pas de personnages visuels encore (juste les barres de PV avec labels TOI / BOT)
-- 20 questions One Piece en base (le combat s'adapte au nombre reel)
+- 20 questions One Piece en base (besoin d'enrichir massivement avant lancement — objectif 10 000)
+- Le fallback local en cas d'erreur reseau considere la reponse comme fausse (acceptable pour la V1)
+- Performances a surveiller sur telephones d'entree de gamme apres la refonte design
 
 ## Dernier commit pousse
-- "Etape 10 : ecran accueil style eFootball" (2026-07-12)
+- "Etape 11-12 : dashboard admin fonctionnel + validation serveur (Edge Function)" (2026-07-29)

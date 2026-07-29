@@ -86,11 +86,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   alignment: Alignment.centerLeft,
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.arrow_back, color: OtakuColors.textSecondary, size: 20),
-                        SizedBox(width: 8),
+                        const Icon(Icons.arrow_back, color: OtakuColors.textSecondary, size: 20),
+                        const SizedBox(width: 8),
                         Text('RETOUR', style: OtakuTypo.label),
                       ],
                     ),
@@ -127,7 +127,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('PROFIL', style: OtakuTypo.headlineLarge),
+                Text('PROFIL', style: OtakuTypo.headlineLarge),
                 const SizedBox(height: 16),
 
                 // Niveau + barre d'XP

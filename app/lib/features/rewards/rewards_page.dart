@@ -132,7 +132,7 @@ class _RewardsPageState extends State<RewardsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('CONNEXION QUOTIDIENNE', style: OtakuTypo.label),
+                Text('CONNEXION QUOTIDIENNE', style: OtakuTypo.label),
                 const SizedBox(height: 4),
                 Text(
                   '+${RewardsService.xpConnexionQuotidienne} XP',
@@ -190,7 +190,7 @@ class _RewardsPageState extends State<RewardsPage> {
       children: [
         Row(
           children: [
-            const Text('DEFIS DU JOUR', style: OtakuTypo.headlineSmall),
+            Text('DEFIS DU JOUR', style: OtakuTypo.headlineSmall),
             const SizedBox(width: 8),
             Text(
               '+${RewardsService.xpDefiComplete} XP chacun',
@@ -277,7 +277,7 @@ class _RewardsPageState extends State<RewardsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('BADGES', style: OtakuTypo.headlineSmall),
+        Text('BADGES', style: OtakuTypo.headlineSmall),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
