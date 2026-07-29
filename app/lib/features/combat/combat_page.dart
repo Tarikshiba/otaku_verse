@@ -150,72 +150,72 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     _onomatopeeController.forward();
   }
 
-  /// Valide la reponse, joue le tour, declenche les animations
+  /// Valide la reponse via le serveur, joue le tour, declenche les animations
   void _validerReponse(String? reponse) {
     final question = widget.questions[_indexQuestion];
-    final joueurCorrect = reponse == question.bonneReponse;
 
     setState(() {
       _reponseChoisie = reponse ?? '';
     });
 
-    // Jouer le tour (calcul degats, combo, etc.)
-    final resultat = _combatService.jouerTour(
+    // Appeler le serveur pour valider (async)
+    _combatService.jouerTourServeur(
       etat: _etat,
-      joueurCorrect: joueurCorrect,
+      questionId: question.id,
+      reponseJoueur: reponse,
       difficulte: widget.params.difficulte,
-    );
-
-    // Compter les bonnes reponses
-    if (joueurCorrect) _bonnesReponses++;
-
-    setState(() {
-      _dernierResultat = resultat;
-      _phase = 'feedback';
-    });
-
-    // --- Declencher les animations selon le resultat ---
-    if (resultat.degatsInfliges > 0) {
-      _shakeBot.reset();
-      _shakeBot.forward();
-    }
-    if (resultat.degatsSubis > 0) {
-      _shakeJoueur.reset();
-      _shakeJoueur.forward();
-    }
-
-    // Onomatopee selon le cas
-    if (resultat.comboJoueurDeclenche) {
-      _afficherOnomatopee('COMBO !', OtakuColors.accent);
-    } else if (resultat.comboBotDeclenche) {
-      _afficherOnomatopee('BOOM !', OtakuColors.error);
-    } else if (resultat.joueurCorrect && resultat.degatsInfliges > 0) {
-      _afficherOnomatopee('HIT !', OtakuColors.success);
-    } else if (!joueurCorrect && reponse != null) {
-      _afficherOnomatopee('MISS...', OtakuColors.textMuted);
-    }
-
-    // Apres 2.5 secondes, passer au tour suivant ou terminer
-    Future.delayed(const Duration(milliseconds: 2500), () {
+    ).then((resultat) {
       if (!mounted) return;
 
-      _etat.questionActuelle++;
+      // Compter les bonnes reponses
+      if (resultat.joueurCorrect) _bonnesReponses++;
 
-      if (_etat.estTermine) {
-        // Onomatopee de fin
-        if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
-          _afficherOnomatopee('K.O. !', OtakuColors.warning);
-        }
-        // Calculer et sauvegarder la progression
-        _finaliserCombat();
-        Future.delayed(const Duration(milliseconds: 600), () {
-          if (!mounted) return;
-          setState(() => _phase = 'termine');
-        });
-      } else {
-        _demarrerTour();
-        setState(() {});
+      setState(() {
+        _dernierResultat = resultat;
+        _phase = 'feedback';
+      });
+
+      // --- Declencher les animations selon le resultat ---
+      if (resultat.degatsInfliges > 0) {
+        _shakeBot.reset();
+        _shakeBot.forward();
       }
+      if (resultat.degatsSubis > 0) {
+        _shakeJoueur.reset();
+        _shakeJoueur.forward();
+      }
+
+      // Onomatopee selon le cas
+      if (resultat.comboJoueurDeclenche) {
+        _afficherOnomatopee('COMBO !', OtakuColors.accent);
+      } else if (resultat.comboBotDeclenche) {
+        _afficherOnomatopee('BOOM !', OtakuColors.error);
+      } else if (resultat.joueurCorrect && resultat.degatsInfliges > 0) {
+        _afficherOnomatopee('HIT !', OtakuColors.success);
+      } else if (!resultat.joueurCorrect && reponse != null) {
+        _afficherOnomatopee('MISS...', OtakuColors.textMuted);
+      }
+
+      // Apres 2.5 secondes, passer au tour suivant ou terminer
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        if (!mounted) return;
+
+        _etat.questionActuelle++;
+
+        if (_etat.estTermine) {
+          if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
+            _afficherOnomatopee('K.O. !', OtakuColors.warning);
+          }
+          _finaliserCombat();
+          Future.delayed(const Duration(milliseconds: 600), () {
+            if (!mounted) return;
+            setState(() => _phase = 'termine');
+          });
+        } else {
+          _demarrerTour();
+          setState(() {});
+        }
+      });
     });
   }
 

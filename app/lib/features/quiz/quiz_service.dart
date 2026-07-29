@@ -12,6 +12,7 @@ class Question {
   final String choixB;
   final String choixC;
   final String choixD;
+  // bonneReponse garde en local uniquement pour le mode hors-ligne (fallback)
   final String bonneReponse;
   final String? explication;
 
@@ -57,6 +58,42 @@ class Question {
       ];
 }
 
+/// Resultat retourne par l'Edge Function apres validation
+class ResultatValidation {
+  final bool joueurCorrect;
+  final bool botCorrect;
+  final int degatsInfliges;
+  final int degatsSubis;
+  final bool comboJoueurDeclenche;
+  final bool comboBotDeclenche;
+  final int nouveauComboJoueur;
+  final int nouveauComboBot;
+
+  ResultatValidation({
+    required this.joueurCorrect,
+    required this.botCorrect,
+    required this.degatsInfliges,
+    required this.degatsSubis,
+    required this.comboJoueurDeclenche,
+    required this.comboBotDeclenche,
+    required this.nouveauComboJoueur,
+    required this.nouveauComboBot,
+  });
+
+  factory ResultatValidation.fromJson(Map<String, dynamic> json) {
+    return ResultatValidation(
+      joueurCorrect: json['joueur_correct'] ?? false,
+      botCorrect: json['bot_correct'] ?? false,
+      degatsInfliges: json['degats_infliges'] ?? 0,
+      degatsSubis: json['degats_subis'] ?? 0,
+      comboJoueurDeclenche: json['combo_joueur_declenche'] ?? false,
+      comboBotDeclenche: json['combo_bot_declenche'] ?? false,
+      nouveauComboJoueur: json['nouveau_combo_joueur'] ?? 0,
+      nouveauComboBot: json['nouveau_combo_bot'] ?? 0,
+    );
+  }
+}
+
 /// Service qui gere la recuperation des questions depuis Supabase.
 class QuizService {
   final _supabase = Supabase.instance.client;
@@ -98,5 +135,33 @@ class QuizService {
     questions.shuffle();
 
     return questions;
+  }
+
+  /// Appelle l'Edge Function pour valider une reponse cote serveur.
+  /// C'est le serveur qui verifie si la reponse est correcte et calcule les degats.
+  Future<ResultatValidation> validerReponse({
+    required String questionId,
+    required String reponse,
+    required int comboJoueur,
+    required int comboBot,
+    required String difficulte,
+  }) async {
+    final response = await _supabase.functions.invoke(
+      'valider-reponse',
+      body: {
+        'question_id': questionId,
+        'reponse': reponse,
+        'combo_joueur': comboJoueur,
+        'combo_bot': comboBot,
+        'difficulte': difficulte,
+      },
+    );
+
+    if (response.status != 200) {
+      throw Exception('Erreur serveur: ${response.status}');
+    }
+
+    final data = response.data as Map<String, dynamic>;
+    return ResultatValidation.fromJson(data);
   }
 }

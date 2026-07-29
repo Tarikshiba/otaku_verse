@@ -4,7 +4,8 @@ import 'combat_models.dart';
 
 /// === SERVICE DE COMBAT ===
 /// Gere toute la logique d'un combat : recuperation des questions,
-/// simulation du bot, calcul des degats, gestion des combos.
+/// validation des reponses via Edge Function (cote serveur),
+/// fallback local si pas de reseau.
 
 class CombatService {
   final QuizService _quizService = QuizService();
@@ -19,55 +20,108 @@ class CombatService {
     );
   }
 
-  /// Simule la reponse du bot pour ce tour.
-  /// Retourne true si le bot a "bien repondu", selon sa difficulte.
+  /// Valide la reponse via l'Edge Function (cote serveur).
+  /// Le serveur verifie la bonne reponse, simule le bot, calcule les degats.
+  /// En cas d'erreur reseau, on fallback sur la validation locale.
+  Future<ResultatTour> jouerTourServeur({
+    required CombatState etat,
+    required String questionId,
+    required String? reponseJoueur,
+    required String difficulte,
+  }) async {
+    // Si le joueur n'a pas repondu (timeout), on envoie une reponse vide
+    final reponse = reponseJoueur ?? '';
+
+    try {
+      final validation = await _quizService.validerReponse(
+        questionId: questionId,
+        reponse: reponse,
+        comboJoueur: etat.comboJoueur,
+        comboBot: etat.comboBot,
+        difficulte: difficulte,
+      );
+
+      // Mettre a jour l'etat avec les valeurs du serveur
+      etat.comboJoueur = validation.nouveauComboJoueur;
+      etat.comboBot = validation.nouveauComboBot;
+      etat.pvBot = (etat.pvBot - validation.degatsInfliges).clamp(0, CombatState.pvDepart);
+      etat.pvJoueur = (etat.pvJoueur - validation.degatsSubis).clamp(0, CombatState.pvDepart);
+
+      return ResultatTour(
+        joueurCorrect: validation.joueurCorrect,
+        botCorrect: validation.botCorrect,
+        degatsInfliges: validation.degatsInfliges,
+        degatsSubis: validation.degatsSubis,
+        comboJoueurDeclenche: validation.comboJoueurDeclenche,
+        comboBotDeclenche: validation.comboBotDeclenche,
+      );
+    } catch (_) {
+      // Fallback local si le serveur est injoignable
+      return _jouerTourLocal(
+        etat: etat,
+        reponseJoueur: reponseJoueur,
+        questionId: questionId,
+        difficulte: difficulte,
+      );
+    }
+  }
+
+  /// Fallback : validation locale (utilisee si pas de reseau)
+  ResultatTour _jouerTourLocal({
+    required CombatState etat,
+    required String? reponseJoueur,
+    required String questionId,
+    required String difficulte,
+  }) {
+    // En local, on ne peut pas valider sans la bonne reponse
+    // Ce fallback ne sera utilise qu'en cas d'erreur reseau
+    // Le joueur est considere comme ayant rate (securite)
+    final joueurCorrect = false;
+    final botCorrect = botRepond(difficulte: difficulte);
+
+    return _calculerTour(etat: etat, joueurCorrect: joueurCorrect, botCorrect: botCorrect);
+  }
+
+  /// Simule la reponse du bot pour ce tour (utilise en fallback local).
   bool botRepond({required String difficulte}) {
-    // Probabilite que le bot reponde correctement selon la difficulte choisie
     final double probaReussite;
     switch (difficulte) {
       case 'facile':
-        probaReussite = 0.3; // Le bot se trompe souvent
+        probaReussite = 0.3;
       case 'moyen':
-        probaReussite = 0.5; // 50/50
+        probaReussite = 0.5;
       case 'difficile':
-        probaReussite = 0.7; // Le bot est bon
+        probaReussite = 0.7;
       case 'expert':
-        probaReussite = 0.85; // Le bot est tres fort
-      default: // adaptatif — par defaut moyen
+        probaReussite = 0.85;
+      default:
         probaReussite = 0.5;
     }
     return _random.nextDouble() < probaReussite;
   }
 
-  /// Joue un tour complet : le joueur a repondu (correct ou non),
-  /// on simule le bot, et on met a jour l'etat du combat.
-  /// Retourne le resultat detaille du tour.
-  ResultatTour jouerTour({
+  /// Calcule les degats et met a jour l'etat (logique commune)
+  ResultatTour _calculerTour({
     required CombatState etat,
     required bool joueurCorrect,
-    required String difficulte,
+    required bool botCorrect,
   }) {
-    final botCorrect = botRepond(difficulte: difficulte);
-
-    // --- Calcul combo joueur ---
     bool comboJoueurDeclenche = false;
     int degatsInfliges = 0;
 
     if (joueurCorrect) {
       etat.comboJoueur++;
       if (etat.comboJoueur >= CombatState.seuilCombo) {
-        // Combo ! Attaque speciale
         comboJoueurDeclenche = true;
         degatsInfliges = CombatState.degatsSpeciaux;
-        etat.comboJoueur = 0; // Reset apres le combo
+        etat.comboJoueur = 0;
       } else {
         degatsInfliges = CombatState.degatsNormaux;
       }
     } else {
-      etat.comboJoueur = 0; // Reset du combo si mauvaise reponse
+      etat.comboJoueur = 0;
     }
 
-    // --- Calcul combo bot ---
     bool comboBotDeclenche = false;
     int degatsSubis = 0;
 
@@ -84,7 +138,6 @@ class CombatService {
       etat.comboBot = 0;
     }
 
-    // --- Appliquer les degats ---
     etat.pvBot = (etat.pvBot - degatsInfliges).clamp(0, CombatState.pvDepart);
     etat.pvJoueur = (etat.pvJoueur - degatsSubis).clamp(0, CombatState.pvDepart);
 
@@ -106,7 +159,6 @@ class CombatService {
         .select('anime')
         .eq('statut', 'actif');
 
-    // Extraire les animes uniques
     final animes = (reponse as List)
         .map((row) => row['anime'] as String)
         .toSet()

@@ -25,14 +25,17 @@ reutilisera ce moteur de combat.
 - Etape 7 : progression (XP, niveaux, rangs) + table profiles dans Supabase, affichage XP en fin de combat
 - Etape 8 : ecran profil (stats, niveau, rang, barre XP, skin rotatif, taux de victoire)
 - Etape 9 : recompenses (connexion quotidienne +15 XP, 3 defis du jour +30 XP chacun, badges)
+- Etape 10 : ecran accueil style eFootball (top bar, banniere evenement, navigation tabs, boutons raccourcis, quitter, deconnexion dans profil)
 
-## En cours — Etape 10 (ecran d'accueil)
+## En cours — Etape 11 (dashboard admin)
 
 ### A faire
-- Assembler l'ecran d'accueil avec tous les elements (profil rapide, lancer combat, defi du jour, recompense quotidienne)
+- Next.js + TypeScript + Tailwind : gestion des questions (ajout/modif/desactivation), gestion utilisateurs
+- Connexion securisee reservee a Tariq/Heat
+- Deploiement Vercel
 
 ## Prochaine etape
-- Etape 11 : dashboard admin (Next.js)
+- Etape 12 : tests globaux V1
 
 ## Decisions techniques prises
 - Couleur d'accent : violet electrique #7B2FF7
@@ -57,4 +60,4 @@ reutilisera ce moteur de combat.
 - 20 questions One Piece en base (le combat s'adapte au nombre reel)
 
 ## Dernier commit pousse
-- "Etape 9 : recompenses (connexion quotidienne, defis du jour, badges)" (2026-07-12)
+- "Etape 10 : ecran accueil style eFootball" (2026-07-12)
