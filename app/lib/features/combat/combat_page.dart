@@ -576,14 +576,29 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
           ],
         ),
         const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: pourcentage,
-            minHeight: 8,
-            backgroundColor: OtakuColors.border,
-            valueColor: AlwaysStoppedAnimation(couleurPV),
-          ),
+        // Barre PV avec bordure qui "respire"
+        AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) {
+            return Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: couleurPV.withValues(alpha: 0.2 + 0.15 * _pulseAnimation.value),
+                  width: 1,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: pourcentage,
+                  minHeight: 8,
+                  backgroundColor: OtakuColors.border,
+                  valueColor: AlwaysStoppedAnimation(couleurPV),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -592,21 +607,33 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
   /// Timer visuel
   Widget _buildTimer() {
     final enDanger = _tempsRestant <= 5;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: enDanger ? OtakuColors.error.withValues(alpha: 0.15) : OtakuColors.surface,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: enDanger ? OtakuColors.error : OtakuColors.border),
-      ),
-      child: Text(
-        '${_tempsRestant}s',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: enDanger ? OtakuColors.error : OtakuColors.textPrimary,
-        ),
-      ),
+    // Pulse a chaque seconde (scale 1.0 → 1.04 → 1.0)
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) {
+        final scale = enDanger ? (1.0 + 0.06 * _pulseAnimation.value) : 1.0;
+        return Transform.scale(
+          scale: scale,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: enDanger ? OtakuColors.pvCritique.withValues(alpha: 0.15) : OtakuColors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: enDanger ? OtakuColors.pvCritique : OtakuColors.border,
+                width: enDanger ? 1.5 : 1,
+              ),
+            ),
+            child: Text(
+              '${_tempsRestant}s',
+              style: OtakuTypo.hud.copyWith(
+                fontSize: 15,
+                color: enDanger ? OtakuColors.pvCritique : OtakuColors.textPrimary,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -619,25 +646,25 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
       children: [
         Row(
           children: [
-            Expanded(child: _buildBoutonChoix(choix[0], question.bonneReponse, aRepondu)),
+            Expanded(child: _buildBoutonChoix(choix[0], question.bonneReponse, aRepondu, 0)),
             const SizedBox(width: 8),
-            Expanded(child: _buildBoutonChoix(choix[1], question.bonneReponse, aRepondu)),
+            Expanded(child: _buildBoutonChoix(choix[1], question.bonneReponse, aRepondu, 1)),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: _buildBoutonChoix(choix[2], question.bonneReponse, aRepondu)),
+            Expanded(child: _buildBoutonChoix(choix[2], question.bonneReponse, aRepondu, 2)),
             const SizedBox(width: 8),
-            Expanded(child: _buildBoutonChoix(choix[3], question.bonneReponse, aRepondu)),
+            Expanded(child: _buildBoutonChoix(choix[3], question.bonneReponse, aRepondu, 3)),
           ],
         ),
       ],
     );
   }
 
-  /// Un bouton de choix individuel
-  Widget _buildBoutonChoix(MapEntry<String, String> choix, String bonneReponse, bool aRepondu) {
+  /// Un bouton de choix individuel — oscillation subtile quand pas encore repondu
+  Widget _buildBoutonChoix(MapEntry<String, String> choix, String bonneReponse, bool aRepondu, int index) {
     Color couleurBordure = OtakuColors.border;
     Color couleurFond = Colors.transparent;
 
@@ -651,14 +678,21 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
       }
     }
 
-    return GestureDetector(
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) {
+        // Oscillation subtile (±1px) quand pas encore repondu, decalee par index
+        final offset = aRepondu ? 0.0 : sin((_pulseAnimation.value * pi * 2) + index * 0.8) * 1.0;
+        return Transform.translate(offset: Offset(0, offset), child: child);
+      },
+      child: GestureDetector(
       onTap: aRepondu ? null : () => _onChoixSelectionne(choix.key),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: couleurFond,
           border: Border.all(color: couleurBordure, width: aRepondu ? 2 : 1),
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
@@ -696,6 +730,7 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
           ],
         ),
       ),
+    ),
     );
   }
 

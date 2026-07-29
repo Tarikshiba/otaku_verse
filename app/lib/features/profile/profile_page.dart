@@ -4,9 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
 import '../progression/progression_service.dart';
 
-/// === ECRAN PROFIL ===
-/// Affiche les stats du joueur, son rang, son XP,
-/// et un skin 3D rotatif (placeholder en V1).
+/// === ECRAN PROFIL — DA V2.1 ===
+/// Capsule verre pour le skin, stats en cartes Liquid Glass,
+/// typo HUD, texture seigaiha en fond (gere par AppShell).
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -61,136 +61,145 @@ class _ProfilePageState extends State<ProfilePage> {
     final combatsJoues = _profil?['combats_joues'] ?? 0;
     final combatsGagnes = _profil?['combats_gagnes'] ?? 0;
 
-    // Calcul de la barre d'XP vers le prochain niveau
     final xpDansNiveau = ProgressionService.xpDansNiveauActuel(xpTotale as int);
     final xpPourProchain = ProgressionService.xpRequise(niveau as int);
     final progressionXp = xpPourProchain > 0 ? xpDansNiveau / xpPourProchain : 0.0;
 
-    // Taux de victoire
     final tauxVictoire = combatsJoues > 0
         ? ((combatsGagnes / combatsJoues) * 100).round()
         : 0;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- COLONNE GAUCHE : Skin rotatif ---
+          // === COLONNE GAUCHE : Capsule verre + skin ===
           Expanded(
             flex: 2,
             child: Column(
               children: [
-                // Bouton retour
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                Expanded(
+                  child: LiquidGlass(
+                    tintColor: OtakuColors.accent,
+                    borderRadius: 20,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.arrow_back, color: OtakuColors.textSecondary, size: 20),
-                        const SizedBox(width: 8),
-                        Text('RETOUR', style: OtakuTypo.label),
+                        // Skin rotatif dans la capsule
+                        const Expanded(child: _SkinRotatif()),
+                        const SizedBox(height: 10),
+                        // Rang
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: OtakuColors.accent.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.5)),
+                          ),
+                          child: Text(
+                            rangActuel.toString().toUpperCase(),
+                            style: OtakuTypo.label.copyWith(color: OtakuColors.accent, fontSize: 11),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Skin rotatif (placeholder : silhouette stylisee)
-                const _SkinRotatif(),
-
-                const SizedBox(height: 12),
-
-                // Rang sous le skin
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: OtakuColors.accent, width: 2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: Text(
-                    rangActuel.toString().toUpperCase(),
-                    style: OtakuTypo.label.copyWith(color: OtakuColors.accent),
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 16),
 
-          const SizedBox(width: 24),
-
-          // --- COLONNE DROITE : Stats ---
+          // === COLONNE DROITE : Stats ===
           Expanded(
             flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('PROFIL', style: OtakuTypo.headlineLarge),
-                const SizedBox(height: 16),
-
-                // Niveau + barre d'XP
+                // Header
                 Row(
                   children: [
-                    Text('NIVEAU $niveau', style: OtakuTypo.headlineSmall),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '$xpDansNiveau / $xpPourProchain XP',
-                            style: OtakuTypo.bodySmall,
-                          ),
-                          const SizedBox(height: 4),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: progressionXp,
-                              minHeight: 8,
-                              backgroundColor: OtakuColors.border,
-                              valueColor: const AlwaysStoppedAnimation(OtakuColors.accent),
-                            ),
-                          ),
-                        ],
+                    Text('PROFIL', style: OtakuTypo.headlineLarge.copyWith(fontSize: 22)),
+                    const Spacer(),
+                    // Deconnexion
+                    GestureDetector(
+                      onTap: () async {
+                        await Supabase.instance.client.auth.signOut();
+                        if (!mounted) return;
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: OtakuColors.error.withValues(alpha: 0.4)),
+                        ),
+                        child: Text('DECONNEXION', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.error)),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
-                // Stats en grille
-                Row(
-                  children: [
-                    _buildStatCard('XP TOTALE', '$xpTotale'),
-                    const SizedBox(width: 12),
-                    _buildStatCard('COMBATS', '$combatsJoues'),
-                  ],
+                // Niveau + barre XP
+                LiquidGlass(
+                  borderRadius: 14,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      Text('Nv.$niveau', style: OtakuTypo.hud.copyWith(fontSize: 18, color: OtakuColors.accent)),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '$xpDansNiveau / $xpPourProchain XP',
+                              style: OtakuTypo.hud.copyWith(fontSize: 10, color: OtakuColors.textMuted),
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: progressionXp,
+                                minHeight: 6,
+                                backgroundColor: OtakuColors.border,
+                                valueColor: const AlwaysStoppedAnimation(OtakuColors.accent),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildStatCard('VICTOIRES', '$combatsGagnes'),
-                    const SizedBox(width: 12),
-                    _buildStatCard('TAUX', '$tauxVictoire%'),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                // Bouton deconnexion
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      await Supabase.instance.client.auth.signOut();
-                      if (!mounted) return;
-                      Navigator.of(context).popUntil((route) => route.isFirst);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: OtakuColors.error,
-                      side: const BorderSide(color: OtakuColors.error),
-                    ),
-                    child: const Text('SE DECONNECTER'),
+
+                // Stats en grille 2x2
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(child: _buildStatCard('XP TOTALE', '$xpTotale', OtakuColors.accent)),
+                            const SizedBox(height: 8),
+                            Expanded(child: _buildStatCard('VICTOIRES', '$combatsGagnes', OtakuColors.victoire)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(child: _buildStatCard('COMBATS', '$combatsJoues', OtakuColors.modeDuel)),
+                            const SizedBox(height: 8),
+                            Expanded(child: _buildStatCard('TAUX', '$tauxVictoire%', OtakuColors.pvMoyen)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -201,35 +210,24 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// Carte de stat individuelle
-  Widget _buildStatCard(String label, String valeur) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: OtakuColors.surface,
-          border: Border.all(color: OtakuColors.border),
-          borderRadius: BorderRadius.circular(2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: OtakuTypo.label.copyWith(
-              fontSize: 10,
-              color: OtakuColors.textMuted,
-            )),
-            const SizedBox(height: 4),
-            Text(valeur, style: OtakuTypo.headlineSmall.copyWith(
-              color: OtakuColors.accent,
-            )),
-          ],
-        ),
+  Widget _buildStatCard(String label, String valeur, Color couleur) {
+    return LiquidGlass(
+      borderRadius: 12,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(label, style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.textMuted)),
+          const SizedBox(height: 4),
+          Text(valeur, style: OtakuTypo.hud.copyWith(fontSize: 20, color: couleur)),
+        ],
       ),
     );
   }
 }
 
-/// Skin rotatif du joueur (placeholder V1 : silhouette stylisee avec rotation)
+/// Skin rotatif — capsule verre, rotation douce + drag
 class _SkinRotatif extends StatefulWidget {
   const _SkinRotatif();
 
@@ -246,7 +244,7 @@ class _SkinRotatifState extends State<_SkinRotatif> with SingleTickerProviderSta
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(seconds: 10),
     )..repeat();
   }
 
@@ -259,7 +257,6 @@ class _SkinRotatifState extends State<_SkinRotatif> with SingleTickerProviderSta
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      // Le joueur peut faire tourner le skin avec un drag horizontal
       onPanUpdate: (details) {
         setState(() {
           _rotation += details.delta.dx * 0.01;
@@ -272,30 +269,32 @@ class _SkinRotatifState extends State<_SkinRotatif> with SingleTickerProviderSta
           return Transform(
             alignment: Alignment.center,
             transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001) // Perspective
+              ..setEntry(3, 2, 0.001)
               ..rotateY(angle),
             child: child,
           );
         },
         child: Container(
-          width: 120,
-          height: 160,
+          width: 100,
+          height: 140,
           decoration: BoxDecoration(
-            border: Border.all(color: OtakuColors.accent, width: 2),
-            borderRadius: BorderRadius.circular(4),
-            color: OtakuColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(
+              colors: [
+                OtakuColors.accent.withValues(alpha: 0.15),
+                OtakuColors.accentDark.withValues(alpha: 0.05),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.3)),
           ),
-          child: const Column(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.person, size: 60, color: OtakuColors.accent),
-              SizedBox(height: 8),
-              Text('SKIN V1', style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: OtakuColors.textMuted,
-                letterSpacing: 1,
-              )),
+              Icon(Icons.person, size: 50, color: OtakuColors.accent.withValues(alpha: 0.7)),
+              const SizedBox(height: 6),
+              Text('SKIN V1', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.textMuted)),
             ],
           ),
         ),

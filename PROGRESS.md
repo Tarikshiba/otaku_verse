@@ -58,13 +58,41 @@ Document : OTAKU_VERSE_DA_LIQUID_GLASS.md (10% Liquid Glass, 90% identite manga)
 - Vignette rouge qui pulse quand PV < 20% (etat critique visuel)
 - Compteur combo avec couleurs distinctes (violet → or a x2+)
 
-### Refonte etape 4 — A FAIRE (prochaine)
-- Combo x3 : changement d'etat total (fond rouge/or overlay, screen shake, "SPECIAL ATTACK" geant)
-- Ecran resultat victoire : explosion manga, confettis stylises, barre XP live
-- Ecran resultat defaite : verre fissure, titre qui tombe, ralentissement
+### Refonte etape 4 — FAIT
+- Combo x3 : changement d'etat total (fond rouge/or overlay, screen shake global, flash intense, "SPECIAL!" geant en or)
+- Ecran resultat victoire : radial glow vert, titre 48px avec double glow, K.O.! en or, stats PV cote a cote, XP en carte verre
+- Ecran resultat defaite : vignette rouge, titre sobre, pas d'explosion
+- Ecran egalite : neutre, titre or
+- Boutons REJOUER/ACCUEIL accessibles (scroll si overflow paysage)
+- Fix : top bar accueil synchro avec le vrai profil Supabase (niveau, rang)
+
+### Refonte etape 5 — FAIT
+- Ecran Amis facade console (DA §9)
+- Header avec compteur + bouton AJOUTER en verre teinte
+- Tabs de filtrage : En ligne (vert), En combat (orange), Demandes (violet) avec compteurs
+- Cartes amis en Liquid Glass : indicateur statut, avatar, pseudo, rang, badge statut, icone defier
+- Contenu statique (backend amis prevu V1.5)
+
+### Refonte etape 6 — FAIT
+- Textures par section via CustomPainter (placeholder avant vrais SVG en prod)
+- Bulles de dialogue en fond ecran Amis, seigaiha en fond Profil
+- Systeme SectionTexture reutilisable (5 types : speedlines, seigaiha, eclats, bulles, electrique)
+- Opacite 6%, pas d'impact performance
+- Note : les vrais assets SVG seront produits pour la mise en production finale
+
+### Refonte etape 7 — FAIT
+- Barres PV qui "respirent" (bordure pulse opacite, 800ms boucle)
+- Timer pulse/grossit quand < 5s (scale 1.0→1.06, style critique)
+- Timer utilise typo HUD (Space Grotesk) + coins arrondis
+- Boutons de reponse oscillent subtilement (±1px, decales par index)
+- Boutons avec coins arrondis (8px au lieu de 2px)
+
+## REFONTE DESIGN TERMINEE
 
 ## Prochaine etape
-- Refonte etape 4 : etats combo x3 + ecrans de resultat victoire/defaite differencies
+- Tests globaux V1 (checklist ROADMAP §14)
+- Enrichissement base de questions (objectif 10 000, actuellement 20)
+- Mise en production (assets SVG definitifs, illustrations originales)
 
 ## Decisions techniques prises
 - Couleur d'accent : violet electrique #7B2FF7 (peut changer avec la refonte)
@@ -91,4 +119,4 @@ Document : OTAKU_VERSE_DA_LIQUID_GLASS.md (10% Liquid Glass, 90% identite manga)
 - Performances a surveiller sur telephones d'entree de gamme apres la refonte design
 
 ## Dernier commit pousse
-- "Etape 11-12 : dashboard admin fonctionnel + validation serveur (Edge Function)" (2026-07-29)
+- "Refonte design etapes 5-6-7 : ecran Amis, textures sections, polish combat" (2026-07-29)

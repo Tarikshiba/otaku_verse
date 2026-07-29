@@ -4,6 +4,7 @@ import '../features/combat/combat_setup_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/progression/progression_service.dart';
 import 'otaku_tab_bar.dart';
+import 'textures.dart';
 
 /// === SHELL PRINCIPAL DE L'APP ===
 /// Contient la tab bar Liquid Glass et gere la navigation entre les sections.
@@ -98,7 +99,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     switch (_indexActif) {
       case 0:
       case 1:
-        // Accueil et Jouer sont superposes avec transition animee
         return Stack(
           children: [
             SlideTransition(
@@ -115,9 +115,12 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
           ],
         );
       case 2:
-        return const _AmisPlaceholder();
+        return const _AmisScreen();
       case 3:
-        return const ProfilePage();
+        return SectionTexture(
+          type: TextureType.seigaiha,
+          child: const ProfilePage(),
+        );
       default:
         return const _AccueilPlaceholder();
     }
@@ -465,27 +468,178 @@ class _ModeData {
   });
 }
 
-/// Placeholder Amis (sera fait a l'etape 5)
-class _AmisPlaceholder extends StatelessWidget {
-  const _AmisPlaceholder();
+/// Ecran Amis — DA V2.1 §9 : interface console, sections empilees
+class _AmisScreen extends StatelessWidget {
+  const _AmisScreen();
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return SectionTexture(
+      type: TextureType.bulles,
+      child: SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.people_rounded, size: 48, color: OtakuColors.textMuted),
-              const SizedBox(height: 12),
-              Text('AMIS', style: OtakuTypo.headlineLarge),
-              const SizedBox(height: 6),
-              Text('Bientot disponible...', style: OtakuTypo.bodySmall),
-            ],
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Text('AMIS', style: OtakuTypo.headlineLarge.copyWith(fontSize: 22)),
+                const SizedBox(width: 12),
+                // Compteur total
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: OtakuColors.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('3', style: OtakuTypo.hud.copyWith(fontSize: 12, color: OtakuColors.accent)),
+                ),
+                const Spacer(),
+                // Bouton ajouter
+                GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: OtakuColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.person_add_rounded, size: 16, color: OtakuColors.accent),
+                        const SizedBox(width: 6),
+                        Text('AJOUTER', style: OtakuTypo.label.copyWith(fontSize: 10, color: OtakuColors.accent)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Tabs de filtrage
+            Row(
+              children: [
+                _buildTabChip('En ligne', 3, OtakuColors.pvHaut, true),
+                const SizedBox(width: 8),
+                _buildTabChip('En combat', 1, OtakuColors.modeDuel, false),
+                const SizedBox(width: 8),
+                _buildTabChip('Demandes', 2, OtakuColors.accent, false),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Liste des amis
+            Expanded(
+              child: ListView(
+                children: [
+                  _buildAmiCard('NarutoKing', 'Nv.18 · Passionne', 'En ligne', OtakuColors.pvHaut),
+                  const SizedBox(height: 8),
+                  _buildAmiCard('Luffy92', 'Nv.12 · Apprenti Otaku', 'En ligne', OtakuColors.pvHaut),
+                  const SizedBox(height: 8),
+                  _buildAmiCard('ErenYeager', 'Nv.24 · Expert', 'En ligne', OtakuColors.pvHaut),
+                  const SizedBox(height: 8),
+                  _buildAmiCard('Zoro', 'Nv.31 · Expert', 'En combat', OtakuColors.modeDuel),
+                ],
+              ),
+            ),
+          ],
         ),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildTabChip(String label, int count, Color couleur, bool actif) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: actif ? couleur.withValues(alpha: 0.15) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: actif ? couleur.withValues(alpha: 0.5) : OtakuColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: OtakuTypo.label.copyWith(fontSize: 10, color: actif ? couleur : OtakuColors.textMuted)),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: couleur.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text('$count', style: OtakuTypo.hud.copyWith(fontSize: 10, color: couleur)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmiCard(String pseudo, String info, String statut, Color couleurStatut) {
+    final enCombat = statut == 'En combat';
+
+    return LiquidGlass(
+      borderRadius: 12,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          // Indicateur de statut
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: couleurStatut,
+              boxShadow: [BoxShadow(color: couleurStatut.withValues(alpha: 0.5), blurRadius: 6)],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Avatar
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: couleurStatut.withValues(alpha: 0.5), width: 1.5),
+              color: OtakuColors.surface,
+            ),
+            child: Icon(Icons.person, size: 18, color: couleurStatut.withValues(alpha: 0.7)),
+          ),
+          const SizedBox(width: 12),
+          // Infos
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(pseudo, style: OtakuTypo.headlineSmall.copyWith(fontSize: 13)),
+                Text(info, style: OtakuTypo.bodySmall.copyWith(fontSize: 10)),
+              ],
+            ),
+          ),
+          // Statut
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: couleurStatut.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              statut,
+              style: OtakuTypo.label.copyWith(fontSize: 9, color: couleurStatut),
+            ),
+          ),
+          // Action
+          if (!enCombat) ...[
+            const SizedBox(width: 10),
+            Icon(Icons.sports_mma_rounded, size: 18, color: OtakuColors.modeDuel.withValues(alpha: 0.6)),
+          ],
+        ],
       ),
     );
   }
