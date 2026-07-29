@@ -48,13 +48,23 @@ Document : OTAKU_VERSE_DA_LIQUID_GLASS.md (10% Liquid Glass, 90% identite manga)
 - Transition Accueil <-> Jouer animee (slide + fade, 400ms easeInOutCubic)
 - Solo lance le combat setup
 
-### Refonte etape 3 — A FAIRE (prochaine)
-- Feedback combat nerveux (~350ms, overshoot, shake, flash)
-- Sequence : flash → shake → texte impact "HIT!" → barre PV se vide → particules
-- Remplacement des animations molles actuelles par des animations punchy
+### Refonte etape 3 — FAIT
+- Flash blanc d'impact (60ms) avant chaque degat
+- Shake violent (150ms, amplitude x2) au lieu de 400ms mou
+- Onomatopees en Bangers avec overshoot elastic + double glow (HIT!, SPECIAL!, BOOM!, MISS, K.O.!)
+- Tempo reduit : 1.2s de feedback au lieu de 2.5s (combat plus nerveux)
+- Couleurs combo : combo2 violet glow, combo3 or
+- Barres PV avec typo HUD (Space Grotesk), couleurs pvHaut/pvMoyen/pvCritique
+- Vignette rouge qui pulse quand PV < 20% (etat critique visuel)
+- Compteur combo avec couleurs distinctes (violet → or a x2+)
+
+### Refonte etape 4 — A FAIRE (prochaine)
+- Combo x3 : changement d'etat total (fond rouge/or overlay, screen shake, "SPECIAL ATTACK" geant)
+- Ecran resultat victoire : explosion manga, confettis stylises, barre XP live
+- Ecran resultat defaite : verre fissure, titre qui tombe, ralentissement
 
 ## Prochaine etape
-- Refonte etape 3 : animations de combat nerveuses (le chantier qui change le plus la sensation de jeu)
+- Refonte etape 4 : etats combo x3 + ecrans de resultat victoire/defaite differencies
 
 ## Decisions techniques prises
 - Couleur d'accent : violet electrique #7B2FF7 (peut changer avec la refonte)

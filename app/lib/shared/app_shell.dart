@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../features/combat/combat_setup_page.dart';
 import '../features/profile/profile_page.dart';
+import '../features/progression/progression_service.dart';
 import 'otaku_tab_bar.dart';
 
 /// === SHELL PRINCIPAL DE L'APP ===
@@ -123,12 +124,37 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   }
 }
 
-/// Placeholder Accueil en PAYSAGE (sera remplace par le vrai hub dans l'etape 2)
-class _AccueilPlaceholder extends StatelessWidget {
+/// Accueil en PAYSAGE — charge les vraies donnees du profil
+class _AccueilPlaceholder extends StatefulWidget {
   const _AccueilPlaceholder();
 
   @override
+  State<_AccueilPlaceholder> createState() => _AccueilPlaceholderState();
+}
+
+class _AccueilPlaceholderState extends State<_AccueilPlaceholder> {
+  final _progressionService = ProgressionService();
+  Map<String, dynamic>? _profil;
+
+  @override
+  void initState() {
+    super.initState();
+    _chargerProfil();
+  }
+
+  Future<void> _chargerProfil() async {
+    try {
+      await _progressionService.creerProfilSiAbsent();
+      final profil = await _progressionService.recupererProfil();
+      if (mounted) setState(() => _profil = profil);
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final niveau = _profil?['niveau'] ?? 1;
+    final rang = _profil?['rang'] ?? 'Debutant';
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
@@ -156,7 +182,7 @@ class _AccueilPlaceholder extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text('Joueur', style: OtakuTypo.headlineSmall.copyWith(fontSize: 13)),
-                      Text('Nv. 1 — Debutant', style: OtakuTypo.bodySmall.copyWith(fontSize: 10)),
+                      Text('Nv. $niveau — $rang', style: OtakuTypo.bodySmall.copyWith(fontSize: 10)),
                     ],
                   ),
                   const Spacer(),

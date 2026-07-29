@@ -58,17 +58,26 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
   Map<String, dynamic>? _profilMisAJour;
   bool _progressionChargee = false;
 
-  // --- ANIMATIONS ---
-  // Shake quand le joueur prend des degats
+  // --- ANIMATIONS (DA V2.1 : nerveuses, ~350ms) ---
+  // Shake quand le joueur prend des degats (court et violent)
   late AnimationController _shakeJoueur;
   // Shake quand le bot prend des degats
   late AnimationController _shakeBot;
-  // Onomatopee qui apparait et disparait
+  // Onomatopee qui apparait et disparait (overshoot elastic)
   late AnimationController _onomatopeeController;
   late Animation<double> _onomatopeeOpacity;
   late Animation<double> _onomatopeeScale;
   String _onomatopeeTexte = '';
   Color _onomatopeeCouleur = OtakuColors.accent;
+  // Flash d'impact (blanc, bref)
+  bool _flashActif = false;
+  // Etat combo special (fond rouge/or, screen shake)
+  bool _comboSpecialActif = false;
+  // Etat critique (PV < 20%)
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  // Screen shake global pour combo
+  late AnimationController _screenShakeController;
 
   @override
   void initState() {
@@ -76,34 +85,49 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     _nbQuestionsReelles = widget.questions.length;
     _etat = CombatState(nbQuestions: _nbQuestionsReelles);
 
-    // Shake joueur (court, rapide)
+    // Shake joueur — 150ms, violent
     _shakeJoueur = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 150),
     );
 
-    // Shake bot
+    // Shake bot — 150ms, violent
     _shakeBot = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 150),
     );
 
-    // Onomatopee (apparait en gros, puis disparait)
+    // Onomatopee — rapide avec overshoot
     _onomatopeeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 500),
     );
     _onomatopeeOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _onomatopeeController,
-        curve: const Interval(0.5, 1.0), // Reste visible 50% du temps, puis fade
+        curve: const Interval(0.6, 1.0),
       ),
     );
-    _onomatopeeScale = Tween<double>(begin: 0.5, end: 1.5).animate(
+    _onomatopeeScale = Tween<double>(begin: 0.3, end: 1.2).animate(
       CurvedAnimation(
         parent: _onomatopeeController,
         curve: Curves.elasticOut,
       ),
+    );
+
+    // Pulse pour PV critique
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    // Screen shake global pour combo x3
+    _screenShakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
     );
 
     _demarrerTour();
@@ -115,6 +139,8 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     _shakeJoueur.dispose();
     _shakeBot.dispose();
     _onomatopeeController.dispose();
+    _pulseController.dispose();
+    _screenShakeController.dispose();
     super.dispose();
   }
 
@@ -150,7 +176,8 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     _onomatopeeController.forward();
   }
 
-  /// Valide la reponse via le serveur, joue le tour, declenche les animations
+  /// Valide la reponse via le serveur — feedback nerveux DA V2.1
+  /// Sequence : flash (60ms) → shake (100ms) → onomatopee overshoot → barre PV → tour suivant
   void _validerReponse(String? reponse) {
     final question = widget.questions[_indexQuestion];
 
@@ -158,24 +185,25 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
       _reponseChoisie = reponse ?? '';
     });
 
-    // Appeler le serveur pour valider (async)
     _combatService.jouerTourServeur(
       etat: _etat,
       questionId: question.id,
       reponseJoueur: reponse,
       difficulte: widget.params.difficulte,
-    ).then((resultat) {
+    ).then((resultat) async {
       if (!mounted) return;
 
-      // Compter les bonnes reponses
       if (resultat.joueurCorrect) _bonnesReponses++;
 
-      setState(() {
-        _dernierResultat = resultat;
-        _phase = 'feedback';
-      });
+      // === FLASH D'IMPACT (60ms) ===
+      if (resultat.degatsInfliges > 0 || resultat.degatsSubis > 0) {
+        setState(() => _flashActif = true);
+        await Future.delayed(const Duration(milliseconds: 60));
+        if (!mounted) return;
+        setState(() => _flashActif = false);
+      }
 
-      // --- Declencher les animations selon le resultat ---
+      // === SHAKE (100ms, en parallele du reste) ===
       if (resultat.degatsInfliges > 0) {
         _shakeBot.reset();
         _shakeBot.forward();
@@ -185,37 +213,62 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
         _shakeJoueur.forward();
       }
 
-      // Onomatopee selon le cas
-      if (resultat.comboJoueurDeclenche) {
-        _afficherOnomatopee('COMBO !', OtakuColors.accent);
-      } else if (resultat.comboBotDeclenche) {
-        _afficherOnomatopee('BOOM !', OtakuColors.error);
+      // === ONOMATOPEE AVEC OVERSHOOT (demarre 60ms apres le shake) ===
+      await Future.delayed(const Duration(milliseconds: 60));
+      if (!mounted) return;
+
+      if (resultat.comboJoueurDeclenche || resultat.comboBotDeclenche) {
+        // === COMBO x3 : CHANGEMENT D'ETAT TOTAL ===
+        setState(() => _comboSpecialActif = true);
+        _screenShakeController.reset();
+        _screenShakeController.forward();
+
+        // Flash blanc intense
+        setState(() => _flashActif = true);
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (!mounted) return;
+        setState(() => _flashActif = false);
+
+        // Onomatopee geante
+        _afficherOnomatopee(
+          resultat.comboJoueurDeclenche ? 'SPECIAL!' : 'BOOM!',
+          resultat.comboJoueurDeclenche ? OtakuColors.combo3 : OtakuColors.error,
+        );
+
+        // Garder l'etat special visible un moment
+        await Future.delayed(const Duration(milliseconds: 400));
+        if (!mounted) return;
+        setState(() => _comboSpecialActif = false);
       } else if (resultat.joueurCorrect && resultat.degatsInfliges > 0) {
-        _afficherOnomatopee('HIT !', OtakuColors.success);
+        _afficherOnomatopee('HIT!', OtakuColors.pvHaut);
       } else if (!resultat.joueurCorrect && reponse != null) {
-        _afficherOnomatopee('MISS...', OtakuColors.textMuted);
+        _afficherOnomatopee('MISS', OtakuColors.textMuted);
       }
 
-      // Apres 2.5 secondes, passer au tour suivant ou terminer
-      Future.delayed(const Duration(milliseconds: 2500), () {
-        if (!mounted) return;
-
-        _etat.questionActuelle++;
-
-        if (_etat.estTermine) {
-          if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
-            _afficherOnomatopee('K.O. !', OtakuColors.warning);
-          }
-          _finaliserCombat();
-          Future.delayed(const Duration(milliseconds: 600), () {
-            if (!mounted) return;
-            setState(() => _phase = 'termine');
-          });
-        } else {
-          _demarrerTour();
-          setState(() {});
-        }
+      // === MISE A JOUR ETAT (barre PV se vide) ===
+      setState(() {
+        _dernierResultat = resultat;
+        _phase = 'feedback';
       });
+
+      // === 1.2 secondes de feedback visible puis tour suivant ===
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
+
+      _etat.questionActuelle++;
+
+      if (_etat.estTermine) {
+        if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
+          _afficherOnomatopee('K.O.!', OtakuColors.warning);
+        }
+        _finaliserCombat();
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (!mounted) return;
+        setState(() => _phase = 'termine');
+      } else {
+        _demarrerTour();
+        setState(() {});
+      }
     });
   }
 
@@ -267,8 +320,34 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: OtakuColors.background,
       body: SafeArea(
-        child: Stack(
+        child: AnimatedBuilder(
+          animation: _screenShakeController,
+          builder: (context, child) {
+            final shake = _screenShakeController.isAnimating
+                ? sin(_screenShakeController.value * pi * 6) * 3
+                : 0.0;
+            return Transform.translate(
+              offset: Offset(shake, shake * 0.5),
+              child: child,
+            );
+          },
+          child: Stack(
           children: [
+            // Overlay fond combo special (rouge/or)
+            if (_comboSpecialActif)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      OtakuColors.combo3.withValues(alpha: 0.15),
+                      OtakuColors.error.withValues(alpha: 0.1),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+
             // Contenu principal
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -321,15 +400,38 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
               ),
             ),
 
+            // --- FLASH D'IMPACT ---
+            _buildFlashOverlay(),
+
             // --- ONOMATOPEE EN OVERLAY ---
             _buildOnomatopeeOverlay(),
+
+            // --- VIGNETTE PV CRITIQUE ---
+            if (_etat.pvJoueur <= 20 || _etat.pvBot <= 20)
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, _) => IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        colors: [
+                          Colors.transparent,
+                          OtakuColors.pvCritique.withValues(alpha: 0.12 * _pulseAnimation.value),
+                        ],
+                        radius: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
+        ),
         ),
       ),
     );
   }
 
-  /// Overlay des onomatopees (COMBO!, HIT!, BOOM!, K.O.!)
+  /// Overlay des onomatopees — style Bangers, overshoot, glow
   Widget _buildOnomatopeeOverlay() {
     return AnimatedBuilder(
       animation: _onomatopeeController,
@@ -344,15 +446,18 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
               scale: _onomatopeeScale.value,
               child: Text(
                 _onomatopeeTexte,
-                style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.w900,
+                style: OtakuTypo.impact.copyWith(
+                  fontSize: 56,
                   color: _onomatopeeCouleur,
                   letterSpacing: 4,
                   shadows: [
                     Shadow(
-                      color: _onomatopeeCouleur.withValues(alpha: 0.5),
-                      blurRadius: 20,
+                      color: _onomatopeeCouleur.withValues(alpha: 0.7),
+                      blurRadius: 24,
+                    ),
+                    Shadow(
+                      color: _onomatopeeCouleur.withValues(alpha: 0.4),
+                      blurRadius: 48,
                     ),
                   ],
                 ),
@@ -364,17 +469,23 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     );
   }
 
+  /// Overlay flash blanc d'impact
+  Widget _buildFlashOverlay() {
+    if (!_flashActif) return const SizedBox.shrink();
+    return Container(color: Colors.white.withValues(alpha: 0.3));
+  }
+
   /// Barres de PV joueur (gauche) et bot (droite) avec shake
   Widget _buildBarresPV() {
     return Row(
       children: [
-        // Joueur (gauche) — shake si touche
+        // Joueur (gauche) — shake violent si touche
         Expanded(
           child: AnimatedBuilder(
             animation: _shakeJoueur,
             builder: (context, child) {
               final offset = _shakeJoueur.isAnimating
-                  ? sin(_shakeJoueur.value * pi * 6) * 4
+                  ? sin(_shakeJoueur.value * pi * 8) * 8
                   : 0.0;
               return Transform.translate(
                 offset: Offset(offset, 0),
@@ -390,15 +501,15 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(width: 24),
-        Text('VS', style: OtakuTypo.impact),
+        Text('VS', style: OtakuTypo.impact.copyWith(fontSize: 20)),
         const SizedBox(width: 24),
-        // Bot (droite) — shake si touche
+        // Bot (droite) — shake violent si touche
         Expanded(
           child: AnimatedBuilder(
             animation: _shakeBot,
             builder: (context, child) {
               final offset = _shakeBot.isAnimating
-                  ? sin(_shakeBot.value * pi * 6) * 4
+                  ? sin(_shakeBot.value * pi * 8) * 8
                   : 0.0;
               return Transform.translate(
                 offset: Offset(offset, 0),
@@ -425,11 +536,11 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     required bool alignDroite,
   }) {
     final pourcentage = pv / CombatState.pvDepart;
-    Color couleurPV = OtakuColors.success;
-    if (pourcentage <= 0.25) {
-      couleurPV = OtakuColors.error;
+    Color couleurPV = OtakuColors.pvHaut;
+    if (pourcentage <= 0.2) {
+      couleurPV = OtakuColors.pvCritique;
     } else if (pourcentage <= 0.5) {
-      couleurPV = OtakuColors.warning;
+      couleurPV = OtakuColors.pvMoyen;
     }
 
     return Column(
@@ -438,27 +549,26 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
         Row(
           mainAxisAlignment: alignDroite ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
-            Text(label, style: OtakuTypo.label),
+            Text(label, style: OtakuTypo.hud.copyWith(fontSize: 12)),
             const SizedBox(width: 8),
             Text(
               '$pv/${CombatState.pvDepart}',
-              style: OtakuTypo.bodySmall.copyWith(color: couleurPV),
+              style: OtakuTypo.hud.copyWith(fontSize: 13, color: couleurPV),
             ),
             if (combo > 0) ...[
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: OtakuColors.accent.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: OtakuColors.accent),
+                  color: (combo >= 2 ? OtakuColors.combo3 : OtakuColors.combo2).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: combo >= 2 ? OtakuColors.combo3 : OtakuColors.combo2),
                 ),
                 child: Text(
                   '×$combo',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: OtakuColors.accent,
+                  style: OtakuTypo.hud.copyWith(
+                    fontSize: 12,
+                    color: combo >= 2 ? OtakuColors.combo3 : OtakuColors.combo2,
                   ),
                 ),
               ),
@@ -636,124 +746,186 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     );
   }
 
-  /// Ecran de resultat quand le combat est termine
+  /// Ecran de resultat — DA V2.1 : victoire explosive, defaite sobre
   Widget _buildEcranResultat() {
     final victoire = _etat.vainqueur == 'joueur';
     final egalite = _etat.vainqueur == 'egalite';
     final ko = _etat.pvBot <= 0 || _etat.pvJoueur <= 0;
 
-    // Infos de progression
     final niveau = _profilMisAJour?['niveau'] ?? 1;
     final ancienNiveau = _profilMisAJour?['ancien_niveau'] ?? niveau;
     final aMonteDeNiveau = niveau > ancienNiveau;
     final rangActuel = _profilMisAJour?['rang'] ?? 'Debutant';
 
+    final couleurTitre = victoire ? OtakuColors.victoire : (egalite ? OtakuColors.pvMoyen : OtakuColors.defaite);
+
     return Scaffold(
       backgroundColor: OtakuColors.background,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Titre victoire/defaite
-                Text(
-                  victoire ? 'VICTOIRE !' : (egalite ? 'EGALITE' : 'DEFAITE...'),
-                  style: OtakuTypo.impact.copyWith(
-                    fontSize: 36,
-                    color: victoire ? OtakuColors.success : (egalite ? OtakuColors.warning : OtakuColors.error),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                if (ko)
-                  Text(
-                    'K.O. !',
-                    style: OtakuTypo.headlineLarge.copyWith(color: OtakuColors.warning),
-                  ),
-
-                const SizedBox(height: 20),
-
-                // Stats PV
-                Text('PV restants : ${_etat.pvJoueur}/${CombatState.pvDepart}',
-                    style: OtakuTypo.bodyLarge),
-                Text('PV du bot : ${_etat.pvBot}/${CombatState.pvDepart}',
-                    style: OtakuTypo.bodySmall),
-
-                const SizedBox(height: 20),
-
-                // --- XP GAGNEE ---
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: OtakuColors.surface,
-                    border: Border.all(color: OtakuColors.accent),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        '+$_xpGagne XP',
-                        style: OtakuTypo.headlineLarge.copyWith(color: OtakuColors.accent),
-                      ),
-                      const SizedBox(height: 4),
-                      if (_progressionChargee) ...[
-                        Text(
-                          'Niveau $niveau — $rangActuel',
-                          style: OtakuTypo.bodySmall,
-                        ),
-                        if (aMonteDeNiveau)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              'LEVEL UP !',
-                              style: OtakuTypo.impact.copyWith(fontSize: 18),
-                            ),
-                          ),
-                      ] else
-                        const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+        child: Stack(
+          children: [
+            // Fond stylise selon le resultat
+            if (victoire)
+              // Victoire : radial glow vert/violet
+              Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      OtakuColors.victoire.withValues(alpha: 0.08),
+                      OtakuColors.background,
                     ],
+                    radius: 1.0,
                   ),
                 ),
+              )
+            else if (!egalite)
+              // Defaite : vignette sombre + craquelures visuelles (bandes)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.transparent,
+                      OtakuColors.defaite.withValues(alpha: 0.08),
+                    ],
+                    radius: 0.8,
+                  ),
+                ),
+              ),
 
-                const SizedBox(height: 24),
-
-                // Boutons
-                Row(
+            // Contenu principal
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CombatPage(
-                              questions: widget.questions..shuffle(),
-                              params: widget.params,
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Text('REJOUER'),
+                    // Titre avec glow
+                    Text(
+                      victoire ? 'VICTOIRE!' : (egalite ? 'EGALITE' : 'DEFAITE'),
+                      style: OtakuTypo.impact.copyWith(
+                        fontSize: victoire ? 48 : 40,
+                        color: couleurTitre,
+                        shadows: [
+                          Shadow(color: couleurTitre.withValues(alpha: 0.6), blurRadius: 24),
+                          Shadow(color: couleurTitre.withValues(alpha: 0.3), blurRadius: 48),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    OutlinedButton(
-                      onPressed: () {
-                        Navigator.of(context).popUntil((route) => route.isFirst);
-                      },
-                      child: const Text('ACCUEIL'),
+
+                    if (ko) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'K.O.!',
+                        style: OtakuTypo.impact.copyWith(
+                          fontSize: 24,
+                          color: OtakuColors.combo3,
+                          shadows: [Shadow(color: OtakuColors.combo3.withValues(alpha: 0.5), blurRadius: 16)],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 14),
+
+                    // Stats PV en row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildStatResultat('TOI', _etat.pvJoueur, CombatState.pvDepart),
+                        const SizedBox(width: 32),
+                        Text('VS', style: OtakuTypo.hud.copyWith(color: OtakuColors.textMuted)),
+                        const SizedBox(width: 32),
+                        _buildStatResultat('BOT', _etat.pvBot, CombatState.pvDepart),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // XP gagnee — carte en verre
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '+$_xpGagne XP',
+                            style: OtakuTypo.hud.copyWith(fontSize: 22, color: OtakuColors.accent),
+                          ),
+                          if (_progressionChargee) ...[
+                            const SizedBox(width: 16),
+                            Text(
+                              'Nv.$niveau · $rangActuel',
+                              style: OtakuTypo.bodySmall,
+                            ),
+                          ],
+                          if (aMonteDeNiveau) ...[
+                            const SizedBox(width: 12),
+                            Text(
+                              'LEVEL UP!',
+                              style: OtakuTypo.impact.copyWith(fontSize: 16, color: OtakuColors.combo3),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Boutons — REJOUER gros, ACCUEIL subtil
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CombatPage(
+                                  questions: widget.questions..shuffle(),
+                                  params: widget.params,
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                          ),
+                          child: Text('REJOUER', style: OtakuTypo.label.copyWith(color: Colors.black)),
+                        ),
+                        const SizedBox(width: 16),
+                        OutlinedButton(
+                          onPressed: () {
+                            Navigator.of(context).popUntil((route) => route.isFirst);
+                          },
+                          child: Text('ACCUEIL', style: OtakuTypo.label.copyWith(color: OtakuColors.accent)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
+    );
+  }
+
+  /// Mini stat pour l'ecran resultat (PV restants)
+  Widget _buildStatResultat(String label, int pv, int pvMax) {
+    final pourcentage = pv / pvMax;
+    final couleur = pourcentage <= 0.2 ? OtakuColors.pvCritique : (pourcentage <= 0.5 ? OtakuColors.pvMoyen : OtakuColors.pvHaut);
+    return Column(
+      children: [
+        Text(label, style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+        const SizedBox(height: 4),
+        Text('$pv', style: OtakuTypo.hud.copyWith(fontSize: 24, color: couleur)),
+        Text('/$pvMax', style: OtakuTypo.bodySmall.copyWith(fontSize: 11)),
+      ],
     );
   }
 }
