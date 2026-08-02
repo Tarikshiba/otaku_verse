@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
-Derniere mise a jour : 2026-07-29
-Version en cours : V1
-Module en cours : refonte design (pre-etape)
+Derniere mise a jour : 2026-08-02
+Version en cours : V1.5
+Module en cours : social + classements + skins
 
 ## ATTENTION - CHANGEMENT DE DIRECTION IMPORTANT (2026-07-09)
 
@@ -15,6 +15,8 @@ K.O., 10 questions max). Le multijoueur reel reste en V2 comme prevu, mais
 reutilisera ce moteur de combat.
 
 ## Termine et teste
+
+### V1 (complete)
 - Etape 0 : structure de dossiers, .gitignore, .env.example, repo Git init
 - Etape 1 : projet Flutter cree, compile et tourne sur emulateur Android (Pixel 8)
 - Etape 2 : Supabase connecte (URL + anon key, test OK)
@@ -28,74 +30,64 @@ reutilisera ce moteur de combat.
 - Etape 10 : ecran accueil style eFootball (top bar, banniere evenement, navigation tabs, boutons raccourcis, quitter, deconnexion dans profil)
 - Etape 11 : dashboard admin Next.js (login securise Drx/Heat, gestion questions CRUD, vue utilisateurs, API routes avec service_role key)
 - Etape 12 : validation serveur — Edge Function "valider-reponse" deployee sur Supabase (anti-triche, le serveur verifie les reponses et calcule les degats)
+- Refonte design complete (DA V2.1 "Apple rencontre Shonen Jump") — 7 sous-etapes
 
-## En cours — Refonte design (DA V2.1 "Apple rencontre Shonen Jump")
+### V1.5 (en cours)
+- Systeme d'amis complet :
+  - Table friends dans Supabase (sender/receiver, status pending/accepted/declined, RLS)
+  - Pseudo obligatoire a l'inscription (unique, 3-20 chars, modifiable dans profil)
+  - Champ last_seen + is_in_combat dans profiles (statut en ligne)
+  - Service friends_service.dart (recherche, envoi/acceptation/refus demandes, liste amis, statut)
+  - Ecran Amis connecte a Supabase (4 onglets : Tous, En ligne, En combat, Demandes)
+  - Recherche de joueurs par pseudo (recherche auto en tapant)
+  - Profil public d'un joueur (tap sur un ami → voir son profil + ajouter)
+  - Point rouge anime sur icone Amis quand demande en attente (disparait au tap)
+  - Statut "En combat" automatique (set au debut/fin du combat)
+  - Presence "En ligne" mise a jour a chaque ouverture de l'app
 
-### DA recue et en cours d'implementation
-Document : OTAKU_VERSE_DA_LIQUID_GLASS.md (10% Liquid Glass, 90% identite manga)
+- Classements :
+  - Table profiles enrichie avec colonne country (pays choisi a l'inscription, non modifiable)
+  - Selecteur de pays a l'inscription + possibilite pour anciens comptes de choisir (1 fois)
+  - Service classement_service.dart (mondial, national, amis)
+  - Ecran classement avec 3 tabs (Mondial/National/Amis)
+  - Ex aequo geres (meme XP = meme position)
+  - Top 3 en or/argent/bronze, highlight de sa propre position
+  - Tap sur un joueur → profil public
+  - Accessible depuis l'accueil (bouton "Classement")
 
-### Refonte etape 1 — FAIT
-- Nouveau theme.dart : palette DA V2.1 complete, Google Fonts (Anton, Bebas Neue, Bangers, Manrope, Space Grotesk)
-- Widget LiquidGlass reutilisable (backdrop blur, bordure, ombre, teinte par mode)
-- Tab bar Liquid Glass flottante avec bouton JOUER central surelevee + glow pulse violet
-- AppShell : navigation par tabs (Accueil, Jouer, Amis, Profil) en mode paysage
-- Accueil placeholder : top bar verre, banniere evenement, raccourcis (Combat, Defis, Rewards)
+- Partage de resultats :
+  - Bouton PARTAGER sur l'ecran de resultat de combat
+  - Capture de l'ecran en image PNG via RepaintBoundary
+  - Partage natif Android (share sheet) avec texte + image
+  - Packages : share_plus, path_provider
 
-### Refonte etape 2 — FAIT
-- Hub Jouer : 5 cartes de modes (Solo actif, Division/Events/Duel/Coop "BIENTOT")
-- Chaque carte a sa couleur dominante, icone, gradient, glow si actif
-- Animation stagger a l'entree (cartes montent une par une, 40ms de decalage)
-- Transition Accueil <-> Jouer animee (slide + fade, 400ms easeInOutCubic)
-- Solo lance le combat setup
+- Collection de skins :
+  - Table skins (10 skins : commun/rare/epique/legendaire, deblocage par level ou XP)
+  - Table player_skins (relation joueur-skin, equipped flag)
+  - Service skin_service.dart (lister, debloquer, equiper, skin gratuit auto)
+  - Ecran collection avec 2 onglets (Ma Collection / Boutique)
+  - Cartes compactes en scroll horizontal (mode paysage)
+  - Ecran detail skin : apercu 3D rotatif (drag), description, rarete, bouton debloquer/equiper
+  - Accessible depuis le profil (bouton COLLECTION + tap sur skin)
 
-### Refonte etape 3 — FAIT
-- Flash blanc d'impact (60ms) avant chaque degat
-- Shake violent (150ms, amplitude x2) au lieu de 400ms mou
-- Onomatopees en Bangers avec overshoot elastic + double glow (HIT!, SPECIAL!, BOOM!, MISS, K.O.!)
-- Tempo reduit : 1.2s de feedback au lieu de 2.5s (combat plus nerveux)
-- Couleurs combo : combo2 violet glow, combo3 or
-- Barres PV avec typo HUD (Space Grotesk), couleurs pvHaut/pvMoyen/pvCritique
-- Vignette rouge qui pulse quand PV < 20% (etat critique visuel)
-- Compteur combo avec couleurs distinctes (violet → or a x2+)
+## En cours
 
-### Refonte etape 4 — FAIT
-- Combo x3 : changement d'etat total (fond rouge/or overlay, screen shake global, flash intense, "SPECIAL!" geant en or)
-- Ecran resultat victoire : radial glow vert, titre 48px avec double glow, K.O.! en or, stats PV cote a cote, XP en carte verre
-- Ecran resultat defaite : vignette rouge, titre sobre, pas d'explosion
-- Ecran egalite : neutre, titre or
-- Boutons REJOUER/ACCUEIL accessibles (scroll si overflow paysage)
-- Fix : top bar accueil synchro avec le vrai profil Supabase (niveau, rang)
+### Prochaines etapes immédiates (meme session)
+- Boutique separee accessible depuis l'accueil (espace d'achat distinct de la collection)
+- Ecran Parametres dans le profil (regrouper pseudo, pays, deconnexion + futurs reglages)
 
-### Refonte etape 5 — FAIT
-- Ecran Amis facade console (DA §9)
-- Header avec compteur + bouton AJOUTER en verre teinte
-- Tabs de filtrage : En ligne (vert), En combat (orange), Demandes (violet) avec compteurs
-- Cartes amis en Liquid Glass : indicateur statut, avatar, pseudo, rang, badge statut, icone defier
-- Contenu statique (backend amis prevu V1.5)
+### Reste a faire V1.5
+- Notifications push (Firebase Cloud Messaging — quand projet Firebase configure)
 
-### Refonte etape 6 — FAIT
-- Textures par section via CustomPainter (placeholder avant vrais SVG en prod)
-- Bulles de dialogue en fond ecran Amis, seigaiha en fond Profil
-- Systeme SectionTexture reutilisable (5 types : speedlines, seigaiha, eclats, bulles, electrique)
-- Opacite 6%, pas d'impact performance
-- Note : les vrais assets SVG seront produits pour la mise en production finale
-
-### Refonte etape 7 — FAIT
-- Barres PV qui "respirent" (bordure pulse opacite, 800ms boucle)
-- Timer pulse/grossit quand < 5s (scale 1.0→1.06, style critique)
-- Timer utilise typo HUD (Space Grotesk) + coins arrondis
-- Boutons de reponse oscillent subtilement (±1px, decales par index)
-- Boutons avec coins arrondis (8px au lieu de 2px)
-
-## REFONTE DESIGN TERMINEE
-
-## Prochaine etape
-- Tests globaux V1 (checklist ROADMAP §14)
-- Enrichissement base de questions (objectif 10 000, actuellement 20)
-- Mise en production (assets SVG definitifs, illustrations originales)
+### Assets visuels (attente equipe designers de la commu)
+1. Illustrations/artworks dans les cartes de modes (silhouettes personnages)
+2. Banniere evenement avec vraie image
+3. Vrais SVG de textures (remplacer les CustomPainter placeholder)
+4. Avatar joueur (image custom au lieu de l'icone Material)
+5. Assets de skins (vrais visuels de personnages au lieu des icones placeholder)
 
 ## Decisions techniques prises
-- Couleur d'accent : violet electrique #7B2FF7 (peut changer avec la refonte)
+- Couleur d'accent : violet electrique #7B2FF7
 - Auth : email sans confirmation (dev)
 - Navigation auth : StreamBuilder dans AuthGate
 - RLS questions : lecture pour anon + authenticated
@@ -103,20 +95,23 @@ Document : OTAKU_VERSE_DA_LIQUID_GLASS.md (10% Liquid Glass, 90% identite manga)
 - Timer combat : 20 secondes par question
 - PV de depart : 100 pour chaque combattant
 - Degats normaux : 15 PV / Degats combo (attaque speciale) : 30 PV
-- Seuil combo : 3 bonnes reponses d'affilee (reset a 0 apres declenchement ou mauvaise reponse)
+- Seuil combo : 3 bonnes reponses d'affilee
 - Bot : probabilite de reussite selon difficulte (facile 30%, moyen 50%, difficile 70%, expert 85%)
 - Format de combat : max 10 questions, K.O. immediat possible, sinon decompte PV
-- Skin joueur V1 : un seul skin fixe en 3D, rotatif dans le profil (pas de collection avant V1.5)
-- Grille de choix 2x2 en paysage (au lieu de liste verticale)
-- L'ancien code quiz (quiz_page.dart, quiz_result_page.dart) est conserve mais plus utilise depuis l'accueil
 - Dashboard admin : acces restreint a Drx@otaku.admin et Heat@otaku.admin
-- Validation reponses : Edge Function cote serveur (fallback local si hors-ligne = reponse consideree fausse)
+- Validation reponses : Edge Function cote serveur (fallback local si hors-ligne)
+- Pseudo : unique, 3-20 chars (lettres/chiffres/underscore), obligatoire a l'inscription
+- Pays : choisi a l'inscription, non modifiable apres (classement national)
+- Skins : deblocage par niveau ou depense XP, un seul equipe a la fois
+- Partage : capture RepaintBoundary + Share.shareXFiles (share_plus)
 
 ## Problemes connus / points d'attention
 - Flutter non accessible depuis bash de Claude Code (Tariq doit tester manuellement)
 - 20 questions One Piece en base (besoin d'enrichir massivement avant lancement — objectif 10 000)
 - Le fallback local en cas d'erreur reseau considere la reponse comme fausse (acceptable pour la V1)
-- Performances a surveiller sur telephones d'entree de gamme apres la refonte design
+- Performances a surveiller sur telephones d'entree de gamme
+- Smart App Control Windows 11 bloquait impellerc.exe → desactive (solution definitive)
+- Overflow profil stats partiellement corrige (FittedBox + paddings reduits)
 
 ## Dernier commit pousse
-- "Refonte design etapes 5-6-7 : ecran Amis, textures sections, polish combat" (2026-07-29)
+- "Refonte design etapes 5-6-7 + profil : Amis console, textures, polish combat, profil Liquid Glass" (2026-07-29)

@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
 import '../../core/theme.dart';
 import '../quiz/quiz_service.dart';
 import '../progression/progression_service.dart';
 import '../rewards/rewards_service.dart';
+import '../social/friends_service.dart';
 import 'combat_models.dart';
 import 'combat_service.dart';
 
@@ -58,6 +64,9 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
   Map<String, dynamic>? _profilMisAJour;
   bool _progressionChargee = false;
 
+  // Cle pour capturer l'ecran resultat en image (partage)
+  final _repaintKey = GlobalKey();
+
   // --- ANIMATIONS (DA V2.1 : nerveuses, ~350ms) ---
   // Shake quand le joueur prend des degats (court et violent)
   late AnimationController _shakeJoueur;
@@ -82,6 +91,8 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    // Signaler que je suis en combat (statut visible par mes amis)
+    FriendsService().setEnCombat(true);
     _nbQuestionsReelles = widget.questions.length;
     _etat = CombatState(nbQuestions: _nbQuestionsReelles);
 
@@ -135,6 +146,8 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    // Signaler que je ne suis plus en combat
+    FriendsService().setEnCombat(false);
     _timer?.cancel();
     _shakeJoueur.dispose();
     _shakeBot.dispose();
@@ -797,9 +810,12 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: OtakuColors.background,
       body: SafeArea(
-        child: Stack(
+        child: RepaintBoundary(
+          key: _repaintKey,
+          child: Stack(
           children: [
             // Fond stylise selon le resultat
+            Container(color: OtakuColors.background),
             if (victoire)
               // Victoire : radial glow vert/violet
               Container(
@@ -910,10 +926,17 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
 
                     const SizedBox(height: 28),
 
-                    // Boutons — REJOUER gros, ACCUEIL subtil
+                    // Boutons — PARTAGER, REJOUER, ACCUEIL
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        // Bouton PARTAGER
+                        OutlinedButton.icon(
+                          onPressed: _partagerResultat,
+                          icon: const Icon(Icons.share_rounded, size: 16),
+                          label: Text('PARTAGER', style: OtakuTypo.label.copyWith(color: OtakuColors.accent)),
+                        ),
+                        const SizedBox(width: 12),
                         ElevatedButton(
                           onPressed: () {
                             Navigator.pushReplacement(
@@ -931,7 +954,7 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
                           ),
                           child: Text('REJOUER', style: OtakuTypo.label.copyWith(color: Colors.black)),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         OutlinedButton(
                           onPressed: () {
                             Navigator.of(context).popUntil((route) => route.isFirst);
@@ -946,8 +969,34 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
             ),
           ],
         ),
+        ),
       ),
     );
+  }
+
+  /// Capture l'ecran resultat et le partage via le share sheet natif
+  Future<void> _partagerResultat() async {
+    try {
+      // Capturer le widget en image
+      final boundary = _repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      // Sauvegarder temporairement
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/otaku_verse_resultat.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      // Partager
+      final result = _etat.vainqueur == 'joueur' ? 'VICTOIRE' : (_etat.vainqueur == 'egalite' ? 'EGALITE' : 'DEFAITE');
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: '$result sur Otaku Verse ! +$_xpGagne XP',
+      );
+    } catch (_) {}
   }
 
   /// Mini stat pour l'ecran resultat (PV restants)

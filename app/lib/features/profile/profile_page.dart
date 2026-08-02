@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
 import '../progression/progression_service.dart';
+import '../skins/boutique_screen.dart';
+import '../social/friends_service.dart';
 
 /// === ECRAN PROFIL — DA V2.1 ===
 /// Capsule verre pour le skin, stats en cartes Liquid Glass,
@@ -40,6 +42,165 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
       setState(() => _chargement = false);
     }
+  }
+
+  /// Popup pour changer ou definir son pseudo
+  Future<void> _modifierPseudo() async {
+    final controller = TextEditingController(
+      text: _profil?['pseudo'] ?? '',
+    );
+    String? erreur;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: OtakuColors.background,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            _profil?['pseudo'] != null ? 'CHANGER DE PSEUDO' : 'CHOISIS TON PSEUDO',
+            style: OtakuTypo.headlineLarge.copyWith(fontSize: 16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ton pseudo est ton @, visible par tous.',
+                style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: const TextStyle(color: OtakuColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Ton_Pseudo',
+                  hintStyle: const TextStyle(color: OtakuColors.textMuted),
+                  prefixText: '@ ',
+                  prefixStyle: TextStyle(color: OtakuColors.accent.withValues(alpha: 0.7)),
+                  filled: true,
+                  fillColor: OtakuColors.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: OtakuColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: OtakuColors.accent, width: 1.5),
+                  ),
+                ),
+              ),
+              if (erreur != null) ...[
+                const SizedBox(height: 8),
+                Text(erreur!, style: const TextStyle(color: OtakuColors.error, fontSize: 12)),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                '3-20 caracteres, lettres/chiffres/underscore',
+                style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.textMuted),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('ANNULER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final pseudo = controller.text.trim();
+                final regex = RegExp(r'^[a-zA-Z0-9_]{3,20}$');
+                if (!regex.hasMatch(pseudo)) {
+                  setDialogState(() => erreur = '3-20 caracteres (lettres, chiffres, _)');
+                  return;
+                }
+                // Verifier dispo et sauvegarder
+                final result = await FriendsService().changerPseudo(pseudo);
+                if (result != null) {
+                  setDialogState(() => erreur = result);
+                } else {
+                  Navigator.pop(context, pseudo);
+                }
+              },
+              child: const Text('VALIDER'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Si le pseudo a ete change, recharger le profil
+    if (result != null) {
+      _chargerProfil();
+    }
+  }
+
+  /// Popup pour choisir son pays (une seule fois, non modifiable)
+  Future<void> _choisirPays() async {
+    const pays = [
+      'Senegal', 'France', 'Cote d\'Ivoire', 'Cameroun', 'Mali',
+      'Guinee', 'Burkina Faso', 'Congo', 'Gabon', 'Togo',
+      'Benin', 'Niger', 'Mauritanie', 'Maroc', 'Algerie',
+      'Tunisie', 'Belgique', 'Canada', 'Suisse', 'Haiti',
+      'Madagascar', 'Comores', 'RDC', 'Tchad', 'Centrafrique',
+      'Autre',
+    ];
+
+    final choix = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: OtakuColors.background,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('CHOISIS TON PAYS', style: OtakuTypo.headlineLarge.copyWith(fontSize: 16)),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: pays.length,
+            itemBuilder: (_, i) => ListTile(
+              dense: true,
+              title: Text(pays[i], style: const TextStyle(color: OtakuColors.textPrimary)),
+              onTap: () => Navigator.pop(context, pays[i]),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (choix == null) return;
+
+    // Confirmer (non modifiable)
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: OtakuColors.background,
+        title: Text('Confirmer : $choix ?', style: OtakuTypo.headlineLarge.copyWith(fontSize: 15)),
+        content: Text(
+          'Attention : le pays ne peut pas etre change apres.',
+          style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('ANNULER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('CONFIRMER'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirme != true) return;
+
+    // Sauvegarder dans Supabase
+    await Supabase.instance.client.from('profiles').update({
+      'country': choix,
+    }).eq('id', Supabase.instance.client.auth.currentUser!.id);
+
+    _chargerProfil();
   }
 
   @override
@@ -87,8 +248,33 @@ class _ProfilePageState extends State<ProfilePage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         // Skin rotatif dans la capsule
-                        const Expanded(child: _SkinRotatif()),
-                        const SizedBox(height: 10),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const BoutiqueScreen()),
+                            ),
+                            child: const _SkinRotatif(),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        // Bouton collection
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const BoutiqueScreen()),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: OtakuColors.modeDuel.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: OtakuColors.modeDuel.withValues(alpha: 0.4)),
+                            ),
+                            child: Text('COLLECTION', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.modeDuel)),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
                         // Rang
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
@@ -140,12 +326,94 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
+
+                // Pseudo (@ du joueur — tap pour modifier)
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _modifierPseudo(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _profil?['pseudo'] == null
+                              ? OtakuColors.accent.withValues(alpha: 0.15)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _profil?['pseudo'] == null
+                                ? OtakuColors.accent.withValues(alpha: 0.6)
+                                : OtakuColors.border,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _profil?['pseudo'] != null
+                                  ? '@${_profil!['pseudo']}'
+                                  : 'Choisis ton pseudo !',
+                              style: OtakuTypo.hud.copyWith(
+                                fontSize: 12,
+                                color: _profil?['pseudo'] != null
+                                    ? OtakuColors.textPrimary
+                                    : OtakuColors.accent,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.edit_rounded,
+                              size: 12,
+                              color: _profil?['pseudo'] != null
+                                  ? OtakuColors.textMuted
+                                  : OtakuColors.accent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Pays (affiche si defini, bouton si pas encore choisi)
+                    if (_profil?['country'] == null)
+                      GestureDetector(
+                        onTap: () => _choisirPays(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: OtakuColors.modeEvent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: OtakuColors.modeEvent.withValues(alpha: 0.5)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.flag_rounded, size: 12, color: OtakuColors.modeEvent),
+                              const SizedBox(width: 4),
+                              Text('Pays ?', style: OtakuTypo.hud.copyWith(fontSize: 11, color: OtakuColors.modeEvent)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: OtakuColors.border),
+                        ),
+                        child: Text(
+                          _profil!['country'],
+                          style: OtakuTypo.hud.copyWith(fontSize: 10, color: OtakuColors.textMuted),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
 
                 // Niveau + barre XP
                 LiquidGlass(
                   borderRadius: 14,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   child: Row(
                     children: [
                       Text('Nv.$niveau', style: OtakuTypo.hud.copyWith(fontSize: 18, color: OtakuColors.accent)),
@@ -174,7 +442,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
                 // Stats en grille 2x2
                 Expanded(
@@ -213,14 +481,17 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildStatCard(String label, String valeur, Color couleur) {
     return LiquidGlass(
       borderRadius: 12,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(label, style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.textMuted)),
           const SizedBox(height: 4),
-          Text(valeur, style: OtakuTypo.hud.copyWith(fontSize: 20, color: couleur)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(valeur, style: OtakuTypo.hud.copyWith(fontSize: 18, color: couleur)),
+          ),
         ],
       ),
     );

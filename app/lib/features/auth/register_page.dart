@@ -14,15 +14,28 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  final _pseudoController = TextEditingController();
   final _emailController = TextEditingController();
   final _motDePasseController = TextEditingController();
   final _confirmController = TextEditingController();
   final _authService = AuthService();
   bool _chargement = false;
   String? _erreur;
+  String? _paysChoisi;
+
+  // Liste des pays (les plus courants en Afrique/Europe pour la commu)
+  static const List<String> _pays = [
+    'Senegal', 'France', 'Cote d\'Ivoire', 'Cameroun', 'Mali',
+    'Guinee', 'Burkina Faso', 'Congo', 'Gabon', 'Togo',
+    'Benin', 'Niger', 'Mauritanie', 'Maroc', 'Algerie',
+    'Tunisie', 'Belgique', 'Canada', 'Suisse', 'Haiti',
+    'Madagascar', 'Comores', 'RDC', 'Tchad', 'Centrafrique',
+    'Autre',
+  ];
 
   @override
   void dispose() {
+    _pseudoController.dispose();
     _emailController.dispose();
     _motDePasseController.dispose();
     _confirmController.dispose();
@@ -30,12 +43,19 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _sInscrire() async {
+    final pseudo = _pseudoController.text.trim();
     final email = _emailController.text.trim();
     final mdp = _motDePasseController.text;
     final confirm = _confirmController.text;
 
-    if (email.isEmpty || mdp.isEmpty || confirm.isEmpty) {
-      setState(() => _erreur = 'Remplis tous les champs');
+    if (pseudo.isEmpty || email.isEmpty || mdp.isEmpty || confirm.isEmpty || _paysChoisi == null) {
+      setState(() => _erreur = 'Remplis tous les champs (pays inclus)');
+      return;
+    }
+    // Pseudo : entre 3 et 20 caracteres, lettres/chiffres/underscore uniquement
+    final pseudoRegex = RegExp(r'^[a-zA-Z0-9_]{3,20}$');
+    if (!pseudoRegex.hasMatch(pseudo)) {
+      setState(() => _erreur = 'Pseudo : 3-20 caracteres (lettres, chiffres, _)');
       return;
     }
     if (mdp.length < 6) {
@@ -52,7 +72,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _erreur = null;
     });
 
-    final erreur = await _authService.inscription(email, mdp);
+    final erreur = await _authService.inscription(email, mdp, pseudo, _paysChoisi!);
 
     if (!mounted) return;
     setState(() => _chargement = false);
@@ -83,6 +103,43 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
               const SizedBox(height: 48),
+
+              _buildTextField(
+                controller: _pseudoController,
+                label: 'PSEUDO',
+                hint: 'Ton_Pseudo_Unique',
+              ),
+              const SizedBox(height: 16),
+
+              // Selecteur de pays
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('PAYS', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: OtakuColors.surface,
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(color: OtakuColors.border),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _paysChoisi,
+                        hint: const Text('Choisis ton pays', style: TextStyle(color: OtakuColors.textMuted)),
+                        dropdownColor: OtakuColors.surface,
+                        style: const TextStyle(color: OtakuColors.textPrimary, fontSize: 14),
+                        isExpanded: true,
+                        items: _pays.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                        onChanged: (val) => setState(() => _paysChoisi = val),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
 
               _buildTextField(
                 controller: _emailController,

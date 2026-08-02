@@ -9,11 +9,14 @@ import '../core/theme.dart';
 class OtakuTabBar extends StatefulWidget {
   final int indexActif;
   final ValueChanged<int> onTap;
+  // Si true, affiche un point rouge anime sur l'icone Amis
+  final bool notifAmis;
 
   const OtakuTabBar({
     super.key,
     required this.indexActif,
     required this.onTap,
+    this.notifAmis = false,
   });
 
   @override
@@ -77,11 +80,12 @@ class _OtakuTabBarState extends State<OtakuTabBar>
                 ),
                 // JOUER (index 1) — bouton central surelevee
                 _buildJouerButton(),
-                // Amis (index 2)
+                // Amis (index 2) — avec point rouge si notification
                 _buildTabItem(
                   icon: Icons.people_rounded,
                   label: 'Amis',
                   index: 2,
+                  showNotif: widget.notifAmis,
                 ),
                 // Profil (index 3)
                 _buildTabItem(
@@ -102,6 +106,7 @@ class _OtakuTabBarState extends State<OtakuTabBar>
     required IconData icon,
     required String label,
     required int index,
+    bool showNotif = false,
   }) {
     final actif = widget.indexActif == index;
 
@@ -115,14 +120,26 @@ class _OtakuTabBarState extends State<OtakuTabBar>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedScale(
-              scale: actif ? 1.2 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                icon,
-                color: actif ? OtakuColors.accent : OtakuColors.textMuted,
-                size: 24,
-              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedScale(
+                  scale: actif ? 1.2 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    icon,
+                    color: actif ? OtakuColors.accent : OtakuColors.textMuted,
+                    size: 24,
+                  ),
+                ),
+                // Point rouge anime (energie occulte)
+                if (showNotif && !actif)
+                  Positioned(
+                    right: -4,
+                    top: -2,
+                    child: _NotifDot(),
+                  ),
+              ],
             ),
             // Le label apparait seulement si actif
             AnimatedSize(
@@ -184,6 +201,62 @@ class _OtakuTabBarState extends State<OtakuTabBar>
           );
         },
       ),
+    );
+  }
+}
+
+/// Point rouge anime — pulse comme une energie occulte
+class _NotifDot extends StatefulWidget {
+  @override
+  State<_NotifDot> createState() => _NotifDotState();
+}
+
+class _NotifDotState extends State<_NotifDot> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _scaleAnim = Tween<double>(begin: 0.8, end: 1.3).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnim,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnim.value,
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: OtakuColors.error,
+              boxShadow: [
+                BoxShadow(
+                  color: OtakuColors.error.withValues(alpha: 0.7),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

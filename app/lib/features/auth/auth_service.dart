@@ -6,14 +6,47 @@ class AuthService {
   // Raccourci vers le client Supabase
   final _supabase = Supabase.instance.client;
 
-  /// Inscription avec email + mot de passe.
+  /// Verifie si un pseudo est deja pris par un autre joueur.
+  /// Retourne true si le pseudo est disponible, false sinon.
+  Future<bool> pseudoDisponible(String pseudo) async {
+    final result = await _supabase
+        .from('profiles')
+        .select('id')
+        .eq('pseudo', pseudo)
+        .maybeSingle();
+    return result == null;
+  }
+
+  /// Inscription avec email + mot de passe + pseudo + pays.
   /// Retourne null si OK, ou un message d'erreur si ca echoue.
-  Future<String?> inscription(String email, String motDePasse) async {
+  Future<String?> inscription(String email, String motDePasse, String pseudo, String pays) async {
     try {
-      await _supabase.auth.signUp(
+      // Verifier que le pseudo est dispo avant de creer le compte
+      final dispo = await pseudoDisponible(pseudo);
+      if (!dispo) {
+        return 'Ce pseudo est deja pris, choisis-en un autre';
+      }
+
+      // Creer le compte auth
+      final response = await _supabase.auth.signUp(
         email: email,
         password: motDePasse,
       );
+
+      // Creer le profil avec le pseudo + pays juste apres l'inscription
+      if (response.user != null) {
+        await _supabase.from('profiles').insert({
+          'id': response.user!.id,
+          'pseudo': pseudo,
+          'country': pays,
+          'xp_totale': 0,
+          'niveau': 1,
+          'rang': 'Debutant',
+          'combats_joues': 0,
+          'combats_gagnes': 0,
+        });
+      }
+
       return null;
     } on AuthException catch (e) {
       return e.message;

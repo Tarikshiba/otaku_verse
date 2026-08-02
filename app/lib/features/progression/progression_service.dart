@@ -95,8 +95,9 @@ class ProgressionService {
     return reponse;
   }
 
-  /// Cree le profil si il n'existe pas encore (premier lancement apres inscription)
-  Future<void> creerProfilSiAbsent() async {
+  /// Cree le profil si il n'existe pas encore (premier lancement apres inscription).
+  /// [pseudo] est optionnel : fourni a l'inscription, pas aux lancements suivants.
+  Future<void> creerProfilSiAbsent({String? pseudo}) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
 
@@ -105,6 +106,7 @@ class ProgressionService {
 
     await _supabase.from('profiles').insert({
       'id': userId,
+      'pseudo': pseudo,
       'xp_totale': 0,
       'niveau': 1,
       'rang': 'Debutant',
