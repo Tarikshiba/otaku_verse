@@ -3,6 +3,7 @@ import '../core/theme.dart';
 import '../features/combat/combat_setup_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/progression/progression_service.dart';
+import '../features/skins/boutique_screen.dart';
 import '../features/social/amis_screen.dart';
 import '../features/social/classement_screen.dart';
 import '../features/social/friends_service.dart';
@@ -290,17 +291,23 @@ class _AccueilPlaceholderState extends State<_AccueilPlaceholder> {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: LiquidGlass(
-                            tintColor: OtakuColors.victoire,
-                            borderRadius: 14,
-                            padding: const EdgeInsets.all(10),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.card_giftcard_rounded, color: OtakuColors.victoire, size: 22),
-                                const SizedBox(width: 8),
-                                Text('Rewards', style: OtakuTypo.label),
-                              ],
+                          child: GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const BoutiqueScreen()),
+                            ),
+                            child: LiquidGlass(
+                              tintColor: OtakuColors.victoire,
+                              borderRadius: 14,
+                              padding: const EdgeInsets.all(10),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.storefront_rounded, color: OtakuColors.victoire, size: 22),
+                                  const SizedBox(width: 8),
+                                  Text('Boutique', style: OtakuTypo.label),
+                                ],
+                              ),
                             ),
                           ),
                         ),

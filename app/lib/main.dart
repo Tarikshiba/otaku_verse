@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme.dart';
 import 'features/auth/auth_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
+import 'features/notifications/notification_service.dart';
 import 'shared/app_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+
+  // Initialiser Firebase (pour les notifications push)
+  await Firebase.initializeApp();
 
   // Paysage force sur toute l'app
   await SystemChrome.setPreferredOrientations([
@@ -22,6 +27,9 @@ void main() async {
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
+
+  // Initialiser les notifications push
+  await NotificationService().initialiser();
 
   runApp(const OtakuVerseApp());
 }

@@ -70,14 +70,27 @@ reutilisera ce moteur de combat.
   - Ecran detail skin : apercu 3D rotatif (drag), description, rarete, bouton debloquer/equiper
   - Accessible depuis le profil (bouton COLLECTION + tap sur skin)
 
+- Notifications push :
+  - Projet Firebase "Otaku Verse" cree (otaku-verse-6e05e)
+  - google-services.json configure dans android/app/
+  - Packages firebase_core + firebase_messaging integres
+  - Service notification_service.dart (permission, token FCM, sauvegarde dans profiles.fcm_token)
+  - L'app demande la permission au demarrage et stocke le token
+  - Colonne fcm_token ajoutee dans profiles (Supabase)
+
+- Ecran Parametres :
+  - Accessible depuis le profil (icone engrenage)
+  - Regroupe : pseudo (modifiable), pays (1 fois), email (lecture seule), deconnexion
+  - Profil simplifie (plus de bouton deconnexion rouge en haut)
+
+- Boutique accessible depuis l'accueil (bouton "Boutique" remplace "Rewards")
+
 ## En cours
 
-### Prochaines etapes immédiates (meme session)
-- Boutique separee accessible depuis l'accueil (espace d'achat distinct de la collection)
-- Ecran Parametres dans le profil (regrouper pseudo, pays, deconnexion + futurs reglages)
-
-### Reste a faire V1.5
-- Notifications push (Firebase Cloud Messaging — quand projet Firebase configure)
+### Reste a faire pour finaliser V1.5
+- Edge Function Supabase "envoyer-notification" (declenche une notif FCM quand INSERT dans friends)
+- Remettre l'acces aux Rewards (connexion quotidienne + defis) quelque part dans l'UI
+- Disposition/apparence generale de l'app (Tariq fournira un PDF de reference)
 
 ### Assets visuels (attente equipe designers de la commu)
 1. Illustrations/artworks dans les cartes de modes (silhouettes personnages)
@@ -114,4 +127,4 @@ reutilisera ce moteur de combat.
 - Overflow profil stats partiellement corrige (FittedBox + paddings reduits)
 
 ## Dernier commit pousse
-- "Refonte design etapes 5-6-7 + profil : Amis console, textures, polish combat, profil Liquid Glass" (2026-07-29)
+- "V1.5 : systeme amis complet, classements, partage resultats, collection skins" (2026-08-02)
