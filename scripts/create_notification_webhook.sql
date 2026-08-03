@@ -1,0 +1,41 @@
+-- Webhook : declencher l'Edge Function "envoyer-notification"
+-- quand une nouvelle demande d'ami est inseree dans la table friends.
+--
+-- IMPORTANT : Ce webhook se configure dans le Dashboard Supabase :
+-- 1. Va dans Database > Webhooks
+-- 2. Cree un nouveau webhook :
+--    - Nom : notify_friend_request
+--    - Table : friends
+--    - Events : INSERT
+--    - Type : Supabase Edge Function
+--    - Function : envoyer-notification
+--    - Headers : (aucun supplementaire, Supabase gere l'auth)
+--
+-- Alternativement, tu peux utiliser pg_net pour appeler directement :
+
+-- Option 2 : Trigger + pg_net (si webhooks UI ne suffit pas)
+-- Decommente ci-dessous si tu preferes cette approche :
+
+-- CREATE OR REPLACE FUNCTION notify_friend_request()
+-- RETURNS trigger AS $$
+-- BEGIN
+--   PERFORM net.http_post(
+--     url := current_setting('app.settings.supabase_url') || '/functions/v1/envoyer-notification',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
+--     ),
+--     body := jsonb_build_object(
+--       'type', 'INSERT',
+--       'table', 'friends',
+--       'record', row_to_json(NEW)
+--     )
+--   );
+--   RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql SECURITY DEFINER;
+--
+-- CREATE TRIGGER on_friend_request_inserted
+--   AFTER INSERT ON friends
+--   FOR EACH ROW
+--   EXECUTE FUNCTION notify_friend_request();

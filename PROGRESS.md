@@ -87,10 +87,11 @@ reutilisera ce moteur de combat.
 
 ## En cours
 
-### Reste a faire pour finaliser V1.5
-- Edge Function Supabase "envoyer-notification" (declenche une notif FCM quand INSERT dans friends)
-- Remettre l'acces aux Rewards (connexion quotidienne + defis) quelque part dans l'UI
-- Disposition/apparence generale de l'app (Tariq fournira un PDF de reference)
+### Reste a faire pour finaliser V1.5 — NE PAS OUBLIER
+1. **Edge Function "envoyer-notification"** — Supabase CLI, se declenche sur INSERT dans friends, envoie une notif FCM au destinataire via son fcm_token
+2. **Boutique separee** — le bouton accueil pointe vers le meme ecran que Collection pour l'instant, il faut en faire un vrai espace boutique distinct (achat items, pas juste skins)
+3. **Remettre les Rewards** — l'acces aux recompenses (connexion quotidienne +15 XP, 3 defis du jour) a disparu de l'UI, il faut le replacer quelque part (accueil ou profil)
+4. **PDF de disposition** — Tariq va fournir un PDF de reference pour la disposition/apparence generale de l'app, a appliquer a la prochaine session
 
 ### Assets visuels (attente equipe designers de la commu)
 1. Illustrations/artworks dans les cartes de modes (silhouettes personnages)

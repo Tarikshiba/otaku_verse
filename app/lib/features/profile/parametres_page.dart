@@ -79,11 +79,10 @@ class _ParametresPageState extends State<ParametresPage> {
               Expanded(
                 child: ListView(
                   children: [
-                    // Section Compte
-                    _buildSectionTitle('COMPTE'),
+                    // Section Compte & Identite
+                    _buildSectionTitle('COMPTE & IDENTITE'),
                     const SizedBox(height: 8),
 
-                    // Pseudo
                     _buildItem(
                       icon: Icons.alternate_email_rounded,
                       label: 'Pseudo',
@@ -92,7 +91,6 @@ class _ParametresPageState extends State<ParametresPage> {
                     ),
                     const SizedBox(height: 8),
 
-                    // Pays
                     _buildItem(
                       icon: Icons.flag_rounded,
                       label: 'Pays',
@@ -104,7 +102,6 @@ class _ParametresPageState extends State<ParametresPage> {
                     ),
                     const SizedBox(height: 8),
 
-                    // Email (non modifiable, juste affiche)
                     _buildItem(
                       icon: Icons.email_rounded,
                       label: 'Email',
@@ -112,11 +109,78 @@ class _ParametresPageState extends State<ParametresPage> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Section Danger
+                    // Section Graphismes
+                    _buildSectionTitle('GRAPHISMES & PERFORMANCE'),
+                    const SizedBox(height: 8),
+
+                    _buildItem(
+                      icon: Icons.auto_awesome_rounded,
+                      label: 'Qualite Liquid Glass',
+                      value: 'Haute (actif)',
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: OtakuColors.accent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text('HD', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.accent)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    _buildItem(
+                      icon: Icons.speed_rounded,
+                      label: 'Frequence affichage',
+                      value: '60 FPS',
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: OtakuColors.modeEvent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text('60', style: OtakuTypo.hud.copyWith(fontSize: 10, color: OtakuColors.modeEvent)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Section Audio
+                    _buildSectionTitle('AUDIO & SON'),
+                    const SizedBox(height: 8),
+
+                    _buildItem(
+                      icon: Icons.music_note_rounded,
+                      label: 'Musique',
+                      value: 'Active',
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: OtakuColors.pvHaut.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text('ON', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.pvHaut)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    _buildItem(
+                      icon: Icons.volume_up_rounded,
+                      label: 'Effets sonores (SFX)',
+                      value: 'Actifs',
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: OtakuColors.pvHaut.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text('ON', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.pvHaut)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Section Session
                     _buildSectionTitle('SESSION'),
                     const SizedBox(height: 8),
 
-                    // Deconnexion
                     _buildItem(
                       icon: Icons.logout_rounded,
                       label: 'Deconnexion',

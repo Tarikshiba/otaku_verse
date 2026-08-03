@@ -4,11 +4,12 @@ import '../../core/theme.dart';
 import 'skin_model.dart';
 import 'skin_service.dart';
 
-/// Ecran Collection + Boutique de skins.
-/// 2 onglets : "Ma Collection" et "Boutique".
-/// Paysage, cartes compactes, tap pour detail.
+/// Ecran Boutique — 4 categories : Skins, Articles, Booster XP, Promos.
+/// Utilise comme onglet direct dans la tab bar (pas de bouton retour).
+/// La Collection (skins possedes) reste accessible depuis le Profil.
 class BoutiqueScreen extends StatefulWidget {
-  const BoutiqueScreen({super.key});
+  final bool showBack;
+  const BoutiqueScreen({super.key, this.showBack = false});
 
   @override
   State<BoutiqueScreen> createState() => _BoutiqueScreenState();
@@ -18,7 +19,7 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
   final _skinService = SkinService();
   List<Skin> _skins = [];
   bool _chargement = true;
-  int _tabActive = 0; // 0 = Ma collection, 1 = Boutique
+  int _tabActive = 0; // 0=Skins, 1=Articles, 2=Booster XP, 3=Promos
   String? _message;
 
   @override
@@ -38,24 +39,21 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
     }
   }
 
-  List<Skin> get _skinsFiltres {
-    if (_tabActive == 0) return _skins.where((s) => s.owned).toList();
-    return _skins.where((s) => !s.owned).toList();
-  }
+  List<Skin> get _skinsAchetables => _skins.where((s) => !s.owned).toList();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: OtakuColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 72),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                // Bouton retour si ouvert en push (depuis profil par ex)
+                if (widget.showBack) ...[
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
@@ -65,70 +63,117 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: OtakuColors.border),
                       ),
-                      child: const Icon(Icons.arrow_back_rounded, color: OtakuColors.textPrimary, size: 20),
+                      child: const Icon(Icons.arrow_back_rounded, color: OtakuColors.textPrimary, size: 18),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Text('SKINS', style: OtakuTypo.headlineLarge.copyWith(fontSize: 20)),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: OtakuColors.accent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${_skins.where((s) => s.owned).length}/${_skins.length}',
-                      style: OtakuTypo.hud.copyWith(fontSize: 12, color: OtakuColors.accent),
-                    ),
-                  ),
+                  const SizedBox(width: 12),
                 ],
-              ),
-              const SizedBox(height: 10),
-
-              // Onglets
-              Row(
-                children: [
-                  _buildTab('Ma Collection', 0, Icons.inventory_2_rounded),
-                  const SizedBox(width: 10),
-                  _buildTab('Boutique', 1, Icons.storefront_rounded),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Message
-              if (_message != null)
+                Text('BOUTIQUE', style: OtakuTypo.headlineLarge.copyWith(fontSize: 20)),
+                const Spacer(),
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: OtakuColors.accent.withValues(alpha: 0.1),
+                    color: OtakuColors.modeEvent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: OtakuColors.modeEvent.withValues(alpha: 0.3)),
                   ),
-                  child: Text(_message!, style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.accent)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.access_time_rounded, size: 12, color: OtakuColors.modeEvent),
+                      const SizedBox(width: 4),
+                      Text('Reset 12h', style: OtakuTypo.hud.copyWith(fontSize: 10, color: OtakuColors.modeEvent)),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 10),
 
-              // Liste horizontale de skins
-              Expanded(
-                child: _chargement
-                    ? const Center(child: CircularProgressIndicator(color: OtakuColors.accent))
-                    : _skinsFiltres.isEmpty
-                        ? Center(
-                            child: Text(
-                              _tabActive == 0 ? 'Aucun skin possede' : 'Tu as tout debloque !',
-                              style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted),
-                            ),
-                          )
-                        : ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _skinsFiltres.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 12),
-                            itemBuilder: (_, i) => _buildSkinCard(_skinsFiltres[i]),
-                          ),
+            // Categories
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildTab('Skins', 0, Icons.person_rounded),
+                  const SizedBox(width: 8),
+                  _buildTab('Articles', 1, Icons.shopping_bag_rounded),
+                  const SizedBox(width: 8),
+                  _buildTab('Booster XP', 2, Icons.bolt_rounded),
+                  const SizedBox(width: 8),
+                  _buildTab('Promos', 3, Icons.local_fire_department_rounded),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 10),
+
+            // Message feedback
+            if (_message != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: OtakuColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(_message!, style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.accent)),
+              ),
+
+            // Contenu selon la categorie
+            Expanded(child: _buildContenu()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContenu() {
+    if (_chargement) {
+      return const Center(child: CircularProgressIndicator(color: OtakuColors.accent));
+    }
+
+    switch (_tabActive) {
+      case 0:
+        // Skins achetables
+        final skins = _skinsAchetables;
+        if (skins.isEmpty) {
+          return Center(child: Text('Tu as tout debloque !', style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted)));
+        }
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: skins.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 12),
+          itemBuilder: (_, i) => _buildSkinCard(skins[i]),
+        );
+      case 1:
+        // Articles (placeholder)
+        return _buildPlaceholder('ARTICLES', 'Arenes, badges et accessoires\narrivent bientot.', Icons.shopping_bag_rounded);
+      case 2:
+        // Booster XP (placeholder)
+        return _buildPlaceholder('BOOSTER XP', 'Double XP, triple XP...\nBientot disponible.', Icons.bolt_rounded);
+      case 3:
+        // Promos (placeholder)
+        return _buildPlaceholder('PROMOS SPECIALES', 'Des offres limitees\napparaitront ici.', Icons.local_fire_department_rounded);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildPlaceholder(String titre, String description, IconData icon) {
+    return Center(
+      child: LiquidGlass(
+        padding: const EdgeInsets.all(28),
+        borderRadius: 20,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 40, color: OtakuColors.textMuted.withValues(alpha: 0.5)),
+            const SizedBox(height: 12),
+            Text(titre, style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.textSecondary)),
+            const SizedBox(height: 6),
+            Text(description, style: OtakuTypo.bodySmall, textAlign: TextAlign.center),
+          ],
         ),
       ),
     );

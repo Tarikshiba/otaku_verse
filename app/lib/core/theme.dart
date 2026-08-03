@@ -70,6 +70,7 @@ class OtakuTypo {
     fontSize: 32,
     color: OtakuColors.textPrimary,
     letterSpacing: 4,
+    decoration: TextDecoration.none,
   );
 
   // Titre de section — Bebas Neue
@@ -77,6 +78,7 @@ class OtakuTypo {
     fontSize: 24,
     color: OtakuColors.textPrimary,
     letterSpacing: 2,
+    decoration: TextDecoration.none,
   );
 
   // Sous-titre — Manrope bold

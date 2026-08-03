@@ -4,7 +4,7 @@ import '../core/theme.dart';
 
 /// === TAB BAR LIQUID GLASS ===
 /// Flottante, verre, bouton JOUER central surelevee avec glow violet.
-/// 4 onglets : Accueil - JOUER (central) - Amis - Profil
+/// 5 onglets : Accueil - Boutique - JOUER (central) - Quete - Amis
 
 class OtakuTabBar extends StatefulWidget {
   final int indexActif;
@@ -78,20 +78,26 @@ class _OtakuTabBarState extends State<OtakuTabBar>
                   label: 'Accueil',
                   index: 0,
                 ),
-                // JOUER (index 1) — bouton central surelevee
+                // Boutique (index 1)
+                _buildTabItem(
+                  icon: Icons.storefront_rounded,
+                  label: 'Boutique',
+                  index: 1,
+                ),
+                // JOUER (index 2) — bouton central surelevee
                 _buildJouerButton(),
-                // Amis (index 2) — avec point rouge si notification
+                // Quete (index 3)
+                _buildTabItem(
+                  icon: Icons.emoji_events_rounded,
+                  label: 'Quête',
+                  index: 3,
+                ),
+                // Amis (index 4) — avec point rouge si notification
                 _buildTabItem(
                   icon: Icons.people_rounded,
                   label: 'Amis',
-                  index: 2,
+                  index: 4,
                   showNotif: widget.notifAmis,
-                ),
-                // Profil (index 3)
-                _buildTabItem(
-                  icon: Icons.person_rounded,
-                  label: 'Profil',
-                  index: 3,
                 ),
               ],
             ),
@@ -165,10 +171,10 @@ class _OtakuTabBarState extends State<OtakuTabBar>
 
   /// Bouton central JOUER — surelevee, glow violet
   Widget _buildJouerButton() {
-    final actif = widget.indexActif == 1;
+    final actif = widget.indexActif == 2;
 
     return GestureDetector(
-      onTap: () => widget.onTap(1),
+      onTap: () => widget.onTap(2),
       child: AnimatedBuilder(
         animation: _pulseAnimation,
         builder: (context, child) {

@@ -319,10 +319,18 @@ class _AmisScreenState extends State<AmisScreen> {
               style: OtakuTypo.label.copyWith(fontSize: 9, color: couleur),
             ),
           ),
-          // Icone defier (seulement si pas en combat)
-          if (!ami.isInCombat) ...[
+          // Bouton DEFIER (seulement si en ligne et pas en combat)
+          if (ami.estEnLigne && !ami.isInCombat) ...[
             const SizedBox(width: 10),
-            Icon(Icons.sports_mma_rounded, size: 18, color: OtakuColors.modeDuel.withValues(alpha: 0.6)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: OtakuColors.modeDuel.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: OtakuColors.modeDuel.withValues(alpha: 0.5)),
+              ),
+              child: Text('DEFIER', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.modeDuel)),
+            ),
           ],
         ],
       ),
