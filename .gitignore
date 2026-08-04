@@ -43,5 +43,10 @@ node_modules/
 admin_dashboard/.next/
 admin_dashboard/out/
 
+# Signing (keystore + mots de passe — JAMAIS sur GitHub)
+app/android/upload-keystore.jks
+app/android/key.properties
+generate-keystore.bat
+
 # Divers
 *.log

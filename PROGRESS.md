@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
-Derniere mise a jour : 2026-08-02
-Version en cours : V1.5
-Module en cours : social + classements + skins
+Derniere mise a jour : 2026-08-04
+Version en cours : V1.5 (COMPLETE) — Distribution en place
+Module en cours : pret pour V2 (multijoueur temps reel)
 
 ## ATTENTION - CHANGEMENT DE DIRECTION IMPORTANT (2026-07-09)
 
@@ -32,73 +32,46 @@ reutilisera ce moteur de combat.
 - Etape 12 : validation serveur — Edge Function "valider-reponse" deployee sur Supabase (anti-triche, le serveur verifie les reponses et calcule les degats)
 - Refonte design complete (DA V2.1 "Apple rencontre Shonen Jump") — 7 sous-etapes
 
-### V1.5 (en cours)
-- Systeme d'amis complet :
-  - Table friends dans Supabase (sender/receiver, status pending/accepted/declined, RLS)
-  - Pseudo obligatoire a l'inscription (unique, 3-20 chars, modifiable dans profil)
-  - Champ last_seen + is_in_combat dans profiles (statut en ligne)
-  - Service friends_service.dart (recherche, envoi/acceptation/refus demandes, liste amis, statut)
-  - Ecran Amis connecte a Supabase (4 onglets : Tous, En ligne, En combat, Demandes)
-  - Recherche de joueurs par pseudo (recherche auto en tapant)
-  - Profil public d'un joueur (tap sur un ami → voir son profil + ajouter)
-  - Point rouge anime sur icone Amis quand demande en attente (disparait au tap)
-  - Statut "En combat" automatique (set au debut/fin du combat)
-  - Presence "En ligne" mise a jour a chaque ouverture de l'app
+### V1.5 (COMPLETE — 2026-08-03)
+- Systeme d'amis complet (recherche par pseudo, ajout, statut en ligne/en combat, demandes)
+- Classements (mondial, national, amis — ecran 3 tabs, top 3 medailles)
+- Partage de resultats (capture PNG + share sheet Android)
+- Collection de skins (10 skins, deblocage par level/XP, ecran detail 3D rotatif)
+- Notifications push (FCM API V1, Edge Function, trigger SQL sur demande d'ami)
+- Ecran Parametres (compte, graphismes, audio, session)
+- Redesign complet selon PDF "Disposition et design" (tab bar 5 onglets, accueil Free Fire, boutique 4 categories, quetes, boite a lettres)
+- Boite a lettres (table mailbox Supabase, rewards reclames manuellement)
+- Boutique separee de la Collection (onglet tab bar = achat, modal profil = possedes)
 
-- Classements :
-  - Table profiles enrichie avec colonne country (pays choisi a l'inscription, non modifiable)
-  - Selecteur de pays a l'inscription + possibilite pour anciens comptes de choisir (1 fois)
-  - Service classement_service.dart (mondial, national, amis)
-  - Ecran classement avec 3 tabs (Mondial/National/Amis)
-  - Ex aequo geres (meme XP = meme position)
-  - Top 3 en or/argent/bronze, highlight de sa propre position
-  - Tap sur un joueur → profil public
-  - Accessible depuis l'accueil (bouton "Classement")
+### Hebergement / Distribution (COMPLETE — 2026-08-04)
+- Keystore de signature cree (upload-keystore.jks, alias otaku-verse, validite 10000 jours)
+- Build Gradle configure pour signer en release (key.properties)
+- APK release genere (app-release.apk, 51.8 MB)
+- Firebase App Distribution configure (projet otaku-verse-6e05e)
+- Groupe "testers" cree (shibatarik129@gmail.com, constantinove16@gmail.com)
+- APK uploade et invitations envoyees par email
+- Script upload-apk.bat pour les futures mises a jour
 
-- Partage de resultats :
-  - Bouton PARTAGER sur l'ecran de resultat de combat
-  - Capture de l'ecran en image PNG via RepaintBoundary
-  - Partage natif Android (share sheet) avec texte + image
-  - Packages : share_plus, path_provider
+## Prochaine etape
 
-- Collection de skins :
-  - Table skins (10 skins : commun/rare/epique/legendaire, deblocage par level ou XP)
-  - Table player_skins (relation joueur-skin, equipped flag)
-  - Service skin_service.dart (lister, debloquer, equiper, skin gratuit auto)
-  - Ecran collection avec 2 onglets (Ma Collection / Boutique)
-  - Cartes compactes en scroll horizontal (mode paysage)
-  - Ecran detail skin : apercu 3D rotatif (drag), description, rarete, bouton debloquer/equiper
-  - Accessible depuis le profil (bouton COLLECTION + tap sur skin)
+### V2 — Multijoueur temps reel
+Objectif : permettre aux joueurs de s'affronter en duel live (1v1).
 
-- Notifications push :
-  - Projet Firebase "Otaku Verse" cree (otaku-verse-6e05e)
-  - google-services.json configure dans android/app/
-  - Packages firebase_core + firebase_messaging integres
-  - Service notification_service.dart (permission, token FCM, sauvegarde dans profiles.fcm_token)
-  - L'app demande la permission au demarrage et stocke le token
-  - Colonne fcm_token ajoutee dans profiles (Supabase)
+Etapes prevues :
+1. Firebase Realtime Database — setup + regles de securite
+2. Matchmaking (file d'attente, appairage par niveau/rang)
+3. Mode Duel 1v1 (defier un ami via notif, ou trouver un adversaire aleatoire)
+4. Combat synchronise (memes questions, timer partage, PV en temps reel)
+5. Mode Division (classement PvP separe du classement IA, rangs competitifs)
+6. Systeme de clans / equipes
+7. Separation XP IA vs XP PvP (comme eFootball)
+8. Evenements / saisons (a preciser)
 
-- Ecran Parametres :
-  - Accessible depuis le profil (icone engrenage)
-  - Regroupe : pseudo (modifiable), pays (1 fois), email (lecture seule), deconnexion
-  - Profil simplifie (plus de bouton deconnexion rouge en haut)
-
-- Boutique accessible depuis l'accueil (bouton "Boutique" remplace "Rewards")
-
-## En cours
-
-### Reste a faire pour finaliser V1.5 — NE PAS OUBLIER
-1. **Edge Function "envoyer-notification"** — Supabase CLI, se declenche sur INSERT dans friends, envoie une notif FCM au destinataire via son fcm_token
-2. **Boutique separee** — le bouton accueil pointe vers le meme ecran que Collection pour l'instant, il faut en faire un vrai espace boutique distinct (achat items, pas juste skins)
-3. **Remettre les Rewards** — l'acces aux recompenses (connexion quotidienne +15 XP, 3 defis du jour) a disparu de l'UI, il faut le replacer quelque part (accueil ou profil)
-4. **PDF de disposition** — Tariq va fournir un PDF de reference pour la disposition/apparence generale de l'app, a appliquer a la prochaine session
-
-### Assets visuels (attente equipe designers de la commu)
-1. Illustrations/artworks dans les cartes de modes (silhouettes personnages)
-2. Banniere evenement avec vraie image
-3. Vrais SVG de textures (remplacer les CustomPainter placeholder)
-4. Avatar joueur (image custom au lieu de l'icone Material)
-5. Assets de skins (vrais visuels de personnages au lieu des icones placeholder)
+### Avant la V2 — a faire idealement
+- Enrichir la base de questions (objectif 10 000, actuellement 20)
+- Brancher les quetes sur Supabase (actuellement donnees statiques)
+- Remplir les articles/boosters/promos dans la boutique (actuellement placeholders)
+- Tester les performances sur telephones entree de gamme
 
 ## Decisions techniques prises
 - Couleur d'accent : violet electrique #7B2FF7
@@ -118,6 +91,11 @@ reutilisera ce moteur de combat.
 - Pays : choisi a l'inscription, non modifiable apres (classement national)
 - Skins : deblocage par niveau ou depense XP, un seul equipe a la fois
 - Partage : capture RepaintBoundary + Share.shareXFiles (share_plus)
+- Notifications : FCM API V1 + Edge Function + trigger pg_net
+- Boite a lettres : table mailbox Supabase, rewards reclames manuellement
+- Boutique : onglet tab bar (achat), Collection : modal profil (possedes)
+- Signature APK : keystore JKS, alias otaku-verse, key.properties (gitignore)
+- Distribution : Firebase App Distribution, groupe "testers", upload via CLI
 
 ## Problemes connus / points d'attention
 - Flutter non accessible depuis bash de Claude Code (Tariq doit tester manuellement)
@@ -125,7 +103,10 @@ reutilisera ce moteur de combat.
 - Le fallback local en cas d'erreur reseau considere la reponse comme fausse (acceptable pour la V1)
 - Performances a surveiller sur telephones d'entree de gamme
 - Smart App Control Windows 11 bloquait impellerc.exe → desactive (solution definitive)
-- Overflow profil stats partiellement corrige (FittedBox + paddings reduits)
+- Le fichier scripts/fcm_secret_b64.txt est dans le repo (contient le service account encode) — a retirer avant open source
+- Quetes : donnees statiques pour l'instant (a brancher sur Supabase comme mailbox)
+- Articles/Boosters/Promos dans la boutique : placeholders (a remplir quand les items existent)
+- iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- "V1.5 : systeme amis complet, classements, partage resultats, collection skins" (2026-08-02)
+- "V1.5 complete : redesign PDF, boite a lettres Supabase, edge function notifications, quetes, boutique 4 categories" (2026-08-03)
