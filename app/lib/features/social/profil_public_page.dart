@@ -10,6 +10,7 @@ class ProfilPublicPage extends StatefulWidget {
   final String pseudo;
   final int niveau;
   final String rang;
+  final bool isFriend;
 
   const ProfilPublicPage({
     super.key,
@@ -17,6 +18,7 @@ class ProfilPublicPage extends StatefulWidget {
     required this.pseudo,
     required this.niveau,
     required this.rang,
+    this.isFriend = false,
   });
 
   @override
@@ -106,7 +108,7 @@ class _ProfilPublicPageState extends State<ProfilPublicPage> {
               const SizedBox(height: 24),
 
               // Bouton ajouter en ami
-              if (!_demandeEnvoyee)
+              if (!widget.isFriend && !_demandeEnvoyee)
                 GestureDetector(
                   onTap: _envoyerDemande,
                   child: Container(

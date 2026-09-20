@@ -16,10 +16,28 @@ class CombatService {
     return await _quizService.recupererQuestions(
       nombre: CombatState.questionsMax,
       anime: params.anime,
+      arc: params.arc,
       difficulte: params.difficulte == 'adaptatif' ? null : params.difficulte,
     );
-  }
+    /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
 
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}
   /// Valide la reponse via l'Edge Function (cote serveur).
   /// Le serveur verifie la bonne reponse, simule le bot, calcule les degats.
   /// En cas d'erreur reseau, on fallback sur la validation locale.
@@ -63,9 +81,43 @@ class CombatService {
         questionId: questionId,
         difficulte: difficulte,
       );
-    }
-  }
+      /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
 
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}    /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
+
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}
   /// Fallback : validation locale (utilisee si pas de reseau)
   ResultatTour _jouerTourLocal({
     required CombatState etat,
@@ -80,8 +132,25 @@ class CombatService {
     final botCorrect = botRepond(difficulte: difficulte);
 
     return _calculerTour(etat: etat, joueurCorrect: joueurCorrect, botCorrect: botCorrect);
-  }
+    /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
 
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}
   /// Simule la reponse du bot pour ce tour (utilise en fallback local).
   bool botRepond({required String difficulte}) {
     final double probaReussite;
@@ -96,10 +165,44 @@ class CombatService {
         probaReussite = 0.85;
       default:
         probaReussite = 0.5;
-    }
-    return _random.nextDouble() < probaReussite;
-  }
+      /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
 
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}    return _random.nextDouble() < probaReussite;
+    /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
+
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}
   /// Calcule les degats et met a jour l'etat (logique commune)
   ResultatTour _calculerTour({
     required CombatState etat,
@@ -117,11 +220,45 @@ class CombatService {
         etat.comboJoueur = 0;
       } else {
         degatsInfliges = CombatState.degatsNormaux;
-      }
-    } else {
-      etat.comboJoueur = 0;
-    }
+        /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
 
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}    } else {
+      etat.comboJoueur = 0;
+      /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
+
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}
     bool comboBotDeclenche = false;
     int degatsSubis = 0;
 
@@ -133,11 +270,45 @@ class CombatService {
         etat.comboBot = 0;
       } else {
         degatsSubis = CombatState.degatsNormaux;
-      }
-    } else {
-      etat.comboBot = 0;
-    }
+        /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
 
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}    } else {
+      etat.comboBot = 0;
+      /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
+
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}
     etat.pvBot = (etat.pvBot - degatsInfliges).clamp(0, CombatState.pvDepart);
     etat.pvJoueur = (etat.pvJoueur - degatsSubis).clamp(0, CombatState.pvDepart);
 
@@ -149,8 +320,25 @@ class CombatService {
       comboJoueurDeclenche: comboJoueurDeclenche,
       comboBotDeclenche: comboBotDeclenche,
     );
-  }
+    /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
 
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}
   /// Retourne la liste des animes disponibles dans la base de questions.
   Future<List<String>> recupererAnimesDisponibles() async {
     final supabase = _quizService.supabaseClient;
@@ -160,10 +348,45 @@ class CombatService {
         .eq('statut', 'actif');
 
     final animes = (reponse as List)
-        .map((row) => row['anime'] as String)
+        .map((row) => (row['anime'] as String).toLowerCase())
         .toSet()
         .toList();
     animes.sort();
     return animes;
+    /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
+
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
+  }
+}  /// Retourne la liste des arcs pour un anime.
+  Future<List<String>> recupererArcsDisponibles(String anime) async {
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase
+        .from('questions')
+        .select('arc')
+        .ilike('anime', anime)
+        .eq('statut', 'actif');
+
+    final arcs = (reponse as List)
+        .map((row) => row['arc'] as String?)
+        .where((arc) => arc != null && arc.isNotEmpty)
+        .map((arc) => arc!)
+        .toSet()
+        .toList();
+    arcs.sort();
+    return arcs;
   }
 }

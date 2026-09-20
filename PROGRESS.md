@@ -1,18 +1,27 @@
 # PROGRESS — Otaku Verse
 
-Derniere mise a jour : 2026-08-04
+Derniere mise a jour : 2026-09-20
 Version en cours : V1.5 (COMPLETE) — Distribution en place
 Module en cours : pret pour V2 (multijoueur temps reel)
 
-## ATTENTION - CHANGEMENT DE DIRECTION IMPORTANT (2026-07-09)
+## MISE A JOUR DE LA ROADMAP (2026-09-20)
 
-Suite a un retour d'experience utilisateur, le concept a evolue en profondeur.
-Voir ROADMAP_OTAKU_VERSE.md v2.1, section 6 "Le mode Combat" pour le detail complet.
+La roadmap officielle a ete remplacee par une nouvelle version.
+Changements cles par rapport a l'ancienne roadmap :
+- Retour au decoupage clair des fonctionnalites : V1 (Solo MVP), V1.5 (Social), V2 (Verse Multijoueur avec Firebase), V3 (Saisons), V4 (Monetisation).
+- La section 14 (Design/UX) de la nouvelle roadmap est obsolete. Le document OTAKU_VERSE_DA_LIQUID_GLASS.md est l'unique reference pour le design.
+- L'architecture confirme l'utilisation de Supabase pour les donnees statiques et de Firebase exclusivement pour les duels en temps reel de la V2.
+- La progression existante listee ci-dessous reste la source de verite. Les fonctionnalites deja developpees en V1 et V1.5 (y compris le moteur de combat) sont conservees.
 
-Resume : le quiz solo classique (vertical, question/4 choix dans le vide) est
-remplace par un mode combat horizontal contre un bot (PV, degats, combos,
-K.O., 10 questions max). Le multijoueur reel reste en V2 comme prevu, mais
-reutilisera ce moteur de combat.
+## En cours : Corrections post-test et Refonte UI (2026-09-20)
+- Refonte de l'Accueil (hub central façon Free Fire, retrait de la bottom nav bar).
+- Mise en place du nouveau systeme de navigation avec boutons Retour.
+- Correction des proportions du profil.
+- Connexion des quetes a Supabase pour eviter les reclamations multiples.
+- Ajout de la pastille de notification sur la boite de reception.
+- Correction de la logique d'affichage des amis.
+- Ajout de la barre de recherche et filtres par continent pour l'inscription (Pays).
+- Refonte de l'ecran de parametrage du combat (sans scroll, anime).
 
 ## Termine et teste
 
@@ -53,6 +62,11 @@ reutilisera ce moteur de combat.
 - Script upload-apk.bat pour les futures mises a jour
 
 ## Prochaine etape
+
+### Prochaine session — Dashboard Admin & Import en Masse
+- Coder la fonctionnalite d'importation de questions en masse (via upload de fichier .md ou .csv) directement depuis le Dashboard Admin (Next.js).
+- Parser et inserer les nouveaux fichiers fournis par Heat (`naruto introduction quiz.md` et `otaku verse east blue v2.md`) via ce nouveau systeme.
+- Si le temps le permet : entamer la V2
 
 ### V2 — Multijoueur temps reel
 Objectif : permettre aux joueurs de s'affronter en duel live (1v1).
@@ -109,4 +123,16 @@ Etapes prevues :
 - iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- "V1.5 complete : redesign PDF, boite a lettres Supabase, edge function notifications, quetes, boutique 4 categories" (2026-08-03)
+- "V1.5 complete : redesign PDF, boite a lettres Supabase, edge function notifications, quetes, boutique 4 categories" (2026-08-03)## 5. PROCHAINES ÉTAPES IMMÉDIATES
+
+1. **Mécanique de combat V2 (Realtime)**
+   - Récupérer les questions depuis Supabase et les injecter dans le match Firebase.
+   - Synchroniser le timer (15s) et l'affichage des questions entre les deux joueurs.
+   - Calculer les dégâts et mettre à jour les PV en temps réel.
+2. **Mode Duel Amical**
+   - Finaliser l'interface de création de salon (Choix Anime/Arc/Diff).
+   - Générer le code à 6 chiffres et permettre à un ami de le rejoindre.
+3. **Supabase Edge Functions**
+   - Sécuriser la fin du match et le calcul des points/divisions côté serveur.
+4. **Finalisation du Dashboard Admin**
+   - Permettre l'ajout d'images dans les questions (si besoin).

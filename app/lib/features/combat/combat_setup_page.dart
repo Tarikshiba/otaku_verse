@@ -4,10 +4,6 @@ import 'combat_models.dart';
 import 'combat_service.dart';
 import 'combat_page.dart';
 
-/// === ECRAN DE PARAMETRAGE DU COMBAT ===
-/// Le joueur choisit l'anime et la difficulte avant de lancer un combat.
-/// C'est le "lobby" d'avant-match.
-
 class CombatSetupPage extends StatefulWidget {
   const CombatSetupPage({super.key});
 
@@ -17,27 +13,24 @@ class CombatSetupPage extends StatefulWidget {
 
 class _CombatSetupPageState extends State<CombatSetupPage> {
   final CombatService _combatService = CombatService();
+  final PageController _pageController = PageController();
 
-  // Anime selectionne (null = toutes categories)
   String? _animeChoisi;
-
-  // Difficulte selectionnee
+  String? _arcChoisi;
+  List<String> _arcsDisponibles = [];
+  bool _chargementArcs = false;
   String _difficulteChoisie = 'moyen';
-
-  // Liste des animes disponibles (chargee depuis Supabase)
   List<String> _animesDisponibles = [];
-
-  // Etats de chargement
   bool _chargementAnimes = true;
   bool _lancementCombat = false;
+  int _currentPage = 0;
 
-  // Les niveaux de difficulte disponibles
   static const List<Map<String, String>> _difficultes = [
-    {'id': 'facile', 'label': 'FACILE', 'desc': 'Bot faible — pour s\'echauffer'},
+    {'id': 'facile', 'label': 'FACILE', 'desc': "Bot faible — pour s'echauffer"},
     {'id': 'moyen', 'label': 'MOYEN', 'desc': 'Bot equilibre — 50/50'},
     {'id': 'difficile', 'label': 'DIFFICILE', 'desc': 'Bot redoutable'},
     {'id': 'expert', 'label': 'EXPERT', 'desc': 'Bot quasi-imbattable'},
-    {'id': 'adaptatif', 'label': 'ADAPTATIF', 'desc': 'S\'ajuste a ton niveau'},
+    {'id': 'adaptatif', 'label': 'ADAPTATIF', 'desc': "S'ajuste a ton niveau"},
   ];
 
   @override
@@ -46,7 +39,12 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
     _chargerAnimes();
   }
 
-  /// Charge la liste des animes depuis la base de questions
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   Future<void> _chargerAnimes() async {
     try {
       final animes = await _combatService.recupererAnimesDisponibles();
@@ -61,171 +59,211 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
     }
   }
 
-  /// Lance le combat avec les parametres choisis
   Future<void> _lancerCombat() async {
     setState(() => _lancementCombat = true);
-
     try {
-      final params = CombatParams(
-        anime: _animeChoisi,
-        difficulte: _difficulteChoisie,
-      );
-
-      // Recuperer les questions pour ce combat
+      final params = CombatParams(anime: _animeChoisi, arc: _arcChoisi, difficulte: _difficulteChoisie);
       final questions = await _combatService.preparerCombat(params);
-
       if (!mounted) return;
-
       if (questions.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Aucune question disponible pour ces parametres')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune question disponible pour ces parametres.')));
         setState(() => _lancementCombat = false);
         return;
       }
-
-      // Naviguer vers l'ecran de combat
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CombatPage(
-            questions: questions,
-            params: params,
-          ),
-        ),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => CombatPage(questions: questions, params: params)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur de connexion')));
+      setState(() => _lancementCombat = false);
     }
+  }
 
-    if (mounted) setState(() => _lancementCombat = false);
+  Future<void> _chargerArcs() async {
+    if (_animeChoisi == null) return;
+    setState(() => _chargementArcs = true);
+    try {
+      final arcs = await _combatService.recupererArcsDisponibles(_animeChoisi!);
+      if (!mounted) return;
+      setState(() {
+        _arcsDisponibles = arcs;
+        _chargementArcs = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _chargementArcs = false);
+    }
+  }
+
+  void _nextPage() async {
+    if (_currentPage == 0) {
+      if (_animeChoisi != null) {
+        _chargerArcs();
+        _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+        setState(() => _currentPage++);
+      } else {
+        _arcChoisi = null; // Tous les animes -> pas d'arc possible
+        // On saute la page des arcs
+        _pageController.animateToPage(2, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+        setState(() => _currentPage = 2);
+      }
+    } else if (_currentPage == 1) {
+      _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      setState(() => _currentPage++);
+    }
+  }
+
+  void _prevPage() {
+    if (_currentPage > 0) {
+      _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      setState(() => _currentPage--);
+    } else {
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: OtakuColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Bouton retour
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.arrow_back, color: OtakuColors.textSecondary, size: 20),
-                    const SizedBox(width: 8),
-                    Text('RETOUR', style: OtakuTypo.label),
-                  ],
+        child: Column(
+          children: [
+            // Header minimaliste
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  Text('PARAMETRES', style: OtakuTypo.headlineLarge.copyWith(fontSize: 18)),
+                  const Spacer(),
+                  Text(
+                  _animeChoisi == null 
+                      ? '${_currentPage == 0 ? 1 : 2}/2' 
+                      : '${_currentPage + 1}/3',
+                  style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted),
                 ),
+                ],
               ),
-              const SizedBox(height: 24),
-
-              // Titre
-              Text('PREPARER LE COMBAT', style: OtakuTypo.headlineLarge),
-              const SizedBox(height: 8),
-              Text(
-                'Choisis ton terrain et la force de ton adversaire.',
-                style: OtakuTypo.bodySmall,
+            ),
+            const SizedBox(height: 6),
+            
+            // Contenu (PageView sans defilement libre)
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildPageAnime(),
+                  _buildPageArc(),
+                  _buildPageDifficulte(),
+                ],
               ),
-              const SizedBox(height: 32),
-
-              // --- SECTION ANIME ---
-              Text('ANIME', style: OtakuTypo.label),
-              const SizedBox(height: 12),
-
-              if (_chargementAnimes)
-                const Center(
-                  child: SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            
+            // Footer : Boutons Retour / Suivant (façon eFootball)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: _prevPage,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: OtakuColors.border),
+                      ),
+                      child: Text('RETOUR', style: OtakuTypo.label),
+                    ),
                   ),
-                )
-              else
-                _buildSelectionAnime(),
-
-              const SizedBox(height: 28),
-
-              // --- SECTION DIFFICULTE ---
-              Text('DIFFICULTE', style: OtakuTypo.label),
-              const SizedBox(height: 12),
-              _buildSelectionDifficulte(),
-
-              const SizedBox(height: 32),
-
-              // --- BOUTON LANCER ---
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _lancementCombat ? null : _lancerCombat,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                  ),
-                  child: _lancementCombat
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                        )
-                      : const Text('LANCER LE COMBAT', style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 2,
-                        )),
-                ),
+                  if (_currentPage < 2)
+                    GestureDetector(
+                      onTap: _nextPage,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: OtakuColors.accent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('SUIVANT', style: OtakuTypo.label.copyWith(color: Colors.black)),
+                      ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: _lancementCombat ? null : _lancerCombat,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [OtakuColors.accent, OtakuColors.accentDark]),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(color: OtakuColors.accent.withValues(alpha: 0.5), blurRadius: 12),
+                          ],
+                        ),
+                        child: _lancementCombat
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : Text('LANCER', style: OtakuTypo.label.copyWith(color: Colors.white)),
+                      ),
+                    ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Grille de selection de l'anime
-  Widget _buildSelectionAnime() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        // Option "Toutes categories"
-        _buildChipAnime(null, 'TOUS'),
-        // Un chip par anime dispo
-        ..._animesDisponibles.map(
-          (anime) => _buildChipAnime(anime, anime.toUpperCase()),
-        ),
-      ],
+  Widget _buildPageAnime() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('CHOISIS TON TERRAIN', style: OtakuTypo.headlineLarge.copyWith(fontSize: 18)),
+          const SizedBox(height: 8),
+          Text("L'univers des questions de ce combat.", style: OtakuTypo.bodySmall),
+          const SizedBox(height: 16),
+          if (_chargementAnimes)
+            const Center(child: CircularProgressIndicator())
+          else
+            Expanded(
+              child: SingleChildScrollView(
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _buildChipAnime(null, 'TOUS LES ANIMES'),
+                    ..._animesDisponibles.map((anime) => _buildChipAnime(anime, anime.toUpperCase())),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  /// Un chip cliquable pour un anime
   Widget _buildChipAnime(String? anime, String label) {
     final estSelectionne = _animeChoisi == anime;
-
     return GestureDetector(
       onTap: () => setState(() => _animeChoisi = anime),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: estSelectionne ? OtakuColors.accent : Colors.transparent,
+          color: estSelectionne ? OtakuColors.accent : OtakuColors.surface,
           border: Border.all(
             color: estSelectionne ? OtakuColors.accent : OtakuColors.border,
             width: estSelectionne ? 2 : 1,
           ),
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           label,
-          style: TextStyle(
+          style: OtakuTypo.headlineSmall.copyWith(
             fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
             color: estSelectionne ? Colors.black : OtakuColors.textPrimary,
           ),
         ),
@@ -233,73 +271,135 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
     );
   }
 
-  /// Liste de selection de la difficulte
-  Widget _buildSelectionDifficulte() {
-    return Column(
-      children: _difficultes.map((diff) {
-        final estSelectionne = _difficulteChoisie == diff['id'];
 
-        return GestureDetector(
-          onTap: () => setState(() => _difficulteChoisie = diff['id']!),
-          child: Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: estSelectionne
-                  ? OtakuColors.accent.withValues(alpha: 0.1)
-                  : Colors.transparent,
-              border: Border.all(
-                color: estSelectionne ? OtakuColors.accent : OtakuColors.border,
-                width: estSelectionne ? 2 : 1,
+  Widget _buildPageArc() {
+    if (_animeChoisi == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('CHOISIS L\'ARC', style: OtakuTypo.headlineLarge.copyWith(fontSize: 18)),
+            const SizedBox(height: 8),
+            Text("Tu as choisi 'Tous les animes'. Tu ne peux pas filtrer par arc.", style: OtakuTypo.bodySmall),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('CHOISIS L\'ARC', style: OtakuTypo.headlineLarge.copyWith(fontSize: 18)),
+          const SizedBox(height: 8),
+          Text("Filtre les questions sur un moment precis de l'histoire.", style: OtakuTypo.bodySmall),
+          const SizedBox(height: 16),
+          if (_chargementArcs)
+            const Center(child: CircularProgressIndicator())
+          else if (_arcsDisponibles.isEmpty)
+            Text("Aucun arc specifique disponible pour cet anime.", style: OtakuTypo.bodySmall)
+          else
+            Expanded(
+              child: SingleChildScrollView(
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _buildChipArc(null, 'TOUS LES ARCS'),
+                    ..._arcsDisponibles.map((arc) => _buildChipArc(arc, arc.toUpperCase())),
+                  ],
+                ),
               ),
-              borderRadius: BorderRadius.circular(2),
             ),
-            child: Row(
-              children: [
-                // Indicateur de selection (point)
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: estSelectionne ? OtakuColors.accent : OtakuColors.textMuted,
-                      width: 2,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChipArc(String? arc, String label) {
+    final estSelectionne = _arcChoisi == arc;
+    return GestureDetector(
+      onTap: () => setState(() => _arcChoisi = arc),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: estSelectionne ? OtakuColors.accent : OtakuColors.surface,
+          border: Border.all(
+            color: estSelectionne ? OtakuColors.accent : OtakuColors.border,
+            width: estSelectionne ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: OtakuTypo.headlineSmall.copyWith(
+            fontSize: 12,
+            color: estSelectionne ? Colors.black : OtakuColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageDifficulte() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("FORCE DE L'ADVERSAIRE", style: OtakuTypo.headlineLarge.copyWith(fontSize: 18)),
+          const SizedBox(height: 8),
+          Text("Definis la difficulte de l'IA.", style: OtakuTypo.bodySmall),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ListView.separated(
+              itemCount: _difficultes.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final diff = _difficultes[index];
+                final estSelectionne = _difficulteChoisie == diff['id'];
+                return GestureDetector(
+                  onTap: () => setState(() => _difficulteChoisie = diff['id']!),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: estSelectionne ? OtakuColors.accent.withValues(alpha: 0.1) : OtakuColors.surface,
+                      border: Border.all(
+                        color: estSelectionne ? OtakuColors.accent : OtakuColors.border,
+                        width: estSelectionne ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    color: estSelectionne ? OtakuColors.accent : Colors.transparent,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Label + description
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        diff['label']!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                          color: estSelectionne
-                              ? OtakuColors.accent
-                              : OtakuColors.textPrimary,
+                    child: Row(
+                      children: [
+                        Icon(
+                          estSelectionne ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                          color: estSelectionne ? OtakuColors.accent : OtakuColors.textMuted,
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        diff['desc']!,
-                        style: OtakuTypo.bodySmall,
-                      ),
-                    ],
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(diff['label']!, style: OtakuTypo.headlineLarge.copyWith(
+                              fontSize: 14,
+                              color: estSelectionne ? OtakuColors.accent : OtakuColors.textPrimary,
+                            )),
+                            Text(diff['desc']!, style: OtakuTypo.bodySmall),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
-        );
-      }).toList(),
+        ],
+      ),
     );
   }
 }

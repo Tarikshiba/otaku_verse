@@ -94,25 +94,36 @@ class _AmisScreenState extends State<AmisScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SectionTexture(
-      type: TextureType.bulles,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              _buildHeader(),
-              const SizedBox(height: 12),
+    return Scaffold(
+      backgroundColor: OtakuColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SectionTexture(
+        type: TextureType.bulles,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                _buildHeader(),
+                const SizedBox(height: 12),
 
-              // Tabs de filtrage
-              _buildTabs(),
-              const SizedBox(height: 12),
+                // Tabs de filtrage
+                _buildTabs(),
+                const SizedBox(height: 12),
 
-              // Contenu
-              Expanded(child: _buildContenu()),
-            ],
+                // Contenu
+                Expanded(child: _buildContenu()),
+              ],
+            ),
           ),
         ),
       ),
@@ -247,7 +258,7 @@ class _AmisScreenState extends State<AmisScreen> {
   }
 
   /// Ouvre le profil public d'un joueur
-  void _ouvrirProfil(String userId, String pseudo, int niveau, String rang) {
+  void _ouvrirProfil(String userId, String pseudo, int niveau, String rang, {bool isFriend = false}) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -256,6 +267,7 @@ class _AmisScreenState extends State<AmisScreen> {
           pseudo: pseudo,
           niveau: niveau,
           rang: rang,
+          isFriend: isFriend,
         ),
       ),
     );
@@ -269,7 +281,7 @@ class _AmisScreenState extends State<AmisScreen> {
             : OtakuColors.textMuted;
 
     return GestureDetector(
-      onTap: () => _ouvrirProfil(ami.userId, ami.pseudo, ami.niveau, ami.rang),
+      onTap: () => _ouvrirProfil(ami.userId, ami.pseudo, ami.niveau, ami.rang, isFriend: true),
       child: LiquidGlass(
       borderRadius: 12,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

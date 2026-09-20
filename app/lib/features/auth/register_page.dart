@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import 'auth_service.dart';
+import 'country_selector.dart';
 
 /// Ecran d'inscription (email + mot de passe + confirmation).
 /// onBasculeConnexion : callback pour revenir a l'ecran connexion
@@ -117,23 +118,33 @@ class _RegisterPageState extends State<RegisterPage> {
                 children: [
                   Text('PAYS', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
                   const SizedBox(height: 6),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: OtakuColors.surface,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: OtakuColors.border),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _paysChoisi,
-                        hint: const Text('Choisis ton pays', style: TextStyle(color: OtakuColors.textMuted)),
-                        dropdownColor: OtakuColors.surface,
-                        style: const TextStyle(color: OtakuColors.textPrimary, fontSize: 14),
-                        isExpanded: true,
-                        items: _pays.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-                        onChanged: (val) => setState(() => _paysChoisi = val),
+                  GestureDetector(
+                    onTap: () async {
+                      final p = await showCountrySelector(context);
+                      if (p != null) {
+                        setState(() => _paysChoisi = p);
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.background,
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: OtakuColors.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _paysChoisi ?? 'Rechercher ou choisir ton pays...',
+                            style: TextStyle(
+                              color: _paysChoisi == null ? OtakuColors.textMuted : OtakuColors.textPrimary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down_rounded, color: OtakuColors.textMuted),
+                        ],
                       ),
                     ),
                   ),

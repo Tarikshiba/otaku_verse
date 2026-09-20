@@ -1,491 +1,1008 @@
-# OTAKU VERSE — CAHIER DES CHARGES & ROADMAP TECHNIQUE
+**OTAKU VERSE**
 
-**Version 2.1 — Document de référence projet**
-**Auteurs : Tariq (Dr. X) × Heat**
-**Repo GitHub : https://github.com/Tarikshiba/otaku_verse**
+*Cahier des Charges & Roadmap Technique*
 
----
+Version 1.0 — Document de référence projet
 
-## CHANGELOG DEPUIS LA V2.0
+Auteurs : Tariq (Dr. X) × Heat
 
-Suite à un retour d'expérience utilisateur (Heat a trouvé les apps de quiz classiques ennuyantes — questions répétitives, présentation plate en mode vertical), la direction produit de la V1 évolue :
+# 1. STACK TECHNIQUE RETENUE
 
-- Le quiz solo classique (répondre à des questions dans le vide) est **remplacé** par un **mode combat horizontal** dès la V1.
-- Le combat oppose le joueur à un **bot** en V1 (le multijoueur temps réel reste en V2, comme prévu, mais réutilisera la mécanique de combat validée en V1).
-- Les combos (3 bonnes réponses d'affilée) déclenchent une attaque spéciale animée.
-- Les skins de personnages passent en 3D consultable dans le profil (V1 : un skin fixe unique — la collection/achat arrive en V1.5).
-- Le reste de l'architecture (stack technique, modules, sécurité, workflow Git) ne change pas.
+## 2.1 Application mobile — Flutter
 
----
+Pourquoi Flutter :
 
-## COMMENT UTILISER CE DOCUMENT
+- Un seul codebase pour iOS et Android (iPhones, iPads, Android phones et tablettes)
 
-Ce fichier est lu par Claude Code en complément de `CLAUDE.md` et `PROGRESS.md`.
-Il contient la vision, les fonctionnalités et le **plan d'exécution étape par étape jusqu'à la V1**.
-On ne commence jamais une nouvelle version tant que la précédente n'est pas testée et validée.
+- Performances natives (pas de WebView)
 
----
+- Architecture modulaire native (packages, providers, modules indépendants)
 
-## SOMMAIRE
+- Communauté large, excellent support Google
 
-1. [Vision du projet](#1-vision-du-projet)
-2. [Direction artistique — Design](#2-direction-artistique--design)
-3. [Stack technique](#3-stack-technique)
-4. [Architecture modulaire](#4-architecture-modulaire)
-5. [Base de données des questions](#5-base-de-données-des-questions)
-6. [Le mode Combat — cœur de la V1](#6-le-mode-combat--cœur-de-la-v1)
-7. [Fonctionnalités — vue globale](#7-fonctionnalités--vue-globale)
-8. [PLAN D'EXÉCUTION V1 — Étape par étape](#8-plan-dexécution-v1--étape-par-étape)
-9. [V1 — Détail fonctionnel complet](#9-v1--détail-fonctionnel-complet)
-10. [V1.5 → V5 — Aperçu (post-MVP)](#10-v15--v5--aperçu-post-mvp)
-11. [Sécurité](#11-sécurité)
-12. [Workflow Git / GitHub](#12-workflow-git--github)
-13. [Outils à installer](#13-outils-à-installer)
-14. [Checklist de fin de V1](#14-checklist-de-fin-de-v1)
-15. [Glossaire](#15-glossaire)
+- Idéal pour les animations riches (Verse, récompenses, badges)
 
----
+**Langage : Dart**
 
-## 1. VISION DU PROJET
+## 2.2 Backend — Supabase (principal) + Firebase (temps réel Verse)
 
-**Otaku Verse** est une plateforme mobile de quiz compétitif dédiée à la culture manga, anime et pop culture francophone. Le joueur progresse dans un univers appelé **le Verse** : combats de quiz, duels en temps réel, divisions compétitives inspirées d'eFootball, saisons, événements, récompenses.
+### Supabase
 
-### Ce que ce n'est PAS
-- Pas un simple quiz statique et jetable
-- Pas un réseau social
-- Pas un RPG complet
+- Base de données PostgreSQL managée
 
-### Ce que c'est
-- Un moteur de quiz intelligent, avec des dizaines/centaines de milliers de questions
-- Une expérience de **combat** — chaque quiz est un affrontement, pas une liste de questions
-- Un système de progression (XP, niveaux, rangs, badges, titres, collections)
-- Un mode multijoueur (le Verse) : duels, coop, divisions, matchmaking (V2)
-- Une plateforme pensée pour évoluer pendant plusieurs années sans reconstruction complète
+- Authentification intégrée (email, Google, Apple, Discord)
 
-### Public cible
-Fans de manga/anime/pop culture au Sénégal et en Afrique francophone, 15–30 ans, mobile-first, du fan occasionnel à l'expert compétitif.
+- API REST + Realtime channels
 
----
+- Storage pour les assets (avatars, badges, images)
 
-## 2. DIRECTION ARTISTIQUE — DESIGN
+- Dashboard admin natif pour la BDD
 
-> Tariq n'est pas designer et le sait. Cette section existe pour que Claude Code prenne des décisions de design fortes sans attendre une direction artistique détaillée à chaque écran.
+- Open source, scalable, tarification prévisible
 
-### 2.1 Ce qu'on refuse absolument
+### Firebase (en complément pour le Verse)
 
-- ❌ Glassmorphism (fonds flous translucides) — signature visuelle "app générée par IA en 2024"
-- ❌ Dégradés violet → bleu → rose mous et génériques
-- ❌ Cartes blanches aux coins arrondis avec ombre légère (look SaaS B2B)
-- ❌ Icônes Material Design par défaut sans retouche
-- ❌ Illustrations "flat design" de bonhommes génériques
-- ❌ Emojis à la place d'iconographie réelle
+- Firestore ou Realtime Database pour les duels live (latence \< 100ms)
 
-### 2.2 Ce qu'on vise
+- Firebase Cloud Messaging (notifications push iOS + Android)
 
-**Un langage visuel manga/imprimé, pas "app mobile lambda" :**
-
-- **Trames et screentones** — texture de points façon impression manga N&B, utilisée en fond ou en accent plutôt que des dégradés lisses
-- **Traits d'encre et contours marqués** — bordures noires épaisses façon planche manga sur certains éléments clés (cartes de récompense, badges)
-- **Lignes de vitesse / speed lines** — pour les transitions, les coups portés en combat, les montées de niveau
-- **Onomatopées stylisées** en guise d'accents visuels (BOOM, LEVEL UP!, K.O.) dans les moments de feedback fort — notamment à chaque coup porté en combat et à chaque combo
-- **Une seule couleur d'accent dominante et saturée** (pas un camaïeu) — par exemple un rouge encre ou un violet électrique unique, sur fond très sombre quasi noir, façon jaquette de tankōbon
-- **Typographie à impact** pour les titres (police display avec du caractère, pas une sans-serif neutre), typographie sobre et très lisible pour le contenu (questions, texte long)
-- **Compositions asymétriques** plutôt que des grilles parfaitement centrées — cadrages dynamiques façon page de manga
-- **Iconographie custom ou fortement retravaillée**, jamais des packs d'icônes par défaut tels quels
-
-### 2.3 Ambiance recherchée
-Sobre, sombre, impactant. Le joueur doit ressentir qu'il ouvre un artefact culte, pas une app de sondage. Référence de sensation : jaquette d'un manga culte + interface d'un jeu de combat stylé, pas un dashboard.
-
-### 2.4 Deux registres visuels distincts
-
-- **Hors combat (profil, accueil, menus)** : format vertical, ambiance manga sombre décrite ci-dessus, skin du joueur visible et rotatif en 3D dans le profil
-- **Écran de combat** : format **horizontal forcé**, mise en scène façon jeu de combat mobile (type eFootball/Free Fire en session) — les deux personnages (joueur à une extrémité, adversaire à l'autre) se font face, barres de vie visibles, la question et les choix de réponse occupent l'espace central
-
-### 2.5 Process
-- Palette de couleurs, typographies et composants de base définis et validés **avant** de coder le premier écran (étape 3 du plan d'exécution, section 8)
-- Si Tariq veut faire une maquette Figma, le faire uniquement pour 2-3 écrans clés (Accueil, Combat, Résultat) — pas besoin de tout maquetter avant de coder
-
----
-
-## 3. STACK TECHNIQUE
-
-| Composant | Choix | Pourquoi |
-|---|---|---|
-| App mobile | **Flutter (Dart)** | Un seul code pour iOS + Android + tablettes, performances natives, écosystème riche pour animations |
-| Gestion d'état | **Riverpod** | Plus simple à apprendre et à expliquer que Bloc, robuste, évolutif, très utilisé donc bien documenté |
-| Backend principal | **Supabase** | PostgreSQL managé, Auth intégrée, Storage, API auto-générée, dashboard natif, cloud (pas de serveur à gérer) |
-| Animations de combat | **2D** (Rive ou sprites animés légers) | Le combat reste jouable sur tous les téléphones sans faire chuter les performances |
-| Skin du personnage (profil) | **3D léger** (modèle simple rotatif, viewer intégré) | Effet "collection premium" dans le profil sans alourdir l'écran de combat |
-| Temps réel (Verse, à partir de V2) | **Firebase Realtime Database + Cloud Messaging** | Latence très faible pour les duels live + notifications push fiables iOS/Android |
-| Logique métier serveur | **Supabase Edge Functions** (TypeScript/Deno) | Validation des réponses côté serveur, calcul des dégâts et du score, anti-triche |
-| Dashboard admin | **Next.js + TypeScript + Tailwind CSS** | Web app séparée, déployée sur Vercel, connectée à Supabase |
-| Base de questions (source) | Fichiers **Markdown (.md)** | Lisible, versionnable sur Git, facile à écrire même sans coder |
-| Contrôle de version | **Git + GitHub** | Repo : `github.com/Tarikshiba/otaku_verse` |
-
----
-
-## 4. ARCHITECTURE MODULAIRE
-
-**Règle d'or :** chaque module est indépendant. Un bug dans la boutique ne doit jamais casser le combat. Un module ne touche jamais directement les données d'un autre module — il passe par une interface définie.
-
-| Module | Rôle | Version d'introduction |
-|---|---|---|
-| `auth` | Inscription, connexion, sessions | V1 |
-| `profile` | Profil joueur, stats, skin 3D, personnalisation | V1 |
-| `combat_engine` | Logique de combat (PV, dégâts, combos, bot) | V1 |
-| `questions_db` | Base de données des questions | V1 |
-| `progression` | XP, niveaux, rangs, badges | V1 |
-| `rewards` | Récompenses de base, défis quotidiens | V1 |
-| `admin` | Dashboard back-office | V1 |
-| `social` | Amis, classements, partage | V1.5 |
-| `notifications` | Push, in-app | V1.5 |
-| `verse` | Duels temps réel, divisions, coop | V2 |
-| `events` | Événements, saisons, tournois | V3 |
-| `monetization` | Pay-to-win, publicités, boutique, skins additionnels | V4 |
-
----
-
-## 5. BASE DE DONNÉES DES QUESTIONS
-
-### Format source : `.md` structuré
-
-```markdown
----
-id: OP_001_0042
-anime: One Piece
-arc: Alabasta
-chapitre: 155
-type: personnage
-difficulte: moyen
-tags: [capitaine, equipage, chapeau-de-paille]
----
-
-**Question :** Quel est le nom du capitaine de l'équipage du Chapeau de Paille ?
-
-- A: Zoro
-- B: Nami
-- C: Monkey D. Luffy
-- D: Shanks
+### Pourquoi cette combinaison
 
-**Bonne réponse :** C
-
-**Explication :** Monkey D. Luffy est le fondateur et capitaine de l'équipage du Chapeau de Paille.
-```
-
-### Table PostgreSQL (Supabase)
-
-```sql
-CREATE TABLE questions (
-  id              TEXT PRIMARY KEY,
-  anime           TEXT NOT NULL,
-  arc             TEXT,
-  chapitre        TEXT,
-  type            TEXT NOT NULL,
-  difficulte      TEXT NOT NULL,        -- facile, moyen, difficile, expert
-  question        TEXT NOT NULL,
-  choix_a         TEXT NOT NULL,
-  choix_b         TEXT NOT NULL,
-  choix_c         TEXT NOT NULL,
-  choix_d         TEXT NOT NULL,
-  bonne_reponse   CHAR(1) NOT NULL,
-  explication     TEXT,
-  tags            TEXT[],
-  statut          TEXT DEFAULT 'actif',
-  frequence       INTEGER DEFAULT 0,
-  taux_reussite   FLOAT DEFAULT 0.0,
-  created_at      TIMESTAMP DEFAULT NOW()
-);
-```
-
-### Script d'import
-Un script (Node.js) lit tous les `.md` du dossier `questions_db/`, valide les champs obligatoires, détecte les doublons, puis insère dans Supabase.
-
-### Moteur de sélection (résumé)
-Ne choisit jamais au hasard : exclut les questions vues récemment, équilibre les difficultés et catégories, adapte la difficulté au niveau du joueur et à la difficulté du bot en cours de combat.
-
----
-
-## 6. LE MODE COMBAT — CŒUR DE LA V1
-
-### 6.1 Principe général
-
-Avant V2.0, un "quiz" consistait à répondre à des questions dans le vide. En V2.1, **tout passe par le combat**. Il n'existe plus de mode "solo classique" séparé : le combat contre un bot devient l'unique moteur de jeu de la V1, et sert de base réutilisable pour le futur duel joueur-contre-joueur (V2).
-
-### 6.2 Avant le combat — paramétrage
-
-Le joueur choisit, avant de lancer le combat :
-- **L'anime** sur lequel porteront les questions (ou "toutes catégories")
-- **La difficulté globale visée** (facile / moyen / difficile / expert / adaptatif)
-
-Ce choix remplace les anciens modes "Quiz Rapide / par Anime / par Difficulté" — au lieu de choisir un *type* de quiz, le joueur choisit les *paramètres de son combat*.
-
-### 6.3 Mise en scène du combat
-
-- Écran forcé en **mode paysage (horizontal)**
-- Le personnage du joueur est positionné à une extrémité de l'écran, celui du bot à l'autre extrémité, face à face
-- Chacun a une **barre de vie (PV)** visible au-dessus de son personnage
-- La question et les 4 choix de réponse occupent l'espace central de l'écran
-- Un timer par question, comme en V2.0
-
-### 6.4 Déroulement d'un tour
-
-1. La question s'affiche avec un temps limité pour répondre
-2. **Bonne réponse du joueur** → le personnage du joueur attaque, le bot perd des PV (animation d'attaque + onomatopée)
-3. **Bonne réponse du bot** (simulée selon sa difficulté) → le bot attaque, le joueur perd des PV
-4. **Mauvaise réponse ou temps écoulé** → pas d'attaque ce tour-ci
-5. Le combat enchaîne directement sur la question suivante
-
-### 6.5 Système de combo
-
-- **3 bonnes réponses d'affilée** (par le joueur ou par le bot) déclenchent une **attaque spéciale** : animation dédiée plus marquée, dégâts renforcés
-- Une mauvaise réponse ou un temps écoulé réinitialise le compteur de combo
-- Le système de combo est générique et réutilisable (même mécanique en V2 pour les duels réels)
-
-### 6.6 Fin du combat
-
-- **Limite de 10 questions maximum** par combat
-- **K.O. immédiat** si un des deux personnages (joueur ou bot) tombe à 0 PV avant la 10ᵉ question — le combat s'arrête là, victoire immédiate
-- Si la 10ᵉ question est atteinte sans K.O. → celui qui a le plus de PV restants (ou qui a infligé le plus de dégâts cumulés) remporte le combat
-
-### 6.7 Le bot (V1)
-
-- **Difficulté progressive/adaptative** : le bot ne répond pas à un taux de réussite fixe, son niveau de "précision" et de "vitesse de réponse" s'ajuste selon :
-  - La difficulté choisie par le joueur avant le combat
-  - Éventuellement le niveau/rang du joueur (à affiner à l'implémentation)
-- Le bot est entièrement simulé côté serveur (Edge Function) — jamais de logique de triche visible côté client
-- Cette brique de simulation du bot est conçue pour être **réutilisée en V2** comme adversaire de secours si aucun joueur humain n'est disponible en matchmaking
-
-### 6.8 Skin du joueur
-
-- En **V1** : un seul skin par défaut, en 3D, consultable et rotatif depuis l'écran de profil (pas de choix ni de collection)
-- La collection de skins, achats et personnalisation vestimentaire arrivent en **V1.5**
-
----
-
-## 7. FONCTIONNALITÉS — VUE GLOBALE
-
-| Fonctionnalité | Version |
-|---|---|
-| Inscription / connexion | V1 |
-| Profil joueur + stats de base + skin 3D fixe | V1 |
-| Combat vs bot (paramétrable anime/difficulté) | V1 |
-| Combos et attaques spéciales | V1 |
-| XP, niveaux, rangs | V1 |
-| Badges, défis quotidiens, récompense de connexion | V1 |
-| Dashboard admin (questions, users) | V1 |
-| Classements (mondial, national, amis) | V1.5 |
-| Système d'amis, notifications push | V1.5 |
-| Collection de skins, boutique cosmétique de base | V1.5 |
-| Duels temps réel, divisions, coop, invitation par code | V2 |
-| Saisons, événements, tournois | V3 |
-| Monnaie virtuelle, boutique complète, abonnement, pay-to-win encadré | V4 |
-| Battle Royale, guildes, expansion multi-licences | V5 |
-
----
-
-## 8. PLAN D'EXÉCUTION V1 — ÉTAPE PAR ÉTAPE
-
-> Chaque étape doit être terminée, testée et comprise par Tariq avant de passer à la suivante. Après chaque étape validée, Claude Code doit mettre à jour `PROGRESS.md` et dire à Tariq de push.
+- Supabase gère tout le data statique (questions, profils, classements, récompenses)
+
+- Firebase gère uniquement la couche temps réel critique (duels live)
+
+- Les deux sont des clouds managés, pas besoin de VPS à gérer soi-même
+
+## 2.3 Backend logique métier — Supabase Edge Functions
+
+- Fonctions serverless en TypeScript/Deno
+
+- Calcul des scores, validation des réponses, attribution des récompenses
+
+- Logique anti-triche côté serveur
+
+- Déclencheurs automatiques (fin de saison, attribution de badges, classements)
+
+## 2.4 Dashboard Admin — Next.js
+
+- Application web séparée (pas dans l'app mobile)
+
+- Next.js + TypeScript + Tailwind CSS
+
+- Connecté à Supabase via l'API admin
+
+- Accès restreint par rôles (super admin, modérateur, éditeur de contenu)
+
+## 2.5 Schéma d'ensemble
+
+> \[App Flutter iOS/Android\]
 >
-> **Étapes déjà réalisées lors de la V2.0 et conservées telles quelles :** 0 (environnement), 1 (init Flutter), 2 (fondations Supabase), 3 (design system), 4 (authentification), 5 (base de données des questions).
+> \|
 >
-> **À partir de l'étape 6, le plan est adapté au nouveau mode Combat.**
+> \| HTTPS / WebSocket
+>
+> \|
+>
+> \[Supabase\] \<-\> \[Firebase Realtime DB\] (duels live uniquement)
+>
+> \|
+>
+> +-- PostgreSQL (questions, profils, classements, recompenses)
+>
+> +-- Auth (comptes utilisateurs)
+>
+> +-- Storage (avatars, badges, assets)
+>
+> +-- Edge Functions (logique metier, anti-triche, calculs)
+>
+> \|
+>
+> \[Dashboard Admin Next.js\] \<-\> \[Supabase Admin API\]
 
-### Étape 0 — Mise en place de l'environnement ✅
-### Étape 1 — Initialisation du projet Flutter ✅
-### Étape 2 — Fondations Supabase ✅
-### Étape 3 — Design system (fondations visuelles) ✅
-### Étape 4 — Authentification (module `auth`) ✅
-### Étape 5 — Base de données des questions ✅
+# 2. ARCHITECTURE GÉNÉRALE
 
-### Étape 6 — Refonte : moteur de combat (module `combat_engine`)
-- Créer la table `combats` (ou équivalent) pour suivre l'état d'un combat en cours (PV joueur, PV bot, historique des réponses, combo en cours)
-- Écran paramétrage : choix anime + difficulté avant de lancer un combat
-- Écran de combat en mode paysage forcé : positionnement des deux personnages, barres de PV, zone question/réponses
-- Logique de dégâts par bonne réponse, simulation du bot, gestion du combo (3 bonnes réponses d'affilée)
-- Validation des réponses et calcul des dégâts **côté serveur** (Edge Function), jamais côté client
-- Condition de fin : K.O. avant 10 questions, ou décompte des PV à la 10ᵉ question
-- Test : jouer un combat complet du début à la fin (victoire par K.O. et victoire aux points)
-- Commit + push
+## 3.1 Principe fondamental : Modularité stricte
 
-### Étape 7 — Progression (module `progression`)
-- XP, niveaux, rangs (voir barème section 9)
-- Mise à jour du profil après chaque combat
-- Écran de résultat de fin de combat (victoire/défaite, XP gagné, badges débloqués)
-- Commit + push
+Chaque module est indépendant. Un bug dans le système de boutique ne casse pas le quiz. L'ajout d'un nouveau mode de jeu ne touche pas le système de progression.
 
-### Étape 8 — Profil joueur (module `profile`)
-- Écran profil : stats, historique des combats, badges
-- Intégration du skin 3D fixe, consultable et rotatif
-- Commit + push
+## 3.2 Modules principaux
 
-### Étape 9 — Récompenses de base (module `rewards`)
-- Défis quotidiens (génération automatique, reset à minuit)
-- Récompense de connexion quotidienne
-- Badges de base
-- Commit + push
+| **Module**    | **Rôle**                                | **Dépendances**          |
+|---------------|-----------------------------------------|--------------------------|
+| auth          | Inscription, connexion, sessions        | Aucune                   |
+| profile       | Profil joueur, stats, personnalisation  | auth                     |
+| quiz_engine   | Sélection et distribution des questions | questions_db             |
+| questions_db  | Base de données des questions           | Aucune                   |
+| progression   | XP, niveaux, rangs, badges, titres      | quiz_engine, profile     |
+| verse         | Duels temps réel, divisions, coop       | quiz_engine, progression |
+| social        | Amis, invitations, activité             | profile                  |
+| events        | Événements, saisons, tournois           | quiz_engine, progression |
+| rewards       | Récompenses, collections, boutique      | progression              |
+| monetization  | Pay-to-win, publicités                  | rewards                  |
+| notifications | Push, in-app                            | Tous modules             |
+| admin         | Dashboard back-office                   | Tous modules             |
 
-### Étape 10 — Accueil (écran central)
-- Assemblage de l'écran d'accueil avec tous les éléments (profil, lancer un combat, défi du jour, récompense quotidienne)
-- Commit + push
+> *Tu valides heat ? C’est l’architecture la plus saine et viable que j’ai trouvé. (OUI JE VALIDE, ON AJUSTERA APRES S’IL LE FAUT VRAIMENT)*
 
-### Étape 11 — Dashboard admin (V1 minimal)
-- Next.js : gestion des questions (ajout/modif/désactivation), gestion des utilisateurs de base
-- Connexion sécurisée réservée à Tariq/Heat
-- Commit + push
+# 3. BASE DE DONNÉES DES QUESTIONS
 
-### Étape 12 — Tests globaux V1
-- Test complet du parcours utilisateur sur émulateur ET téléphone physique
-- Test spécifique du mode combat : plusieurs combats de suite, vérifier stabilité des animations et de la logique de dégâts
-- Correction des bugs trouvés
-- Revue de sécurité de base (voir section 11)
-- Voir checklist section 14
+## 4.1 Format source recommandé : Markdown structuré (.md)
 
-### Étape 13 — Bilan V1 avant V1.5
-- Session de revue avec Tariq et Heat : qu'est-ce qui marche, qu'est-ce qui doit changer (notamment ressenti du combat)
-- Mise à jour finale de `PROGRESS.md`
-- Décision commune : on passe à V1.5 (collection de skins, classements, amis) seulement une fois la V1 stable
+Le format .md est recommandé car il est lisible, parsable, versionnable sur Git et compatible avec tous les éditeurs.
 
----
+### Exemple de question en .md
 
-## 9. V1 — DÉTAIL FONCTIONNEL COMPLET
+> ---
+>
+> id: OP_001_0042
+>
+> anime: One Piece
+>
+> arc: Alabasta
+>
+> chapitre: 155
+>
+> type: personnage
+>
+> difficulte: moyen
+>
+> tags: \[capitaine, equipage, chapeau-de-paille\]
+>
+> ---
+>
+> Question : Quel est le nom du capitaine de l'equipage du Chapeau de Paille ?
+>
+> \- A: Zoro
+>
+> \- B: Nami
+>
+> \- C: Monkey D. Luffy
+>
+> \- D: Shanks
+>
+> Bonne reponse : C
+>
+> Explication : Monkey D. Luffy est le fondateur et capitaine...
 
-### 9.1 Écrans V1
-- **Onboarding** : splash → inscription/connexion → choix pseudo, avatar, anime préféré
-- **Accueil** : profil (avatar, niveau, XP), bouton Lancer un combat, défi du jour, récompense quotidienne, accès rapide profil
-- **Paramétrage combat** : choix de l'anime, choix de la difficulté
-- **Combat** (mode paysage) : personnages face à face, PV, question, 4 choix, timer, feedback immédiat, animations d'attaque et de combo
-- **Résultat** : victoire/défaite, score, XP gagné, badges débloqués, rejouer/accueil
-- **Profil** : avatar/skin 3D rotatif, stats, badges, historique des combats
+## 4.2 Structure de la table PostgreSQL
 
-### 9.2 XP
+> CREATE TABLE questions (
+>
+> id TEXT PRIMARY KEY,
+>
+> anime TEXT NOT NULL,
+>
+> arc TEXT,
+>
+> chapitre TEXT,
+>
+> type TEXT NOT NULL,
+>
+> difficulte TEXT NOT NULL, -- facile, moyen, difficile, expert
+>
+> question TEXT NOT NULL,
+>
+> choix_a TEXT NOT NULL,
+>
+> choix_b TEXT NOT NULL,
+>
+> choix_c TEXT NOT NULL,
+>
+> choix_d TEXT NOT NULL,
+>
+> bonne_reponse CHAR(1) NOT NULL,
+>
+> explication TEXT,
+>
+> tags TEXT\[\],
+>
+> statut TEXT DEFAULT 'actif',
+>
+> frequence INTEGER DEFAULT 0,
+>
+> taux_reussite FLOAT DEFAULT 0.0,
+>
+> mode_solo BOOLEAN DEFAULT TRUE,
+>
+> mode_verse BOOLEAN DEFAULT TRUE,
+>
+> reserve_event BOOLEAN DEFAULT FALSE,
+>
+> created_at TIMESTAMP DEFAULT NOW()
+>
+> );
 
-| Action | XP |
-|---|---|
-| Combat terminé | +20 |
-| Bonne réponse | +10 |
-| Combat gagné par K.O. | +30 bonus |
-| Combat gagné sans subir un seul dégât | +50 bonus |
-| Défi quotidien complété | +30 |
-| Connexion quotidienne | +15 |
+## 4.3 Reformulation Solo vs Verse
 
-Courbe : XP requise niveau N = `100 × N × 1.2`
+Le moteur détecte le mode actif et reformule la question dynamiquement.
 
-### 9.3 Rangs (noms à valider avec Heat)
+- Solo : "Quel est le nom du capitaine de l'équipage du Chapeau de Paille ?" (complet, pédagogique)
 
-| Rang | Niveau |
-|---|---|
-| Débutant | 1–5 |
-| Apprenti Otaku | 6–15 |
-| Passionné | 16–30 |
-| Expert | 31–50 |
-| Maître du Verse | 51–75 |
-| Légende | 76+ |
+- Verse : "Qui commande l'équipage du Chapeau de Paille ?" (court, percutant, compétitif)
 
-### 9.4 Défis quotidiens (exemples)
-Gagner 3 combats · Obtenir 15 bonnes réponses · Gagner un combat par K.O. · Combattre sur un anime précis · Gagner un combat en difficulté Expert
+Recommandation : champ pré-généré pour les 100 000 premières questions, Edge Function pour les ajouts futurs.
 
-### 9.5 Badges de base
-Premier Pas · Sans Égratignure (combat gagné sans dégât) · Fidèle (7 jours) · Chasseur de Connaissances (100 bonnes réponses) · Montée en Grade (niveau 10) · K.O. Éclair (victoire par K.O. avant la 5ᵉ question)
+## 4.4 Moteur de sélection — Algorithme
 
-### 9.6 Données techniques
-- Minimum 10 000 questions au lancement, 5 animes minimum (One Piece, Naruto, Dragon Ball, Jujutsu Kaisen, Bleach recommandés)
-- iOS 14+ / Android 8+
-- Temps de chargement cible < 2s
-- Animations de combat en 2D, optimisées pour rester fluides sur téléphones d'entrée de gamme
+> 1\. Recup filtres (anime, difficulte, mode)
+>
+> 2\. Exclure questions vues dans les 48h par le joueur
+>
+> 3\. Selectionner N questions :
+>
+> \- 30% facile / 40% moyen / 20% difficile / 10% expert
+>
+> \- Max 3 questions du meme type par partie de 10
+>
+> 4\. Reformuler selon le mode (solo/verse)
+>
+> 5\. Envoyer le lot chiffre au client
+>
+> 6\. Valider CHAQUE reponse cote serveur (jamais cote client)
+>
+> 7\. Fin de quiz : calcul score + XP + badges → profil
 
----
+Donc pour les Q/R qu’on a déjà si tu me les envoie en pdf je vais les converti en format que le programme comprend.
 
-## 10. V1.5 → V5 — APERÇU (POST-MVP)
+# 5. FONCTIONNALITÉS — VUE GLOBALE
 
-*(Détail complet à reprendre uniquement une fois la V1 validée — ne pas anticiper le code avant.)*
+## Légende des versions
 
-- **V1.5** : collection de skins (achat/déblocage), classements (mondial/national/amis), système d'amis, notifications push, partage de résultats
-- **V2 — Le Verse** : duels temps réel (Firebase) réutilisant le `combat_engine` de la V1 contre un vrai joueur, divisions inspirées eFootball, matchmaking, coop, invitation par code
-- **V3** : saisons (8 semaines), événements temporaires, tournois, missions longue durée
-- **V4** : monnaie virtuelle (Verse Coins), boutique cosmétique complète, Pass Premium, pay-to-win strictement cosmétique/confort (jamais d'avantage compétitif direct)
-- **V5** : Battle Royale Quiz, guildes/clans, classement mondial, expansion vers manhwa/webtoon/jeux vidéo
+| **Symbole** | **Version**      | **Description**                            |
+|-------------|------------------|--------------------------------------------|
+| ✅ V1       | MVP              | Premier lancement — socle de l'application |
+| 🔶 V1.5     | Post-lancement   | Social, classements, notifications         |
+| 🟦 V2       | Le Verse         | Multijoueur temps réel, divisions          |
+| 🟪 V3       | Saisons & Events | Contenu saisonnier, tournois               |
+| 🟥 V4       | Monétisation     | Pay-to-win, boutique, abonnement           |
+| ⬛ V5       | Expansion        | Modes avancés, clans, mondial              |
 
----
+## Tableau complet des fonctionnalités
 
-## 11. SÉCURITÉ
+| **Fonctionnalité**                   | **Version** | **Priorité** |
+|--------------------------------------|-------------|--------------|
+| Inscription / Connexion              | ✅ V1       | Critique     |
+| Profil joueur de base                | ✅ V1       | Critique     |
+| Quiz Solo rapide                     | ✅ V1       | Critique     |
+| Quiz par anime / difficulté          | ✅ V1       | Haute        |
+| Système XP & Niveaux                 | ✅ V1       | Critique     |
+| Rangs (Débutant → Légende)           | ✅ V1       | Haute        |
+| Défis quotidiens                     | ✅ V1       | Haute        |
+| Badges & Succès de base              | ✅ V1       | Moyenne      |
+| Récompense de connexion quotidienne  | ✅ V1       | Haute        |
+| Dashboard Admin V1                   | ✅ V1       | Critique     |
+| Classement global + national         | 🔶 V1.5     | Haute        |
+| Système d'amis                       | 🔶 V1.5     | Moyenne      |
+| Notifications push                   | 🔶 V1.5     | Haute        |
+| Partage résultats                    | 🔶 V1.5     | Basse        |
+| Duel temps réel (1v1)                | 🟦 V2       | Critique     |
+| Matchmaking par rang                 | 🟦 V2       | Critique     |
+| Divisions & montée/descente de grade | 🟦 V2       | Critique     |
+| Partie privée via code invitation    | 🟦 V2       | Haute        |
+| Mode Coopératif (Coop)               | 🟦 V2       | Haute        |
+| Saisons complètes                    | 🟪 V3       | Critique     |
+| Événements temporaires               | 🟪 V3       | Haute        |
+| Tournois                             | 🟪 V3       | Haute        |
+| Missions longue durée                | 🟪 V3       | Moyenne      |
+| Publicités in-app                    | 🟥 V4       | Critique     |
+| Monnaie virtuelle (Verse Coins)      | 🟥 V4       | Critique     |
+| Boutique cosmétique                  | 🟥 V4       | Haute        |
+| Abonnement Premium                   | 🟥 V4       | Haute        |
+| Battle Royale Quiz                   | ⬛ V5       | Moyenne      |
+| Guildes / Clans                      | ⬛ V5       | Haute        |
+| Classement mondial                   | ⬛ V5       | Haute        |
 
-- Aucune clé API en dur dans le code — toujours `.env`, toujours dans `.gitignore`
-- Validation des réponses de combat **côté serveur uniquement** (Edge Function) — le client ne reçoit jamais la bonne réponse à l'avance, ni ne calcule lui-même les dégâts
-- Mots de passe gérés exclusivement par Supabase Auth (jamais stockés/gérés manuellement)
-- Sessions avec expiration (JWT + refresh token)
-- Dashboard admin sur authentification séparée de l'app mobile, accès restreint à Tariq/Heat
-- Avant chaque `git push`, vérifier qu'aucun secret n'est présent dans les fichiers commités (Claude Code doit le signaler explicitement)
+# 6. ROADMAP VERSIONNÉE
 
----
+## Vue d'ensemble
 
-## 12. WORKFLOW GIT / GITHUB
+> V1 ──────────── V1.5 ──────── V2 ──────────── V3 ──────────── V4 ──── V5
+>
+> MVP Solo Social & Le Verse Saisons & Moneti. Expansion
+>
+> Quiz Engine Classements Multijoueur Événements Boutiq. Avancés
+>
+> Profils Amis Temps Réel Tournois Abo. Clans
+>
+> Progression Notifs Divisions Missions PtW Mondial
+>
+> Admin V1 Partage Coop + Invit. Long terme
 
-1. Repo : `https://github.com/Tarikshiba/otaku_verse`
-2. Branche principale : `main`
-3. Claude Code **ne push jamais**. Il prépare les fichiers, propose un message de commit clair, et dit à Tariq : *"Tu peux push maintenant."*
-4. Commandes que Tariq exécutera (Claude Code les lui rappelle à chaque fois) :
-   ```
-   git add .
-   git commit -m "message proposé par Claude"
-   git push
-   ```
-5. Un commit par étape terminée du plan d'exécution (section 8) — pas de commit géant fourre-tout.
+## Durées estimées et conditions de passage
 
----
+| **Version**       | **Durée estimée** | **Condition de passage à la suivante**    |
+|-------------------|-------------------|-------------------------------------------|
+| V1 — MVP          | 4–8 Semaine       | Tests validés, app stable iOS + Android   |
+| V1.5 — Social     | 1–2 mois          | Retours utilisateurs V1 intégrés          |
+| V2 — Verse        | 2–3 mois          | Infra temps réel testée sous charge       |
+| V3 — Saisons      | 2–3 mois          | Base utilisateurs active (events viables) |
+| V4 — Monétisation | 1–2 mois          | Modèle éco validé avec base de joueurs    |
+| V5 — Expansion    | En continu        | —                                         |
 
-## 13. OUTILS À INSTALLER
+# 7. V1 — MVP DÉTAILLÉ
 
-| Outil | Usage |
-|---|---|
-| **VS Code** | Déjà installé — éditeur principal |
-| **Extension Flutter + Dart** (VS Code) | Support du langage, exécution, débogage |
-| **Flutter SDK** | Framework de l'app mobile |
-| **Android Studio** (ou juste les outils en ligne de commande + un émulateur) | Émulateur Android + outils de build Android |
-| **Xcode** (uniquement si accès à un Mac plus tard pour publier sur iOS) | Requis pour build/publier iOS — pas bloquant pour développer au départ si test priorisé sur Android |
-| **Git** | Déjà nécessaire pour le repo |
-| **Node.js** | Scripts d'import de questions + dashboard Next.js |
-| **Compte Supabase** (gratuit pour démarrer) | Backend |
-| **Compte Firebase** (gratuit pour démarrer) | Temps réel à partir de V2 |
-| **Compte Vercel** (gratuit) | Déploiement du dashboard admin |
+> *Bien sur je ne compte pas tout créer en mm temps mais de manière versionner, parce que faut eviter les crash*
 
-*Claude Code guidera Tariq à l'installation de chaque outil au moment précis où il devient nécessaire dans le plan d'exécution — pas besoin de tout installer le premier jour.*
+## 7.1 Écrans V1
 
----
+### Onboarding (3 écrans max)
 
-## 14. CHECKLIST DE FIN DE V1
+- Splash screen + logo animé
 
-- [ ] Inscription/connexion fonctionnelles sur émulateur ET téléphone physique
-- [ ] Combat jouable sans crash sur 50 combats de suite
-- [ ] Les deux conditions de fin de combat fonctionnent (K.O. avant 10 questions, décompte à la 10ᵉ question)
-- [ ] Le système de combo (3 bonnes réponses d'affilée) déclenche bien l'attaque spéciale
-- [ ] Le bot ajuste sa difficulté selon le paramétrage choisi
-- [ ] XP, niveaux, rangs corrects après chaque combat
-- [ ] Défis quotidiens générés et reset à minuit
-- [ ] Badges attribués correctement
-- [ ] Récompense de connexion quotidienne fonctionnelle
-- [ ] Skin 3D visible et rotatif dans le profil
-- [ ] Dashboard admin : import de questions, gestion utilisateurs OK
-- [ ] Validation des réponses et calcul des dégâts vérifiés côté serveur (test : tenter de tricher côté client échoue)
-- [ ] Aucune clé API exposée dans le repo Git
-- [ ] Temps de chargement < 2s
-- [ ] Design conforme à la direction artistique (section 2) — validé visuellement par Tariq, y compris le passage vertical/horizontal
+- Inscription (pseudo, email, mot de passe) ou connexion Google/Apple
 
----
+- Choix du pseudo + anime préféré + avatar (grille d'avatars fixes)
 
-## 15. GLOSSAIRE
+- → Redirection vers l'Accueil
 
-| Terme | Définition |
-|---|---|
-| Le Verse | Univers multijoueur compétitif de l'app |
-| Combat | Affrontement de quiz (joueur vs bot en V1, joueur vs joueur en V2), avec PV, dégâts et combos |
-| Combo | Trois bonnes réponses d'affilée déclenchant une attaque spéciale animée |
-| K.O. | Fin immédiate d'un combat quand un des deux personnages atteint 0 PV |
-| Edge Function | Fonction serveur Supabase (logique métier sécurisée) |
-| Riverpod | Librairie de gestion d'état Flutter |
-| Division | Échelon compétitif du Verse (V2, inspiré eFootball) |
-| PROGRESS.md | Carnet de bord technique maintenu par Claude Code à chaque session |
+### Accueil
 
----
+- Bandeau profil (avatar, pseudo, niveau, XP bar)
 
-*Document version 2.1 — Otaku Verse — Tariq (Dr. X) × Heat*
+- Bouton principal JOUER MAINTENANT (Quiz Rapide)
+
+- Carte "Défi du Jour" avec progression visuelle
+
+- Carte "Récompense quotidienne" (coffre à ouvrir)
+
+- Accès rapide : Classement, Mon Profil
+
+- Bannière événement (vide en V1, préparée pour V3)
+
+### Menu Jouer
+
+- Quiz Rapide (sélection auto, toutes œuvres)
+
+- Quiz par Anime (liste des animes disponibles)
+
+- Quiz par Difficulté (Facile / Moyen / Difficile / Expert)
+
+- Quiz Personnalisé (anime + difficulté + nombre de questions)
+
+### Écran de Quiz
+
+- Question en haut (texte)
+
+- 4 choix (boutons A / B / C / D)
+
+- Timer visuel (cercle ou barre)
+
+- Indicateur de progression (Question 3/10)
+
+- Score en temps réel
+
+- Animation bonne/mauvaise réponse + explication
+
+### Résultat de fin de Quiz
+
+- Score final (étoiles 1–3)
+
+- XP gagné + montée de niveau si applicable
+
+- Badges débloqués
+
+- Boutons : Rejouer / Retour Accueil / Voir Classement
+
+### Profil
+
+- Avatar + pseudo + rang + titre actif
+
+- Statistiques : quiz joués, bonnes réponses, taux de réussite, XP totale
+
+- Badges obtenus
+
+- Historique des dernières parties
+
+## 7.2 Système XP & Progression V1
+
+| **Action**              | **XP gagnée** |
+|-------------------------|---------------|
+| Quiz terminé            | +20 XP        |
+| Bonne réponse           | +10 XP        |
+| Quiz sans faute         | +50 XP bonus  |
+| Défi quotidien complété | +30 XP        |
+| Connexion quotidienne   | +15 XP        |
+| Premier quiz du jour    | +10 XP bonus  |
+
+## 7.3 Rangs V1 (noms à finaliser avec Heat// JE VALIDE)
+
+| **Rang**        | **Niveau requis** |
+|-----------------|-------------------|
+| Débutant        | 1–5               |
+| Apprenti Otaku  | 6–15              |
+| Passionné       | 16–30             |
+| Expert          | 31–50             |
+| Maître du Verse | 51–75             |
+| Légende         | 76+               |
+
+*Courbe de progression : XP requise pour passer au niveau N = 100 × N × 1.2*
+
+## 7.4 Défis quotidiens V1
+
+Générés automatiquement chaque jour à minuit. 3 défis par joueur :
+
+| **Défi**                    | **Récompense**            |
+|-----------------------------|---------------------------|
+| Terminer 3 quiz             | +50 XP + 10 Coins         |
+| Obtenir 15 bonnes réponses  | +30 XP                    |
+| Terminer un quiz sans faute | +80 XP + Badge temporaire |
+| Jouer sur un anime précis   | +40 XP                    |
+| Réussir un quiz Expert      | +60 XP                    |
+
+## 7.5 Badges V1 (liste de base)
+
+| **Badge**                 | **Condition de débloquage** |
+|---------------------------|-----------------------------|
+| Premier Pas               | Terminer son premier quiz   |
+| Perfectionniste           | Premier sans-faute          |
+| Fidèle                    | 7 connexions consécutives   |
+| Chasseur de Connaissances | 100 bonnes réponses         |
+| Passionné One Piece       | 10 quiz One Piece terminés  |
+| Montée en Grade           | Atteindre le niveau 10      |
+| Challenger                | Atteindre le rang Expert    |
+
+## 7.6 Données techniques V1
+
+- Nombre minimum de questions au lancement : 10 000 (5 animes minimum)
+
+- Animes recommandés V1 : One Piece, Naruto, Dragon Ball, Jujutsu Kaisen, Bleach
+
+- Temps de chargement cible : \< 2 secondes pour lancer un quiz
+
+- Compatibilité : iOS 14+ / Android 8+
+
+# 8. V1.5 — CLASSEMENTS & VERSE SOCIAL
+
+> *Objectif V1.5 : Ajouter la dimension sociale et compétitive légère. Le joueur commence à se mesurer aux autres.*
+
+## 8.1 Nouvelles fonctionnalités
+
+### Classements complets
+
+- Classement mondial (top 1000 visible, position du joueur toujours affichée)
+
+- Classement national (par pays détecté à l'inscription)
+
+- Classement par anime
+
+- Classement entre amis
+
+### Système d'amis
+
+- Recherche par pseudo
+
+- Envoi/acceptation de demandes d'amis
+
+- Fil d'activité des amis (badge obtenu, niveau atteint, record battu)
+
+- Défi entre amis asynchrone (quiz identique, comparaison de score)
+
+### Notifications push
+
+- Rappel défi quotidien (configurable par le joueur)
+
+- Alerte : un ami t'a dépassé au classement
+
+- Récompense disponible
+
+- Nouvel événement (préparation V3)
+
+### Partage de résultats
+
+- Carte de résultat partageable générée automatiquement
+
+- Contient : score, anime, rang, pseudo, logo Otaku Verse SN (le SN il faut l’enlever)
+
+- Compatible Instagram, WhatsApp, TikTok
+
+## 8.2 Formule de score de classement
+
+*Score = (XP totale × 0.4) + (taux de réussite × 1000 × 0.3) + (quiz joués × 2 × 0.3)*
+
+# 9. V2 — LE VERSE (MULTIJOUEUR TEMPS RÉEL)
+
+> *Objectif V2 : Introduire le mode compétitif inspiré d'eFootball. Le joueur peut affronter d'autres joueurs en temps réel, monter en division et jouer avec ses amis.*
+
+## 9.1 Architecture technique Verse
+
+> \[Joueur A - Flutter\] \<-\> \[Firebase Realtime DB\] \<-\> \[Joueur B - Flutter\]
+>
+> \|
+>
+> \[Supabase Edge Function\]
+>
+> (validation, scores, classement)
+
+### Flow d'un duel
+
+- 1\. Joueur A appuie sur "Trouver un duel"
+
+- 2\. Matchmaking Edge Function cherche un adversaire de rang similaire (±2 divisions)
+
+- 3\. Si trouvé en \< 30s → match créé dans Firebase
+
+- 4\. Si non trouvé → bot adaptatif ou file d'attente étendue
+
+- 5\. Les deux joueurs reçoivent les MÊMES questions en même temps
+
+- 6\. Chaque réponse est envoyée au serveur immédiatement
+
+- 7\. Timer par question : 15 secondes (géré côté serveur)
+
+- 8\. En fin de duel : Edge Function calcule les scores et met à jour les divisions
+
+## 9.2 Système de Divisions (inspiré eFootball)
+
+| **Division** | **Nom suggéré**  | **Points requis** |
+|--------------|------------------|-------------------|
+| 10           | Académie         | 0–99              |
+| 9            | Genin            | 100–249           |
+| 8            | Chunin           | 250–499           |
+| 7            | Jonin            | 500–849           |
+| 6            | Capitaine        | 850–1 299         |
+| 5            | Vice-Amiral      | 1 300–1 849       |
+| 4            | Amiral           | 1 850–2 499       |
+| 3            | Yonko            | 2 500–3 249       |
+| 2            | Hokage           | 3 250–3 999       |
+| 1            | Légende du Verse | 4 000+            |
+
+## 9.3 Système de points Verse
+
+| **Résultat** | **Points**                                  |
+|--------------|---------------------------------------------|
+| Victoire     | +25 points (+bonus si rang supérieur battu) |
+| Défaite      | -15 points (-5 si rang très inférieur)      |
+| Match nul    | +5 points chacun                            |
+| Abandon      | -30 points                                  |
+
+## 9.4 Modes du Verse V2
+
+### Duel Classé
+
+- Matchmaking automatique par division
+
+- Impact direct sur le classement Verse
+
+- Récompenses à chaque victoire
+
+### Duel Amical (via code d'invitation)
+
+- Le joueur génère un code à 6 caractères
+
+- L'ami le saisit et rejoint la salle
+
+- Aucun impact sur le classement
+
+- Paramètres personnalisables (anime, difficulté, nombre de questions)
+
+### Mode Coopératif (Coop)
+
+- 2 joueurs contre le quiz (pas l'un contre l'autre)
+
+- Questions partagées, réponses combinées
+
+- Score d'équipe, récompenses partagées
+
+- Disponible entre amis ou via matchmaking
+
+## 9.5 Matchmaking — Règles
+
+> Recherche adversaire :
+>
+> Division identique → timeout 10s
+>
+> Division ±1 → timeout 20s
+>
+> Division ±2 → timeout 30s
+>
+> Aucun adversaire → bot adaptatif ou file etendue
+>
+> Bot adaptatif :
+>
+> \- Simule un adversaire au meme niveau
+>
+> \- Indicateur discret "Entrainement" affiché
+>
+> \- Recompenses legerement reduites vs duel humain
+
+## 9.6 Anti-abandon
+
+- Abandon avant la fin : -30 points + cooldown 5 minutes
+
+- 3 abandons consécutifs : cooldown 30 minutes
+
+- L'adversaire reçoit la victoire + bonus
+
+# 10. V3 — SAISONS, ÉVÉNEMENTS & COMPÉTITION AVANCÉE
+
+> *Objectif V3 : Créer un calendrier de contenu qui donne une raison de revenir chaque semaine.*
+
+## 10.1 Saisons
+
+- Durée : 8 semaines par saison
+
+- Classement saisonnier dédié (repart de zéro chaque saison)
+
+- Pass Saison (gratuit + premium — voir V4)
+
+- Récompenses exclusives à débloquer par palier
+
+- Thème visuel par saison (ex : Saison 1 "L'Ère des Pirates" = One Piece)
+
+- Questions réservées à cette saison débloquées
+
+### Fin de saison
+
+- Distribution des récompenses selon rang final
+
+- Archivage du classement (visible sur les profils)
+
+- Annonce de la saison suivante
+
+- Soft reset des divisions Verse (protection : max -2 divisions)
+
+## 10.2 Événements temporaires
+
+- Durée : 3 à 7 jours
+
+- Thème : un anime spécifique (ex : "Semaine Jujutsu Kaisen")
+
+- Questions exclusives débloquées uniquement pendant l'événement
+
+- Récompenses limitées (badges, avatars, titres "Édition Limitée")
+
+- Classement événementiel dédié
+
+### Calendrier type
+
+> Semaine 1-2 : Événement One Piece
+>
+> Semaine 3 : Défi communautaire (tous animes)
+>
+> Semaine 4-5 : Événement Naruto
+>
+> Semaine 6 : Tournoi mensuel
+>
+> Semaine 7-8 : Événement surprise / Anniversaire app
+
+## 10.3 Tournois
+
+- Inscription libre ou sur invitation
+
+- Phase de groupes (score cumulé sur 10 duels)
+
+- Finale top 8 en élimination directe
+
+- Durée totale : 1 semaine
+
+- Récompenses : titres exclusifs, Verse Coins, badge de champion
+
+## 10.4 Missions longue durée
+
+| **Mission**               | **Récompense**               |
+|---------------------------|------------------------------|
+| Jouer 100 duels Verse     | Titre "Guerrier du Verse"    |
+| Atteindre Division 5      | Badge "Montée en Puissance"  |
+| Participer à 3 événements | Avatar exclusif              |
+| Finir une saison Top 100  | Titre de saison              |
+| Réussir 5 000 questions   | Badge "Encyclopédie Vivante" |
+
+# 11. V4 — MONÉTISATION & ÉCONOMIE VIRTUELLE
+
+> *Objectif V4 : Générer des revenus durables sans briser l'équilibre du jeu.*
+
+## 11.1 Monnaie virtuelle : Verse Coins
+
+### Obtention gratuite
+
+- Connexion quotidienne
+
+- Fin de quiz
+
+- Défis et missions
+
+- Classements saisonniers
+
+### Achat payant
+
+- Pack 500 Coins → Prix à définir (FCFA / XOF)
+
+- Pack 1 500 Coins → Prix à définir
+
+- Pack 5 000 Coins → Prix à définir
+
+## 11.2 Publicités (joueurs gratuits)
+
+- Pub optionnelle entre les quiz (pas forcée pendant une partie)
+
+- Pub récompensée : "Regarde une pub → Double XP pendant 15 min"
+
+- Pas de pub pendant un duel Verse
+
+- Fréquence max : 1 pub par 3 quiz
+
+## 11.3 Pass Premium (abonnement mensuel)
+
+### Inclut
+
+- Suppression totale des publicités
+
+- +20% XP sur tous les quiz
+
+- Accès anticipé aux événements
+
+- Bonus quotidien Verse Coins (+50/jour)
+
+- Cadre de profil exclusif "Premium"
+
+- File de matchmaking prioritaire
+
+### Ne donne PAS
+
+- Questions exclusives (le contenu reste identique pour tous)
+
+- Avantage direct en duel (le gameplay reste équitable)
+
+## 11.4 Pay-to-Win — Définition
+
+### Acceptable (cosmétique + confort)
+
+- Avatars, cadres, thèmes, effets visuels premium
+
+- Slots de défis supplémentaires
+
+- Accès illimité au Quiz Personnalisé (gratuits = 5/jour)
+
+- Boosts d'XP temporaires (ne changent pas le score au classement)
+
+### À ÉVITER (casse l'équité — règle absolue)
+
+- Acheter des réponses correctes
+
+- Voir les bonnes réponses avant de répondre
+
+- Scores gonflés artificiellement au classement
+
+## 11.5 Tableau de monétisation
+
+| **Source**                 | **Type**                        | **Version** |
+|----------------------------|---------------------------------|-------------|
+| Publicités inter-quiz      | Gratuit (revenus publicitaires) | V4          |
+| Pubs récompensées (opt-in) | Gratuit                         | V4          |
+| Achats Verse Coins         | In-App Purchase                 | V4          |
+| Pass Premium (abonnement)  | Abonnement mensuel              | V4          |
+| Boutique cosmétique        | In-App Purchase                 | V4          |
+| Pass Saison Premium        | In-App Purchase                 | V3+V4       |
+| Coffres                    | In-App Purchase                 | V4          |
+
+# 12. DASHBOARD ADMIN
+
+## 12.1 Accès et rôles
+
+| **Rôle**           | **Permissions**                               |
+|--------------------|-----------------------------------------------|
+| Super Admin        | Accès total à toutes les fonctionnalités      |
+| Éditeur de contenu | Gestion questions, événements, saisons        |
+| Modérateur         | Gestion utilisateurs, signalements, sanctions |
+| Statistiques       | Lecture seule, tableaux de bord               |
+
+## 12.2 Modules du dashboard
+
+### Gestion des utilisateurs
+
+- Recherche par pseudo / email
+
+- Voir profil complet (stats, historique, sanctions)
+
+- Suspendre / bannir / réactiver un compte
+
+- Modifier un rang manuellement (cas exceptionnels)
+
+### Gestion des questions
+
+- Import batch de fichiers .md
+
+- Recherche multi-critères (anime, arc, difficulté, tags, statut)
+
+- Modifier / désactiver / réactiver une question
+
+- Voir les stats d'une question (fréquence, taux de réussite)
+
+- Détection de doublons
+
+### Gestion des événements
+
+- Créer / planifier un événement (dates, thème, récompenses)
+
+- Associer des questions réservées à un événement
+
+- Activer / désactiver un événement en temps réel
+
+### Statistiques
+
+- Joueurs actifs (DAU / MAU)
+
+- Quiz joués par jour
+
+- Taux de rétention J1, J7, J30
+
+- Duels Verse joués
+
+- Revenus (si monétisation active)
+
+- Questions les plus / moins jouées
+
+## 12.3 Stack Dashboard Admin
+
+- Next.js (TypeScript) + Tailwind CSS
+
+- Connexion Supabase via clé admin (jamais exposée côté client)
+
+- Authentification séparée de l'app mobile
+
+- Déployé sur Vercel
+
+# 13. SÉCURITÉ & ANTI-TRICHE
+
+## 13.1 Règles fondamentales
+
+- La validation des réponses se fait TOUJOURS côté serveur (Edge Function)
+
+- Le client ne reçoit JAMAIS la bonne réponse avant d'avoir répondu
+
+- Le timer est géré côté serveur (une réponse en retard est ignorée)
+
+## 13.2 Détection de comportements anormaux
+
+| **Comportement suspect**                 | **Seuil d'alerte** | **Action automatique**     |
+|------------------------------------------|--------------------|----------------------------|
+| Taux de réussite \> 98% (100+ questions) | Flag automatique   | Vérification manuelle      |
+| Temps de réponse moyen \< 1 seconde      | Flag automatique   | Suspension temporaire      |
+| Plusieurs comptes depuis la même IP      | Flag               | Vérification manuelle      |
+| Score impossible en Verse                | Immédiat           | Annulation + avertissement |
+| 5+ abandons en 1h                        | Automatique        | Cooldown 2 heures          |
+
+## 13.3 Authentification
+
+- JWT sécurisés via Supabase Auth
+
+- Refresh tokens avec expiration
+
+- Sessions invalidées à la déconnexion
+
+- Option recommandée : connexion Google / Apple
+
+# 14. DESIGN & UX — PRINCIPES DIRECTEURS
+
+## 14.1 Palette de couleurs suggérée
+
+| **Rôle**          | **Code HEX** | **Usage**                        |
+|-------------------|--------------|----------------------------------|
+| Fond principal    | \#0D0D1A     | Arrière-plan général (dark mode) |
+| Accent principal  | \#7B2FFF     | Boutons, titres, éléments clés   |
+| Accent secondaire | \#FF6B35     | Énergie, animations, alertes     |
+| Texte principal   | \#FFFFFF     | Texte sur fond sombre            |
+| Texte secondaire  | \#A0A0C0     | Labels, métadonnées              |
+| Succès            | \#00E676     | Bonne réponse, validation        |
+| Erreur            | \#FF3D71     | Mauvaise réponse, alerte         |
+
+## 14.2 Règles UX non-négociables
+
+- Maximum 2 taps pour lancer un quiz depuis l'accueil
+
+- Feedback immédiat à chaque réponse (son + couleur + animation)
+
+- Jamais d'écran de chargement \> 2 secondes sans indicateur de progression
+
+- Toujours un objectif visible sur l'écran d'accueil
+
+- Le score et le progrès sont affichés en permanence pendant un quiz
+
+- Aucune action irréversible sans confirmation explicite
+
+## 14.3 Écrans prioritaires pour Figma
+
+- 1\. Accueil
+
+- 2\. Sélection de mode de jeu
+
+- 3\. Écran de quiz (question + timer + choix)
+
+- 4\. Résultat de fin de quiz
+
+- 5\. Profil joueur
+
+- 6\. Écran de duel Verse (V2)
+
+# 15. CHECKLISTS DE VALIDATION INTER-VERSIONS
+
+> *Avant de passer d'une version à la suivante, toutes les cases doivent être cochées.*
+
+## Checklist V1 → V1.5
+
+- ☐ Inscription et connexion fonctionnelles sur iOS et Android
+
+- ☐ Quiz Solo jouable sans crash sur 50 parties de suite
+
+- ☐ XP et niveaux mis à jour correctement
+
+- ☐ Défis quotidiens générés et resetés à minuit
+
+- ☐ Badges attribués correctement
+
+- ☐ Récompense quotidienne fonctionnelle
+
+- ☐ Dashboard admin : import questions, gestion users OK
+
+- ☐ Temps de chargement \< 2s
+
+- ☐ Testé sur au moins 3 modèles Android + iPhone 12 minimum
+
+## Checklist V1.5 → V2
+
+- ☐ Classements global et national corrects
+
+- ☐ Système d'amis : ajout, suppression, fil d'activité
+
+- ☐ Notifications push fonctionnelles iOS + Android
+
+- ☐ Partage de résultats : image générée correctement
+
+- ☐ Aucun bug critique signalé sur V1 depuis 2 semaines
+
+## Checklist V2 → V3
+
+- ☐ Duel temps réel stable avec latence \< 200ms
+
+- ☐ Matchmaking fonctionne (humain + bot adaptatif)
+
+- ☐ Divisions : montée, descente, protection active
+
+- ☐ Code d'invitation : création et join fonctionnels
+
+- ☐ Mode Coop jouable à 2
+
+- ☐ Anti-abandon opérationnel
+
+- ☐ Tests de charge : 100 duels simultanés sans crash
+
+## Checklist V3 → V4
+
+- ☐ Saison créée et clôturée correctement depuis le dashboard
+
+- ☐ Événements : activation, questions réservées, récompenses
+
+- ☐ Tournois : inscription, phases, finale, distribution récompenses
+
+- ☐ Missions longue durée suivies correctement
+
+## Checklist V4 → V5
+
+- ☐ Pubs intégrées (AdMob ou alternative)
+
+- ☐ Achat Verse Coins fonctionnel (App Store + Google Play)
+
+- ☐ Pass Premium : activation, avantages appliqués
+
+- ☐ Boutique : achats cosmétiques fonctionnels
+
+- ☐ Aucun avantage compétitif direct vendu
+
+# Annexe — Glossaire
+
+| **Terme**     | **Définition**                                                      |
+|---------------|---------------------------------------------------------------------|
+| Verse         | L'univers multijoueur compétitif de l'application                   |
+| Verse Coins   | Monnaie virtuelle principale de l'application                       |
+| Division      | Échelon compétitif dans le Verse (inspiré eFootball)                |
+| Soft reset    | Réinitialisation partielle du classement en fin de saison           |
+| Edge Function | Fonction serverless côté Supabase (logique métier sécurisée)        |
+| DAU / MAU     | Daily / Monthly Active Users (joueurs actifs quotidiens / mensuels) |
+| IAP           | In-App Purchase (achat intégré dans l'application)                  |
+| Bot adaptatif | Adversaire simulé quand aucun humain n'est disponible               |
+| Matchmaking   | Système automatique de mise en relation de deux joueurs             |
+
+*Document version 1.0 — Otaku Verse SN — Tariq (Dr. X) × Heat*
+
+*Prochaine révision : après validation V1 en conditions réelles, une fois que je l’aurai bulder bien sur.*

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
@@ -20,11 +20,14 @@ interface Question {
 }
 
 export default function QuestionsPage() {
+  const [user, setUser] = useState<any>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [chargement, setChargement] = useState(true);
   const [filtre, setFiltre] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editQuestion, setEditQuestion] = useState<Question | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Formulaire
   const [form, setForm] = useState({
@@ -41,8 +44,44 @@ export default function QuestionsPage() {
   });
 
   useEffect(() => {
-    chargerQuestions();
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        window.location.href = "/";
+      } else {
+        setUser(data.user);
+        chargerQuestions();
+      }
+    });
   }, []);
+
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/questions/import", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`${data.count} questions importees avec succes !`);
+        chargerQuestions();
+      } else {
+        alert(`Erreur: ${data.error}`);
+      }
+    } catch (err) {
+      alert("Erreur reseau lors de l'import.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const chargerQuestions = async () => {
     const { data } = await supabase
@@ -125,12 +164,28 @@ export default function QuestionsPage() {
           <Link href="/" className="text-gray-400 hover:text-white text-sm">← Retour</Link>
           <h1 className="text-lg font-bold text-purple-400">QUESTIONS ({questions.length})</h1>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setEditQuestion(null); }}
-          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm font-bold"
-        >
-          + AJOUTER
-        </button>
+        <div className="flex gap-2">
+          <input 
+            type="file" 
+            accept=".md" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()} 
+            disabled={isUploading}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-bold flex items-center gap-2"
+          >
+            {isUploading ? "IMPORTATION..." : "IMPORTER MD"}
+          </button>
+          <button
+            onClick={() => { setShowForm(true); setEditQuestion(null); }}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm font-bold"
+          >
+            + AJOUTER
+          </button>
+        </div>
       </header>
 
       <div className="p-6">

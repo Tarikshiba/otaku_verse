@@ -108,6 +108,7 @@ class QuizService {
   Future<List<Question>> recupererQuestions({
     int nombre = 10,
     String? anime,
+    String? arc,
     String? difficulte,
   }) async {
     // Construit la requete
@@ -117,7 +118,10 @@ class QuizService {
         .eq('statut', 'actif');
 
     if (anime != null) {
-      requete = requete.eq('anime', anime);
+      requete = requete.ilike('anime', anime);
+    }
+    if (arc != null) {
+      requete = requete.ilike('arc', arc);
     }
     if (difficulte != null) {
       requete = requete.eq('difficulte', difficulte);

@@ -5,12 +5,14 @@
 class CombatParams {
   /// Anime sur lequel porteront les questions (null = toutes categories)
   final String? anime;
+  final String? arc;
 
   /// Difficulte choisie : facile, moyen, difficile, expert, adaptatif
   final String difficulte;
 
   CombatParams({
     this.anime,
+    this.arc,
     required this.difficulte,
   });
 }
