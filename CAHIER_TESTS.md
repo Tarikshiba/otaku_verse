@@ -22,11 +22,12 @@ Ce document recense l'ensemble des fonctionnalites a verifier sur vos deux telep
 - [ ] Mode Cooperatif (Coop) : jouer a 2 allies contre le quiz et verifier le score d'equipe partage.
 - [ ] Systeme Anti-abandon : quitter volontairement un match en cours et verifier la penalite de `-30 points`, la victoire automatique pour l'adversaire et le blocage temporaire (cooldown de 5 min au 1er abandon, 30 min au 3e).
 
-## 4. V3 — Saisons, Evenements, Tournois & Missions de Carriere
-- [ ] Saisons (8 semaines) : verifier l'affichage de la saison active, du classement saisonnier et des paliers de recompenses.
-- [ ] Evenements temporaires : rejoindre un evenement thematique anime et verifier son classement dedie.
-- [ ] Tournois : tester l'inscription, le cumul du score de groupe et l'arbre du Top 8.
-- [ ] Missions longue duree (Carriere) : verifier la progression des objectifs de carriere et le deblocage des titres/badges.
+## 4. V3 — Saisons, Evenements, Tournois & Missions de Carriere (`verse_v3_hub_page.dart`)
+- [ ] Accueil : verifier le bouton `Saison V3` dans la colonne de gauche et le mode `EVENEMENT` debloque dans le selecteur de mode.
+- [ ] Onglet `SAISON 1` : verifier l'affichage de "L'Ere des Pirates", du Soft Reset protege (max -2 divisions), du classement saisonnier et le bouton `RECLAMER` sur les paliers de saison.
+- [ ] Onglet `EVENEMENTS` : cliquer sur `PARTICIPER` sur un evenement temporaire (One Piece, Naruto ou Multi-Verse) et verifier que cela lance un match et incremente le compteur d'evenements.
+- [ ] Onglet `TOURNOIS` : cliquer sur `S'INSCRIRE`, lancer un duel de poule (`JOUER DUEL 1/10`), verifier que le score cumule augmente et que l'arbre des Quarts de Finale Top 8 s'affiche.
+- [ ] Onglet `CARRIERE` : verifier les barres de progression des 5 missions longue duree (`100 duels`, `Division 5`, `3 evenements`, `Top 100`, `5 000 questions`) et la reclamation d'une mission terminee.
 
 ## 5. V4 — Monetisation (Verse Coins, Pass Premium, Boutique)
 - [ ] Compteur de `Verse Coins` dans l'en-tete et gain/depense en boutique.

@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
 Derniere mise a jour : 2026-11-03
-Version en cours : V2 (100% TERMINEE) -> Passage a la V3
-Module en cours : verse (Salon amical personnalisable, Mode Coop, Anti-abandon, Regles Firebase)
+Version en cours : V3 (100% TERMINEE) -> Passage a la V4
+Module en cours : verse_v3 (Saisons, Evenements temporaires, Tournois, Missions Carriere)
 
 ## MISE A JOUR DE LA ROADMAP (2026-09-20)
 
@@ -123,8 +123,7 @@ Etapes prevues :
 - iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- `819e0bd` : "feat(v2): synchro combat temps reel, securisation Edge Function, Mode Division et images questions admin" (2026-11-03)
-- En cours de push : "feat(v2): salon amical personnalisable, mode cooperatif, systeme anti-abandon et regles firebase" (2026-11-03)
+- `1cd1ead` : "feat(v2): salon amical personnalisable, mode cooperatif, systeme anti-abandon et regles firebase" (2026-11-03)
 
 ## 5. ÉTAPES V2 RÉALISÉES (2026-11-03)
 
@@ -155,11 +154,12 @@ Etapes prevues :
 2. **Mode Coopératif (Coop) (FAIT)** : 2 joueurs alliés (ou duo avec l'IA alliée `A.K.I.N.A`) contre les 200 PV du Gardien du Verse, avec bonus de synergie, PV d'équipe partagés et récompenses (`verse_coop_page.dart` & `app_shell.dart`).
 3. **Système Anti-abandon (Section 9.6) (FAIT)** : boîte de confirmation d'abandon dans `verse_combat_page.dart`, pénalité de -30 points, compteur `abandonsConsecutifs`, blocage temporaire (`cooldownUntil` de 5 min au 1er abandon, 30 min dès 3 abandons consécutifs) vérifié dans `verse_division_page.dart` et victoire automatique attribuée à l'adversaire.
 
-### C. Passage à la V3 — Saisons, Événements & Compétition avancée (Section 10 de la Roadmap)
-1. **Saisons (8 semaines)** : classement saisonnier dédié, thème visuel par saison, questions réservées, récompenses de fin de saison et soft reset des divisions (max -2 divisions).
-2. **Événements temporaires (3 à 7 jours)** : événements thématiques par anime avec classement dédié et récompenses en édition limitée.
-3. **Tournois** : phase de groupes (score cumulé sur 10 duels) puis finale Top 8 en élimination directe sur une semaine.
-4. **Missions longue durée** : objectifs de carrière (100 duels Verse, Division 5, 5 000 questions réussies) débloquant des titres et badges exclusifs.
+### C. V3 — Saisons, Événements & Compétition avancée (Section 10 de la Roadmap) — FAIT (2026-11-03)
+1. **Saisons (8 semaines) (FAIT)** : Saison 1 "L'Ère des Pirates" (thème One Piece), classement saisonnier dédié en temps réel, 4 paliers de récompenses réclamables et calcul du Soft Reset protégé (`max -2 divisions`) dans `verse_v3_service.dart` et `verse_v3_hub_page.dart`.
+2. **Événements temporaires (3 à 7 jours) (FAIT)** : calendrier d'événements thématiques par anime (`Semaine One Piece : East Blue`, `Semaine Naruto : Examen Chunin`, `Défi Communautaire Multi-Verse`) avec lancement direct de match et classement dédié.
+3. **Tournois (FAIT)** : inscription libre au Tournoi Mensuel, suivi de la phase de groupes (score cumulé sur 10 duels) et affichage de l'arbre de la Finale Top 8 en élimination directe.
+4. **Missions longue durée / Carrière (FAIT)** : suivi en temps réel des 5 objectifs officiels de la Roadmap (`100 duels Verse`, `Division 5`, `3 événements`, `Top 100 saison`, `5 000 questions réussies`) avec barres de progression et réclamation des récompenses XP/Titres/Badges.
+5. **Intégration Hub Accueil (FAIT)** : déblocage du mode `EVENEMENT` dans le sélecteur de modes et ajout du bouton d'accès rapide `Saison V3` sur l'accueil (`app_shell.dart`).
 
 ### D. V4 & V5 (Sections 11 et suite de la Roadmap)
 1. **V4 Monétisation** : monnaie virtuelle Verse Coins, publicités inter-quiz et récompensées (opt-in), Pass Premium mensuel et boutique cosmétique complète.

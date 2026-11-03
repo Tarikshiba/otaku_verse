@@ -28,9 +28,33 @@
         ".write": "!newData.exists() || newData.hasChildren(['status', 'questions']) || data.exists()"
       }
     },
+    "saisons": {
+      ".read": true,
+      "$saisonId": {
+        ".write": true
+      }
+    },
+    "evenements": {
+      ".read": true,
+      "$eventId": {
+        ".write": true
+      }
+    },
+    "tournois": {
+      ".read": true,
+      "$tournoiId": {
+        ".write": true
+      }
+    },
+    "carriere": {
+      ".read": true,
+      "$userId": {
+        ".write": true
+      }
+    },
     "battle_royale": {
+      ".read": true,
       "$lobbyId": {
-        ".read": true,
         ".write": true
       }
     },

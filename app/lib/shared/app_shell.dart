@@ -5,6 +5,7 @@ import '../features/combat/combat_setup_page.dart';
 import '../features/verse/verse_division_page.dart';
 import '../features/verse/verse_duel_setup_page.dart';
 import '../features/verse/verse_coop_page.dart';
+import '../features/verse/verse_v3_hub_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/progression/progression_service.dart';
 import '../features/rewards/boite_lettres_page.dart';
@@ -114,7 +115,7 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                     const SizedBox(height: 8),
                     _buildModeOption('COOP — Faites equipe', Icons.group_work_rounded, OtakuColors.modeCoop, true, 'COOP'),
                     const SizedBox(height: 8),
-                    _buildModeOption('EVENEMENT — Defis limites', Icons.local_fire_department_rounded, OtakuColors.modeEvent, false, 'EVENTS'),
+                    _buildModeOption('EVENEMENT — Defis limites', Icons.local_fire_department_rounded, OtakuColors.modeEvent, true, 'EVENTS'),
                   ],
                 ),
               ),
@@ -315,6 +316,8 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                 _buildSideNavButton('Boutique', Icons.store_rounded, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true)))),
                 const SizedBox(height: 12),
                 _buildSideNavButton('Quetes', Icons.assignment_rounded, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const _QuetePage()))),
+                const SizedBox(height: 12),
+                _buildSideNavButton('Saison V3', Icons.emoji_events_rounded, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseV3HubPage()))),
               ],
             ),
           ),
@@ -366,6 +369,8 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDuelSetupPage()));
                 } else if (_modeActif == 'COOP') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCoopPage()));
+                } else if (_modeActif == 'EVENTS') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseV3HubPage(initialTab: 1)));
                 }
               },
               child: Container(
