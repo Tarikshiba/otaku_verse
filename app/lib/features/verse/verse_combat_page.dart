@@ -416,9 +416,9 @@ class _VerseCombatPageState extends State<VerseCombatPage> {
                   ),
                 ),
                 
-                // BOUTON QUITTER
+                // BOUTON QUITTER (avec système Anti-abandon Roadmap 9.6)
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _confirmerAbandon,
                   child: const Text('QUITTER LE MATCH', style: TextStyle(color: Colors.grey, fontSize: 12)),
                 ),
               ],
@@ -427,6 +427,53 @@ class _VerseCombatPageState extends State<VerseCombatPage> {
         ),
       ),
     );
+  }
+
+  /// Affiche une confirmation d'abandon et applique la pénalité (-30 pts + cooldown + victoire adverse)
+  Future<void> _confirmerAbandon() async {
+    final String mode = _matchData?['mode'] ?? 'amical';
+    final bool? quitter = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: OtakuColors.surface,
+        title: Text('ABANDONNER LE MATCH ?', style: OtakuTypo.headlineSmall),
+        content: Text(
+          mode == 'division'
+              ? 'Attention : abandonner un match classé entraîne une pénalité de -30 PTS de division, une victoire immédiate pour ton adversaire et un blocage temporaire (5 min, ou 30 min après 3 abandons).'
+              : 'Ton adversaire remportera immédiatement la victoire.',
+          style: OtakuTypo.bodySmall,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CONTINUER LE COMBAT', style: TextStyle(color: Colors.white)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('ABANDONNER', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+
+    if (quitter != true || !mounted) return;
+    _timer?.cancel();
+
+    final player1 = _matchData?['player1'] ?? {};
+    final player2 = _matchData?['player2'] ?? {};
+    final bool isPlayer1 = player1['id'] == _currentUserId;
+    final String opponentId = (isPlayer1 ? player2['id'] : player1['id']) ?? 'opponent';
+
+    await _db.ref('matches/${widget.matchId}').update({
+      'status': 'finished',
+      'abandonedBy': _currentUserId,
+      'winner': opponentId,
+    });
+
+    await _cloturerMatchServeur(resultat: 'abandon', ko: false);
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   Widget _buildAnswerButton(String prefix, String texte) {
@@ -480,6 +527,7 @@ class _VerseCombatPageState extends State<VerseCombatPage> {
     final player1 = _matchData!['player1'];
     final player2 = _matchData!['player2'];
     final winnerId = _matchData!['winner'];
+    final abandonedBy = _matchData!['abandonedBy'];
     
     final bool iWon = winnerId == _currentUserId;
     // Si pas de winner (ex: fin des questions), on compare les PV
@@ -488,8 +536,10 @@ class _VerseCombatPageState extends State<VerseCombatPage> {
         (player1['id'] == _currentUserId ? player1['pv'] > player2['pv'] : player2['pv'] > player1['pv']);
 
     final bool victory = iWon || (!draw && iWonByPv);
-    final String resultatServeur = draw ? 'egalite' : (victory ? 'victoire' : 'defaite');
-    _cloturerMatchServeur(resultat: resultatServeur, ko: winnerId != null);
+    final String resultatServeur = abandonedBy == _currentUserId
+        ? 'abandon'
+        : (draw ? 'egalite' : (victory ? 'victoire' : 'defaite'));
+    _cloturerMatchServeur(resultat: resultatServeur, ko: winnerId != null && abandonedBy == null);
 
     final String titre = draw ? "ÉGALITÉ" : (victory ? "VICTOIRE !" : "DÉFAITE...");
     final Color color = draw ? Colors.grey : (victory ? Colors.green : Colors.red);

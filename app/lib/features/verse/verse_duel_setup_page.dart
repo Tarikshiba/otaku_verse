@@ -17,10 +17,21 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
 
+  // Paramètres personnalisables du salon amical (Roadmap 9.1)
+  String _selectedAnime = 'Tous';
+  String _selectedArc = 'Tous';
+  String _selectedDifficulte = 'Toutes';
+  int _selectedNombre = 10;
+
   void _creerSalon() async {
     setState(() => _isLoading = true);
     try {
-      final data = await _matchmakingService.creerSalonAmical();
+      final data = await _matchmakingService.creerSalonAmical(
+        anime: _selectedAnime == 'Tous' ? null : _selectedAnime,
+        arc: _selectedArc == 'Tous' ? null : _selectedArc,
+        difficulte: _selectedDifficulte == 'Toutes' ? null : _selectedDifficulte,
+        nombre: _selectedNombre,
+      );
       final String matchId = data['matchId'];
       final String code = data['code'];
       
@@ -92,12 +103,69 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
             child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.people_alt_rounded, size: 80, color: OtakuColors.modeDuel),
-              const SizedBox(height: 20),
+              const Icon(Icons.people_alt_rounded, size: 56, color: OtakuColors.modeDuel),
+              const SizedBox(height: 12),
               Text("GÉNÉRER UN CODE", style: OtakuTypo.headlineLarge),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               Text("Paramètre les règles de ton duel amical.", style: OtakuTypo.bodySmall, textAlign: TextAlign.center),
-              const SizedBox(height: 40),
+              const SizedBox(height: 16),
+              // Grille de paramètres personnalisés (Anime, Arc, Difficulté, Nombre de questions)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: OtakuColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: OtakuColors.glassBorder),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDropdown(
+                            label: "ANIME",
+                            value: _selectedAnime,
+                            items: const ['Tous', 'One Piece', 'naruto'],
+                            onChanged: (v) => setState(() => _selectedAnime = v!),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildDropdown(
+                            label: "ARC",
+                            value: _selectedArc,
+                            items: const ['Tous', 'East Blue', 'Introduction'],
+                            onChanged: (v) => setState(() => _selectedArc = v!),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDropdown(
+                            label: "DIFFICULTÉ",
+                            value: _selectedDifficulte,
+                            items: const ['Toutes', 'facile', 'moyen', 'difficile', 'expert'],
+                            onChanged: (v) => setState(() => _selectedDifficulte = v!),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildDropdown(
+                            label: "QUESTIONS",
+                            value: _selectedNombre.toString(),
+                            items: const ['5', '10', '15'],
+                            onChanged: (v) => setState(() => _selectedNombre = int.parse(v!)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               _isLoading
                   ? const CircularProgressIndicator(color: OtakuColors.modeDuel)
                   : ElevatedButton(
@@ -105,9 +173,9 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
                       onPressed: _creerSalon,
                       child: const Text("CRÉER LE SALON"),
                     ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
               Text("OU", style: OtakuTypo.bodySmall),
-              const SizedBox(height: 30),
+              const SizedBox(height: 16),
               TextField(
                 controller: _codeController,
                 keyboardType: TextInputType.number,
@@ -135,6 +203,35 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: OtakuTypo.label.copyWith(fontSize: 10, color: OtakuColors.textMuted)),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: value,
+          dropdownColor: OtakuColors.surface,
+          style: OtakuTypo.bodySmall.copyWith(color: Colors.white),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            filled: true,
+            fillColor: OtakuColors.background,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }

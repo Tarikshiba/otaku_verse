@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
 Derniere mise a jour : 2026-11-03
-Version en cours : V2 (COMPLETE — prete a tester)
-Module en cours : verse & admin_dashboard (4 etapes V2 terminees)
+Version en cours : V2 (100% TERMINEE) -> Passage a la V3
+Module en cours : verse (Salon amical personnalisable, Mode Coop, Anti-abandon, Regles Firebase)
 
 ## MISE A JOUR DE LA ROADMAP (2026-09-20)
 
@@ -123,7 +123,8 @@ Etapes prevues :
 - iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- "feat(v2): synchro combat temps reel, securisation Edge Function, Mode Division et images questions admin" (2026-11-03)
+- `819e0bd` : "feat(v2): synchro combat temps reel, securisation Edge Function, Mode Division et images questions admin" (2026-11-03)
+- En cours de push : "feat(v2): salon amical personnalisable, mode cooperatif, systeme anti-abandon et regles firebase" (2026-11-03)
 
 ## 5. ÉTAPES V2 RÉALISÉES (2026-11-03)
 
@@ -140,16 +141,19 @@ Etapes prevues :
 
 ## 6. PROCHAINES ÉTAPES (SELON ROADMAP_OTAKU_VERSE.md)
 
-### A. Tests et déploiement à faire au démarrage de la prochaine session
-1. Exécuter `scripts/add_question_image_column.sql` dans l'éditeur SQL de Supabase.
-2. Redéployer l'Edge Function `valider-reponse` sur Supabase.
-3. Tester en conditions réelles un duel amical (code à 6 chiffres) et un duel classé (Mode Division) pour valider la synchronisation des questions, la validation serveur sans `bonneReponse` et le calcul des points/divisions.
-4. Tester l'envoi d'une question avec image depuis le Dashboard Admin Next.js et vérifier son affichage en combat.
+### A. Déploiement, correctifs initiaux et cahier de tests (FAIT — 2026-11-03)
+1. **SQL & Edge Function déployés** : `scripts/add_question_image_column.sql` exécuté sur Supabase (`Success. No rows returned`) et Edge Function `valider-reponse` redéployée en production sur `houbjgugzznytilkfwyf`.
+2. **Upload d'image Admin validé** : ajout et persistance d'une image sur une question depuis `admin_dashboard/app/questions/page.tsx` vérifiés.
+3. **Correctifs UI & Firebase V2** :
+   - Suppression de l'icône de cadenas forcée sur le sélecteur de mode de l'accueil (`app/lib/shared/app_shell.dart`).
+   - Correction du dépassement vertical de 22 pixels en affichage horizontal sur `app/lib/features/verse/verse_division_page.dart`.
+   - Création des règles de sécurité Firebase Realtime Database (`scripts/firebase_database_rules.json`) et sécurisation des appels dans `matchmaking_service.dart`.
+4. **Cahier de tests créé** : ajout de `CAHIER_TESTS.md` à la racine pour centraliser tous les tests sur téléphones réels (Tariq & Heat) après la compilation de l'APK.
 
-### B. Finition de la V2 (Section 9 de la Roadmap)
-1. **Paramètres personnalisables en Duel Amical** : choix de l'anime, de l'arc, de la difficulté et du nombre de questions lors de la création d'un salon privé (`verse_duel_setup_page.dart`).
-2. **Mode Coopératif (Coop)** : 2 joueurs alliés contre le quiz (questions partagées, réponses combinées, score d'équipe et récompenses partagées).
-3. **Système Anti-abandon (Section 9.6)** : pénalité de -30 points + blocage temporaire (cooldown de 5 min au 1er abandon, 30 min après 3 abandons consécutifs) et victoire automatique attribuée à l'adversaire.
+### B. Finition de la V2 (Section 9 de la Roadmap) — FAIT (2026-11-03)
+1. **Paramètres personnalisables en Duel Amical (FAIT)** : choix de l'anime, de l'arc, de la difficulté et du nombre de questions lors de la création d'un salon privé (`verse_duel_setup_page.dart` & `matchmaking_service.dart`).
+2. **Mode Coopératif (Coop) (FAIT)** : 2 joueurs alliés (ou duo avec l'IA alliée `A.K.I.N.A`) contre les 200 PV du Gardien du Verse, avec bonus de synergie, PV d'équipe partagés et récompenses (`verse_coop_page.dart` & `app_shell.dart`).
+3. **Système Anti-abandon (Section 9.6) (FAIT)** : boîte de confirmation d'abandon dans `verse_combat_page.dart`, pénalité de -30 points, compteur `abandonsConsecutifs`, blocage temporaire (`cooldownUntil` de 5 min au 1er abandon, 30 min dès 3 abandons consécutifs) vérifié dans `verse_division_page.dart` et victoire automatique attribuée à l'adversaire.
 
 ### C. Passage à la V3 — Saisons, Événements & Compétition avancée (Section 10 de la Roadmap)
 1. **Saisons (8 semaines)** : classement saisonnier dédié, thème visuel par saison, questions réservées, récompenses de fin de saison et soft reset des divisions (max -2 divisions).

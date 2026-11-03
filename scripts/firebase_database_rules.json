@@ -1,0 +1,44 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "divisions": {
+      ".read": true,
+      "$userId": {
+        ".write": "newData.hasChildren(['points', 'division', 'nomDivision'])"
+      }
+    },
+    "matchmaking": {
+      "queue": {
+        ".read": true,
+        "$userId": {
+          ".write": "!newData.exists() || newData.hasChildren(['id', 'mode', 'status'])"
+        }
+      }
+    },
+    "matches": {
+      "$matchId": {
+        ".read": true,
+        ".write": "!newData.exists() || newData.hasChildren(['status', 'mode', 'questions']) || data.exists()"
+      }
+    },
+    "coop": {
+      "$roomId": {
+        ".read": true,
+        ".write": "!newData.exists() || newData.hasChildren(['status', 'questions']) || data.exists()"
+      }
+    },
+    "battle_royale": {
+      "$lobbyId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "guildes": {
+      ".read": true,
+      "$guildeId": {
+        ".write": true
+      }
+    }
+  }
+}

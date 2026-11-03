@@ -4,6 +4,7 @@ import '../core/theme.dart';
 import '../features/combat/combat_setup_page.dart';
 import '../features/verse/verse_division_page.dart';
 import '../features/verse/verse_duel_setup_page.dart';
+import '../features/verse/verse_coop_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/progression/progression_service.dart';
 import '../features/rewards/boite_lettres_page.dart';
@@ -111,7 +112,7 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                     const SizedBox(height: 8),
                     _buildModeOption('DUEL — Defi un ami', Icons.people_alt_rounded, OtakuColors.modeDuel, true, 'DUEL'),
                     const SizedBox(height: 8),
-                    _buildModeOption('COOP — Faites equipe', Icons.group_work_rounded, OtakuColors.modeCoop, false, 'COOP'),
+                    _buildModeOption('COOP — Faites equipe', Icons.group_work_rounded, OtakuColors.modeCoop, true, 'COOP'),
                     const SizedBox(height: 8),
                     _buildModeOption('EVENEMENT — Defis limites', Icons.local_fire_department_rounded, OtakuColors.modeEvent, false, 'EVENTS'),
                   ],
@@ -363,6 +364,8 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDivisionPage()));
                 } else if (_modeActif == 'DUEL') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDuelSetupPage()));
+                } else if (_modeActif == 'COOP') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCoopPage()));
                 }
               },
               child: Container(
@@ -420,9 +423,25 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                     Row(
                       children: [
                         Icon(
-                          _modeActif == 'SOLO' ? Icons.bolt_rounded : Icons.lock_rounded, 
-                          color: _modeActif == 'SOLO' ? OtakuColors.modeSolo : OtakuColors.textMuted, 
-                          size: 18
+                          _modeActif == 'SOLO'
+                              ? Icons.bolt_rounded
+                              : _modeActif == 'DIVISION'
+                                  ? Icons.military_tech_rounded
+                                  : _modeActif == 'DUEL'
+                                      ? Icons.people_alt_rounded
+                                      : _modeActif == 'COOP'
+                                          ? Icons.group_work_rounded
+                                          : Icons.local_fire_department_rounded,
+                          color: _modeActif == 'SOLO'
+                              ? OtakuColors.modeSolo
+                              : _modeActif == 'DIVISION'
+                                  ? OtakuColors.modeDivision
+                                  : _modeActif == 'DUEL'
+                                      ? OtakuColors.modeDuel
+                                      : _modeActif == 'COOP'
+                                          ? OtakuColors.modeCoop
+                                          : OtakuColors.modeEvent,
+                          size: 18,
                         ),
                         const SizedBox(width: 6),
                         Text(_modeActif, style: OtakuTypo.headlineLarge.copyWith(fontSize: 16)),

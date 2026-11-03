@@ -49,23 +49,31 @@ class MatchmakingService {
     }
   }
 
-  /// Recupere les statistiques PvP (Division, points, XP PvP) du joueur connecte
+  /// Recupere les statistiques PvP (Division, points, XP PvP, cooldown anti-abandon) du joueur connecte
   Future<Map<String, dynamic>> recupererStatsDivision() async {
-    final userId = _supabase.auth.currentUser!.id;
-    final snap = await _db.ref('divisions/$userId').get();
-    if (snap.exists && snap.value is Map) {
-      final data = Map<String, dynamic>.from(snap.value as Map);
-      final int points = data['points'] ?? 0;
-      final int div = calculerDivision(points);
-      return {
-        'points': points,
-        'division': div,
-        'nomDivision': nomDivision(div),
-        'xpPvp': data['xpPvp'] ?? 0,
-        'victoires': data['victoires'] ?? 0,
-        'defaites': data['defaites'] ?? 0,
-      };
-    }
+    try {
+      final userId = _supabase.auth.currentUser!.id;
+      final snap = await _db.ref('divisions/$userId').get();
+      if (snap.exists && snap.value is Map) {
+        final data = Map<String, dynamic>.from(snap.value as Map);
+        final int points = data['points'] ?? 0;
+        final int div = calculerDivision(points);
+        final int cooldownUntil = data['cooldownUntil'] ?? 0;
+        final int now = DateTime.now().millisecondsSinceEpoch;
+        final int secondesCooldown = cooldownUntil > now ? ((cooldownUntil - now) / 1000).ceil() : 0;
+        return {
+          'points': points,
+          'division': div,
+          'nomDivision': nomDivision(div),
+          'xpPvp': data['xpPvp'] ?? 0,
+          'victoires': data['victoires'] ?? 0,
+          'defaites': data['defaites'] ?? 0,
+          'abandonsConsecutifs': data['abandonsConsecutifs'] ?? 0,
+          'cooldownUntil': cooldownUntil,
+          'secondesCooldown': secondesCooldown,
+        };
+      }
+    } catch (_) {}
     return {
       'points': 0,
       'division': 10,
@@ -73,10 +81,13 @@ class MatchmakingService {
       'xpPvp': 0,
       'victoires': 0,
       'defaites': 0,
+      'abandonsConsecutifs': 0,
+      'cooldownUntil': 0,
+      'secondesCooldown': 0,
     };
   }
 
-  /// Met a jour les points de division et l'XP PvP a la fin d'un match classe
+  /// Met a jour les points de division, l'XP PvP et la penalite anti-abandon a la fin d'un match
   Future<Map<String, dynamic>> mettreAJourDivisionApresMatch({
     required int deltaPoints,
     required int xpGagne,
@@ -91,6 +102,17 @@ class MatchmakingService {
     final int victoires = (statsActuelles['victoires'] as int) + (resultat == 'victoire' ? 1 : 0);
     final int defaites = (statsActuelles['defaites'] as int) + (resultat == 'defaite' || resultat == 'abandon' ? 1 : 0);
 
+    // Gestion Anti-abandon (Roadmap 9.6 : 5 min au 1er abandon, 30 min a partir de 3 abandons consecutifs)
+    int abandonsConsecutifs = statsActuelles['abandonsConsecutifs'] as int? ?? 0;
+    int cooldownUntil = statsActuelles['cooldownUntil'] as int? ?? 0;
+    if (resultat == 'abandon') {
+      abandonsConsecutifs += 1;
+      final int minutesPenalite = abandonsConsecutifs >= 3 ? 30 : 5;
+      cooldownUntil = DateTime.now().millisecondsSinceEpoch + (minutesPenalite * 60 * 1000);
+    } else {
+      abandonsConsecutifs = 0;
+    }
+
     final updated = {
       'points': nouveauxPoints,
       'division': nouvelleDivision,
@@ -98,6 +120,8 @@ class MatchmakingService {
       'xpPvp': nouvelXpPvp,
       'victoires': victoires,
       'defaites': defaites,
+      'abandonsConsecutifs': abandonsConsecutifs,
+      'cooldownUntil': cooldownUntil,
       'updatedAt': ServerValue.timestamp,
     };
 
@@ -293,12 +317,21 @@ class MatchmakingService {
 
   /// Annule la recherche en cours
   Future<void> annulerRecherche() async {
-    final userId = _supabase.auth.currentUser!.id;
-    await _db.ref('matchmaking/queue/$userId').remove();
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId != null) {
+        await _db.ref('matchmaking/queue/$userId').remove();
+      }
+    } catch (_) {}
   }
 
-  /// Crée un salon amical privé et génère un code à 6 chiffres
-  Future<Map<String, dynamic>> creerSalonAmical() async {
+  /// Crée un salon amical privé avec paramètres personnalisés et génère un code à 6 chiffres
+  Future<Map<String, dynamic>> creerSalonAmical({
+    String? anime,
+    String? arc,
+    String? difficulte,
+    int nombre = 10,
+  }) async {
     final user = _supabase.auth.currentUser!;
     final userId = user.id;
     final pseudo = await _recupererPseudo();
@@ -308,8 +341,17 @@ class MatchmakingService {
     final matchId = 'amical_$code';
     final matchRef = _db.ref('matches/$matchId');
 
-    // Recuperer 10 questions aleatoires (pour l'instant, force One Piece)
-    final questionsList = await _quizService.recupererQuestions(nombre: 10, anime: 'One Piece');
+    // Récupérer les questions selon les filtres choisis (repli sur toutes les questions si le filtre est vide)
+    var questionsList = await _quizService.recupererQuestions(
+      nombre: nombre,
+      anime: anime,
+      arc: arc,
+      difficulte: difficulte,
+    );
+    if (questionsList.isEmpty) {
+      questionsList = await _quizService.recupererQuestions(nombre: nombre);
+    }
+
     final questionsMap = questionsList.map((q) => {
       'id': q.id,
       'question': q.question,
@@ -324,6 +366,12 @@ class MatchmakingService {
       'status': 'waiting', // En attente du joueur 2
       'mode': 'amical',
       'code': code,
+      'parametres': {
+        'anime': anime ?? 'Tous',
+        'arc': arc ?? 'Tous',
+        'difficulte': difficulte ?? 'Toutes',
+        'nombre': questionsMap.length,
+      },
       'questions': questionsMap,
       'currentQuestionIndex': 0,
       'player1': {
@@ -337,6 +385,92 @@ class MatchmakingService {
     });
 
     return {'matchId': matchId, 'code': code};
+  }
+
+  /// Crée un salon Coopératif (2 joueurs alliés contre un Boss Quiz)
+  Future<Map<String, dynamic>> creerSalonCoop({
+    bool avecBot = false,
+    String? anime,
+    int nombre = 10,
+  }) async {
+    final user = _supabase.auth.currentUser!;
+    final userId = user.id;
+    final pseudo = await _recupererPseudo();
+
+    final code = (100000 + DateTime.now().millisecondsSinceEpoch % 900000).toString();
+    final roomId = 'coop_$code';
+    final roomRef = _db.ref('coop/$roomId');
+
+    var questionsList = await _quizService.recupererQuestions(nombre: nombre, anime: anime);
+    if (questionsList.isEmpty) {
+      questionsList = await _quizService.recupererQuestions(nombre: nombre);
+    }
+
+    final questionsMap = questionsList.map((q) => {
+      'id': q.id,
+      'question': q.question,
+      'choixA': q.choixA,
+      'choixB': q.choixB,
+      'choixC': q.choixC,
+      'choixD': q.choixD,
+      if (q.imageUrl != null) 'imageUrl': q.imageUrl,
+    }).toList();
+
+    await roomRef.set({
+      'status': avecBot ? 'starting' : 'waiting',
+      'code': code,
+      'bossPv': 200,
+      'bossMaxPv': 200,
+      'teamPv': 100,
+      'teamCombo': 0,
+      'questions': questionsMap,
+      'currentQuestionIndex': 0,
+      'player1': {
+        'id': userId,
+        'pseudo': pseudo,
+        'bonnesReponses': 0,
+      },
+      if (avecBot)
+        'player2': {
+          'id': 'bot_coop',
+          'pseudo': 'A.K.I.N.A (Allié)',
+          'bonnesReponses': 0,
+          'isBot': true,
+        },
+      'createdAt': ServerValue.timestamp,
+    });
+
+    return {'roomId': roomId, 'code': code};
+  }
+
+  /// Rejoint un salon Coopératif avec un code à 6 chiffres
+  Future<String?> rejoindreSalonCoop(String code) async {
+    final user = _supabase.auth.currentUser!;
+    final userId = user.id;
+    final pseudo = await _recupererPseudo();
+
+    final roomId = 'coop_$code';
+    final roomRef = _db.ref('coop/$roomId');
+    final snapshot = await roomRef.get();
+
+    if (snapshot.exists && snapshot.value is Map) {
+      final data = snapshot.value as Map;
+      if (data['status'] == 'waiting' && data['player2'] == null) {
+        await roomRef.update({
+          'status': 'starting',
+          'player2': {
+            'id': userId,
+            'pseudo': pseudo,
+            'bonnesReponses': 0,
+          },
+        });
+        return roomId;
+      } else {
+        throw Exception("Salon Coop plein ou déjà lancé.");
+      }
+    } else {
+      throw Exception("Code Coop invalide ou salon introuvable.");
+    }
   }
 
   /// Rejoint un salon amical privé avec un code à 6 chiffres

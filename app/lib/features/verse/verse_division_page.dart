@@ -26,6 +26,16 @@ class _VerseDivisionPageState extends State<VerseDivisionPage> {
     try {
       final stats = await _matchmaking.recupererStatsDivision();
       if (!mounted) return;
+      final int secondesCooldown = stats['secondesCooldown'] as int? ?? 0;
+      if (secondesCooldown > 0) {
+        final int mins = (secondesCooldown / 60).ceil();
+        setState(() {
+          _statsDivision = stats;
+          _found = true; // Masque le loader
+          _status = "Pénalité d'abandon active : réessaie dans $mins min.";
+        });
+        return;
+      }
       setState(() {
         _statsDivision = stats;
         _status = "Recherche d'un adversaire (Division ${stats['division']} ±2)...";
@@ -86,50 +96,53 @@ class _VerseDivisionPageState extends State<VerseDivisionPage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                  color: OtakuColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: OtakuColors.modeDivision.withOpacity(0.5)),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: OtakuColors.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: OtakuColors.modeDivision.withOpacity(0.5)),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        "DIVISION $div : ${nomDiv.toUpperCase()}",
+                        style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.modeDivision),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "$points PTS  |  $xpPvp XP PVP",
+                        style: OtakuTypo.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      "DIVISION $div : ${nomDiv.toUpperCase()}",
-                      style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.modeDivision),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "$points PTS  |  $xpPvp XP PVP",
-                      style: OtakuTypo.bodySmall,
-                    ),
-                  ],
+                const SizedBox(height: 18),
+                Icon(
+                  _found ? Icons.check_circle_rounded : Icons.military_tech_rounded,
+                  size: 64,
+                  color: _found ? Colors.greenAccent : OtakuColors.modeDivision,
                 ),
-              ),
-              const SizedBox(height: 36),
-              Icon(
-                _found ? Icons.check_circle_rounded : Icons.military_tech_rounded, 
-                size: 80, 
-                color: _found ? Colors.greenAccent : OtakuColors.modeDivision
-              ),
-              const SizedBox(height: 20),
-              Text(
-                _found ? "MATCH TROUVÉ" : "RECHERCHE D'ADVERSAIRE...", 
-                style: OtakuTypo.headlineLarge
-              ),
-              const SizedBox(height: 10),
-              Text(_status, style: OtakuTypo.bodySmall, textAlign: TextAlign.center),
-              const SizedBox(height: 40),
-              if (!_found)
-                const CircularProgressIndicator(color: OtakuColors.modeDivision),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  _found ? "MATCH TROUVÉ" : "RECHERCHE D'ADVERSAIRE...",
+                  style: OtakuTypo.headlineLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(_status, style: OtakuTypo.bodySmall, textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                if (!_found)
+                  const CircularProgressIndicator(color: OtakuColors.modeDivision),
+              ],
+            ),
           ),
         ),
       ),
