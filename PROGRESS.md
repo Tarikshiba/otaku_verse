@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
-Derniere mise a jour : 2026-09-20
-Version en cours : V1.5 (COMPLETE) — Distribution en place
-Module en cours : pret pour V2 (multijoueur temps reel)
+Derniere mise a jour : 2026-11-03
+Version en cours : V2 (COMPLETE — prete a tester)
+Module en cours : verse & admin_dashboard (4 etapes V2 terminees)
 
 ## MISE A JOUR DE LA ROADMAP (2026-09-20)
 
@@ -123,16 +123,40 @@ Etapes prevues :
 - iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- "V1.5 complete : redesign PDF, boite a lettres Supabase, edge function notifications, quetes, boutique 4 categories" (2026-08-03)## 5. PROCHAINES ÉTAPES IMMÉDIATES
+- "feat(v2): synchro combat temps reel, securisation Edge Function, Mode Division et images questions admin" (2026-11-03)
 
-1. **Mécanique de combat V2 (Realtime)**
-   - Récupérer les questions depuis Supabase et les injecter dans le match Firebase.
-   - Synchroniser le timer (15s) et l'affichage des questions entre les deux joueurs.
-   - Calculer les dégâts et mettre à jour les PV en temps réel.
-2. **Mode Duel Amical**
-   - Finaliser l'interface de création de salon (Choix Anime/Arc/Diff).
-   - Générer le code à 6 chiffres et permettre à un ami de le rejoindre.
-3. **Supabase Edge Functions**
-   - Sécuriser la fin du match et le calcul des points/divisions côté serveur.
-4. **Finalisation du Dashboard Admin**
-   - Permettre l'ajout d'images dans les questions (si besoin).
+## 5. ÉTAPES V2 RÉALISÉES (2026-11-03)
+
+1. **Amélioration de la synchronisation de combat (FAIT — 2026-11-03)**
+   - Enregistrement de `answeredIndex` par joueur dans Firebase et passage à la question suivante uniquement quand les deux joueurs ont répondu ou que le chronomètre de 15s est écoulé (`_passerQuestionSuivante`).
+2. **Supabase Edge Functions pour la V2 (FAIT — 2026-11-03)**
+   - Suppression de `bonneReponse` dans Firebase (`matchmaking_service.dart`), validation des réponses et combos V2 via l'Edge Function `valider-reponse`, et ajout de l'action serveur `cloturer_match_verse` pour attribuer l'XP et calculer les points de division en fin de match.
+3. **Mode Division (Classé) (FAIT — 2026-11-03)**
+   - Nettoyage des doublons de syntaxe dans `combat_service.dart`.
+   - File d'attente globale dans `matchmaking_service.dart` avec appairage réel entre joueurs humains (±2 divisions) et repli sur bot adaptatif au bout de 10s.
+   - Gestion complète des 10 divisions (`Académie` à `Légende du Verse`), des points de division et de l'XP PvP dans `verse_division_page.dart` et `verse_combat_page.dart`.
+4. **Finalisation du Dashboard Admin (FAIT — 2026-11-03)**
+   - Ajout de la route API `/api/questions/upload-image` (vérification MIME et taille max 5 Mo, stockage Supabase Storage `questions-images`), mise à jour de l'interface `app/questions/page.tsx` avec aperçu miniature, script SQL `scripts/add_question_image_column.sql` et affichage de l'image dans `verse_combat_page.dart`.
+
+## 6. PROCHAINES ÉTAPES (SELON ROADMAP_OTAKU_VERSE.md)
+
+### A. Tests et déploiement à faire au démarrage de la prochaine session
+1. Exécuter `scripts/add_question_image_column.sql` dans l'éditeur SQL de Supabase.
+2. Redéployer l'Edge Function `valider-reponse` sur Supabase.
+3. Tester en conditions réelles un duel amical (code à 6 chiffres) et un duel classé (Mode Division) pour valider la synchronisation des questions, la validation serveur sans `bonneReponse` et le calcul des points/divisions.
+4. Tester l'envoi d'une question avec image depuis le Dashboard Admin Next.js et vérifier son affichage en combat.
+
+### B. Finition de la V2 (Section 9 de la Roadmap)
+1. **Paramètres personnalisables en Duel Amical** : choix de l'anime, de l'arc, de la difficulté et du nombre de questions lors de la création d'un salon privé (`verse_duel_setup_page.dart`).
+2. **Mode Coopératif (Coop)** : 2 joueurs alliés contre le quiz (questions partagées, réponses combinées, score d'équipe et récompenses partagées).
+3. **Système Anti-abandon (Section 9.6)** : pénalité de -30 points + blocage temporaire (cooldown de 5 min au 1er abandon, 30 min après 3 abandons consécutifs) et victoire automatique attribuée à l'adversaire.
+
+### C. Passage à la V3 — Saisons, Événements & Compétition avancée (Section 10 de la Roadmap)
+1. **Saisons (8 semaines)** : classement saisonnier dédié, thème visuel par saison, questions réservées, récompenses de fin de saison et soft reset des divisions (max -2 divisions).
+2. **Événements temporaires (3 à 7 jours)** : événements thématiques par anime avec classement dédié et récompenses en édition limitée.
+3. **Tournois** : phase de groupes (score cumulé sur 10 duels) puis finale Top 8 en élimination directe sur une semaine.
+4. **Missions longue durée** : objectifs de carrière (100 duels Verse, Division 5, 5 000 questions réussies) débloquant des titres et badges exclusifs.
+
+### D. V4 & V5 (Sections 11 et suite de la Roadmap)
+1. **V4 Monétisation** : monnaie virtuelle Verse Coins, publicités inter-quiz et récompensées (opt-in), Pass Premium mensuel et boutique cosmétique complète.
+2. **V5 Expansion** : Battle Royale Quiz et système de Guildes / Clans.

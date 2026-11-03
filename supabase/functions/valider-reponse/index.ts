@@ -12,11 +12,89 @@ export default {
       return new Response("Methode non autorisee", { status: 405 });
     }
 
-    const { question_id, reponse, combo_joueur, combo_bot, difficulte } =
-      await req.json();
+    const body = await req.json();
 
-    // Verification des parametres
-    if (!question_id || !reponse) {
+    // Action V2 : cloturer un match Verse et calculer l'XP / les points de division cote serveur
+    if (body.action === "cloturer_match_verse") {
+      const { user_id, resultat, mode, ko, bonnes_reponses } = body;
+      if (!user_id || !resultat) {
+        return Response.json(
+          { error: "user_id et resultat sont requis" },
+          { status: 400 }
+        );
+      }
+
+      const { data: profil, error: errProfil } = await ctx.supabaseAdmin
+        .from("profiles")
+        .select("*")
+        .eq("id", user_id)
+        .single();
+
+      if (errProfil || !profil) {
+        return Response.json({ error: "Profil introuvable" }, { status: 404 });
+      }
+
+      // Calcul XP : +20 fin de match, +10 par bonne reponse, +30 si K.O.
+      const nbBonnes = Math.max(0, Math.min(10, Number(bonnes_reponses) || 0));
+      let xp_gagne = 20 + nbBonnes * 10;
+      if (resultat === "victoire" && ko === true) {
+        xp_gagne += 30;
+      }
+
+      // Calcul points de division (uniquement en mode division)
+      let delta_points = 0;
+      if (mode === "division") {
+        if (resultat === "victoire") delta_points = 25;
+        else if (resultat === "defaite") delta_points = -15;
+        else if (resultat === "egalite") delta_points = 5;
+        else if (resultat === "abandon") delta_points = -30;
+      }
+
+      const nouvelle_xp = (profil.xp_totale || 0) + xp_gagne;
+      let niveau = 1;
+      let xp_accumulee = 0;
+      while (true) {
+        const palier = Math.round(100 * niveau * 1.2);
+        if (xp_accumulee + palier > nouvelle_xp) break;
+        xp_accumulee += palier;
+        niveau++;
+      }
+
+      let rang = "Legende";
+      if (niveau <= 5) rang = "Debutant";
+      else if (niveau <= 15) rang = "Apprenti Otaku";
+      else if (niveau <= 30) rang = "Passionne";
+      else if (niveau <= 50) rang = "Expert";
+      else if (niveau <= 75) rang = "Maitre du Verse";
+
+      const combats_joues = (profil.combats_joues || 0) + 1;
+      const combats_gagnes =
+        (profil.combats_gagnes || 0) + (resultat === "victoire" ? 1 : 0);
+
+      await ctx.supabaseAdmin
+        .from("profiles")
+        .update({
+          xp_totale: nouvelle_xp,
+          niveau,
+          rang,
+          combats_joues,
+          combats_gagnes,
+        })
+        .eq("id", user_id);
+
+      return Response.json({
+        xp_gagne,
+        delta_points,
+        nouvelle_xp,
+        niveau,
+        rang,
+      });
+    }
+
+    const { question_id, reponse, combo_joueur, combo_bot, difficulte } = body;
+
+    // Verification des parametres (reponse peut etre une chaine vide en cas de timeout)
+    if (!question_id || typeof reponse !== "string") {
       return Response.json(
         { error: "question_id et reponse sont requis" },
         { status: 400 }

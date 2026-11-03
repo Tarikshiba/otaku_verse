@@ -16,6 +16,7 @@ interface Question {
   choix_d: string;
   bonne_reponse: string;
   explication: string | null;
+  image_url?: string | null;
   statut: string;
 }
 
@@ -27,7 +28,10 @@ export default function QuestionsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editQuestion, setEditQuestion] = useState<Question | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Formulaire
   const [form, setForm] = useState({
@@ -41,6 +45,7 @@ export default function QuestionsPage() {
     choix_d: "",
     bonne_reponse: "A",
     explication: "",
+    image_url: "",
   });
 
   useEffect(() => {
@@ -92,9 +97,38 @@ export default function QuestionsPage() {
     setChargement(false);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    setFormError(null);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/questions/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setForm((prev) => ({ ...prev, image_url: data.url }));
+      } else {
+        setFormError(data.error || "Erreur lors de l'envoi de l'image.");
+      }
+    } catch (_) {
+      setFormError("Erreur reseau lors de l'envoi de l'image.");
+    } finally {
+      setIsUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+
   const sauvegarder = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
+    setFormError(null);
+    const payload: Record<string, any> = {
       ...form,
       id: editQuestion?.id || `Q_${Date.now()}`,
       statut: "actif",
@@ -104,18 +138,30 @@ export default function QuestionsPage() {
       isEdit: !!editQuestion,
     };
 
-    await fetch("/api/questions", {
+    if (form.image_url) {
+      payload.image_url = form.image_url;
+    } else {
+      delete payload.image_url;
+    }
+
+    const res = await fetch("/api/questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      setFormError(errData.error || "Impossible d'enregistrer la question.");
+      return;
+    }
 
     setShowForm(false);
     setEditQuestion(null);
     setForm({
       anime: "", arc: "", difficulte: "moyen", question: "",
       choix_a: "", choix_b: "", choix_c: "", choix_d: "",
-      bonne_reponse: "A", explication: "",
+      bonne_reponse: "A", explication: "", image_url: "",
     });
     chargerQuestions();
   };
@@ -132,6 +178,7 @@ export default function QuestionsPage() {
 
   const editer = (q: Question) => {
     setEditQuestion(q);
+    setFormError(null);
     setForm({
       anime: q.anime,
       arc: q.arc || "",
@@ -143,6 +190,7 @@ export default function QuestionsPage() {
       choix_d: q.choix_d,
       bonne_reponse: q.bonne_reponse,
       explication: q.explication || "",
+      image_url: q.image_url || "",
     });
     setShowForm(true);
   };
@@ -230,6 +278,53 @@ export default function QuestionsPage() {
               </select>
               <input placeholder="Explication (optionnel)" value={form.explication} onChange={(e) => setForm({ ...form, explication: e.target.value })} className="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" />
             </div>
+            {/* Champ Image optionnel */}
+            <div className="mb-3 p-3 bg-gray-800/60 border border-gray-700 rounded">
+              <div className="flex items-center gap-3">
+                <input
+                  placeholder="URL de l'image (optionnel)"
+                  value={form.image_url}
+                  onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                  className="flex-1 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm"
+                />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  ref={imageInputRef}
+                  onChange={handleImageUpload}
+                />
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs font-bold"
+                >
+                  {isUploadingImage ? "ENVOI..." : "CHOISIR IMAGE"}
+                </button>
+                {form.image_url && (
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, image_url: "" })}
+                    className="px-2 py-1 bg-red-900/60 hover:bg-red-800 text-red-200 rounded text-xs"
+                  >
+                    Retirer
+                  </button>
+                )}
+              </div>
+              {form.image_url && (
+                <div className="mt-2">
+                  <img
+                    src={form.image_url}
+                    alt={`Illustration pour la question : ${form.question || "aperçu"}`}
+                    className="max-h-32 rounded border border-gray-700 object-contain"
+                  />
+                </div>
+              )}
+            </div>
+            {formError && (
+              <p className="text-red-400 text-xs mb-3">{formError}</p>
+            )}
             <div className="flex gap-2">
               <button type="submit" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm font-bold">SAUVEGARDER</button>
               <button type="button" onClick={() => { setShowForm(false); setEditQuestion(null); }} className="px-4 py-2 bg-gray-700 rounded text-sm">ANNULER</button>
@@ -241,6 +336,13 @@ export default function QuestionsPage() {
         <div className="space-y-2">
           {questionsFiltrees.map((q) => (
             <div key={q.id} className={`bg-gray-900 border rounded p-3 flex items-center gap-3 ${q.statut === "inactif" ? "border-red-900 opacity-60" : "border-gray-800"}`}>
+              {q.image_url && (
+                <img
+                  src={q.image_url}
+                  alt={`Illustration de la question ${q.id}`}
+                  className="w-12 h-12 rounded object-cover border border-gray-700"
+                />
+              )}
               <div className="flex-1">
                 <p className="text-sm font-medium">{q.question}</p>
                 <p className="text-xs text-gray-400 mt-1">

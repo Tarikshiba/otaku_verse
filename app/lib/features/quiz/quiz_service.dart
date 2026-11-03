@@ -15,6 +15,7 @@ class Question {
   // bonneReponse garde en local uniquement pour le mode hors-ligne (fallback)
   final String bonneReponse;
   final String? explication;
+  final String? imageUrl;
 
   Question({
     required this.id,
@@ -29,6 +30,7 @@ class Question {
     required this.choixD,
     required this.bonneReponse,
     this.explication,
+    this.imageUrl,
   });
 
   /// Cree une Question depuis les donnees Supabase (Map)
@@ -46,6 +48,7 @@ class Question {
       choixD: map['choix_d'],
       bonneReponse: map['bonne_reponse'],
       explication: map['explication'],
+      imageUrl: map['image_url'],
     );
   }
 
