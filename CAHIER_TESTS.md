@@ -37,5 +37,12 @@ Ce document recense l'ensemble des fonctionnalites a verifier sur vos deux telep
 - [ ] Onglet `Pass Premium & Coins` : cliquer sur `ACTIVER (TEST)` sur le Pass Premium Mensuel, verifier l'apparition du badge `PASS PREMIUM`, puis tester le bouton `RECLAMER +50/J` et l'achat d'un Pack (`500`, `1500` ou `5000 COINS`).
 
 ## 6. V5 — Expansion (Battle Royale Quiz & Guildes/Clans)
-- [ ] Battle Royale Quiz : tester une partie multi-joueurs avec elimination progressive jusqu'au dernier survivant.
-- [ ] Systeme de Guildes / Clans : creer un clan, inviter Heat, verifier le classement des clans et le chat/tableau de bord d'equipe.
+- [ ] Accueil : verifier la presence du mode `BATTLE_ROYALE` dans le selecteur de modes et du bouton `Guildes` sous `Amis` a droite.
+- [ ] Battle Royale Quiz (`verse_battle_royale_page.dart`) : lancer une arene a 10 joueurs (ou rejoindre avec le code a 6 chiffres sur le 2e telephone), verifier le bandeau des 10 survivants en temps reel, l'elimination a 0 PV (`-35 PV` par erreur) et le gain d'XP + Verse Coins selon le rang final (`TOP #1` a `#10`).
+- [ ] Guildes / Clans (`verse_guildes_page.dart`) : creer une guilde avec Nom, Tag (2 a 4 lettres) et Devise, envoyer un message dans le salon de discussion du clan, puis verifier l'onglet `CLASSEMENT MONDIAL` et rejoindre la guilde depuis le telephone de Heat.
+
+## 7. Procedure de Build APK & Envoi a Heat (Firebase App Distribution)
+1. Copier une derniere fois le contenu complet de `scripts/firebase_database_rules.json` dans la console Firebase (`Realtime Database > Regles > Publier`) pour activer les noeuds V3, V4 et V5 (`saisons`, `evenements`, `tournois`, `carriere`, `economie`, `battle_royale`, `guildes`).
+2. Compiler l'APK release signe depuis `C:\All-projects\2026\Otaku_verse\app` :
+   `flutter build apk --release`
+3. Envoyer l'APK a Heat et au groupe `testers` via `C:\All-projects\2026\Otaku_verse\upload-apk.bat`.

@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
 Derniere mise a jour : 2026-11-03
-Version en cours : V4 (100% TERMINEE) -> Passage a la V5
-Module en cours : monetisation_v4 (Verse Coins, Pass Premium, Pubs opt-in, Boutique complete)
+Version en cours : V5 (100% TERMINEE — TOUTES LES VERSIONS V1 A V5 CODEES)
+Module en cours : verse_v5 (Battle Royale Quiz 10 joueurs, Guildes/Clans & Classement Mondial)
 
 ## MISE A JOUR DE LA ROADMAP (2026-09-20)
 
@@ -123,7 +123,7 @@ Etapes prevues :
 - iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- `aa30ab7` : "feat(v3): saisons 8 semaines, evenements temporaires, tournois top 8 et missions carriere" (2026-11-03)
+- `5411475` : "feat(v4): economie verse coins, pass premium, pubs recompensees et boutique complete" (2026-11-03)
 
 ## 5. ÉTAPES V2 RÉALISÉES (2026-11-03)
 
@@ -167,6 +167,7 @@ Etapes prevues :
 3. **Pass Premium mensuel (FAIT)** : activation en un clic en mode test avec zéro publicité, `+20% XP`, `+50 Verse Coins/jour`, Cadre exclusif "Premium", accès anticipé et file matchmaking prioritaire.
 4. **Boutique Cosmétique & Confort 100% anti Pay-to-Win (FAIT)** : remplacement de tous les placeholders dans `boutique_screen.dart` par les **Articles & Coffres** (Coffre Mystère Otaku, Cadre Shonen Jump, Effet K.O. Éclairs du Haki, Titre Seigneur du Verse) et les **Boosters XP** (Double XP 60m, 4e slot de défi quotidien, Pass Quiz Personnalisé illimité).
 
-### E. Passage à la V5 — Expansion (Battle Royale Quiz & Guildes / Clans)
-1. **Battle Royale Quiz** : salon multi-joueurs à élimination progressive jusqu'au dernier survivant.
-2. **Système de Guildes / Clans** : création et gestion de clan, recrutement, classement des guildes et tableau d'équipe.
+### E. V5 — Expansion (Battle Royale Quiz & Guildes / Clans) — FAIT (2026-11-03)
+1. **Battle Royale Quiz (10 joueurs) (FAIT)** : arène de survie à 10 combattants (joueurs via code à 6 chiffres + bots survivants), perte de 35 PV par erreur, élimination directe à 0 PV, bandeau des survivants en direct et récompenses XP + Verse Coins selon le rang final (`verse_battle_royale_page.dart` & `verse_v5_service.dart`).
+2. **Système de Guildes / Clans & Classement Mondial (FAIT)** : création de guilde (Nom, Tag `[TAG]`, Devise), adhésion en un clic, salon de discussion temps réel du clan et **Classement Mondial des Guildes** par points cumulés (`verse_guildes_page.dart`).
+3. **Intégration Hub Accueil (FAIT)** : ajout du mode `BATTLE_ROYALE` dans le sélecteur de modes et du bouton `Guildes` dans la colonne droite de l'accueil (`app_shell.dart`).

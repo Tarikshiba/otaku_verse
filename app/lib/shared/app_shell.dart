@@ -6,6 +6,8 @@ import '../features/verse/verse_division_page.dart';
 import '../features/verse/verse_duel_setup_page.dart';
 import '../features/verse/verse_coop_page.dart';
 import '../features/verse/verse_v3_hub_page.dart';
+import '../features/verse/verse_battle_royale_page.dart';
+import '../features/verse/verse_guildes_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/progression/progression_service.dart';
 import '../features/rewards/boite_lettres_page.dart';
@@ -116,6 +118,8 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                     _buildModeOption('COOP — Faites equipe', Icons.group_work_rounded, OtakuColors.modeCoop, true, 'COOP'),
                     const SizedBox(height: 8),
                     _buildModeOption('EVENEMENT — Defis limites', Icons.local_fire_department_rounded, OtakuColors.modeEvent, true, 'EVENTS'),
+                    const SizedBox(height: 8),
+                    _buildModeOption('BATTLE ROYALE — Survie 10 joueurs', Icons.whatshot_rounded, Colors.deepOrangeAccent, true, 'BATTLE_ROYALE'),
                   ],
                 ),
               ),
@@ -370,6 +374,10 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                       ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                _buildSideNavButton('Guildes', Icons.shield_rounded, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseGuildesPage()));
+                }, isRight: true),
               ],
             ),
           ),
@@ -392,6 +400,8 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCoopPage()));
                 } else if (_modeActif == 'EVENTS') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseV3HubPage(initialTab: 1)));
+                } else if (_modeActif == 'BATTLE_ROYALE') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseBattleRoyalePage()));
                 }
               },
               child: Container(
