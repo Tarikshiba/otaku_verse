@@ -1,186 +1,59 @@
 # PROGRESS — Otaku Verse
 
 Derniere mise a jour : 2026-11-03
-Version en cours : V5 (100% TERMINEE — TOUTES LES VERSIONS V1 A V5 CODEES)
-Module en cours : verse_v5 (Battle Royale Quiz 10 joueurs, Guildes/Clans & Classement Mondial)
+Version en cours : V5 + DA Liquid Glass (100% TERMINE — EN PHASE DE TESTS TERRAIN TARIQ & HEAT)
+Module en cours : Retours tests terrain (APK Release 1.0.0 distribué sur Firebase App Distribution)
 
-## MISE A JOUR DE LA ROADMAP (2026-09-20)
+---
 
-La roadmap officielle a ete remplacee par une nouvelle version.
-Changements cles par rapport a l'ancienne roadmap :
-- Retour au decoupage clair des fonctionnalites : V1 (Solo MVP), V1.5 (Social), V2 (Verse Multijoueur avec Firebase), V3 (Saisons), V4 (Monetisation).
-- La section 14 (Design/UX) de la nouvelle roadmap est obsolete. Le document OTAKU_VERSE_DA_LIQUID_GLASS.md est l'unique reference pour le design.
-- L'architecture confirme l'utilisation de Supabase pour les donnees statiques et de Firebase exclusivement pour les duels en temps reel de la V2.
-- La progression existante listee ci-dessous reste la source de verite. Les fonctionnalites deja developpees en V1 et V1.5 (y compris le moteur de combat) sont conservees.
+## 1. ETAT GLOBAL DU PROJET
 
-## En cours : Corrections post-test et Refonte UI (2026-09-20)
-- Refonte de l'Accueil (hub central façon Free Fire, retrait de la bottom nav bar).
-- Mise en place du nouveau systeme de navigation avec boutons Retour.
-- Correction des proportions du profil.
-- Connexion des quetes a Supabase pour eviter les reclamations multiples.
-- Ajout de la pastille de notification sur la boite de reception.
-- Correction de la logique d'affichage des amis.
-- Ajout de la barre de recherche et filtres par continent pour l'inscription (Pays).
-- Refonte de l'ecran de parametrage du combat (sans scroll, anime).
+Toutes les versions prevues par `ROADMAP_OTAKU_VERSE.md` (V1, V1.5, V2, V3, V4, V5) ainsi que l'integration visuelle de `OTAKU_VERSE_DA_LIQUID_GLASS.md` (21 illustrations manga decoupees et connectees) sont codees, compilees en release et distribuees aux testeurs.
 
-## Termine et teste
+### V1 — Solo MVP & Infrastructure (TERMINE)
+- Authentification Supabase (inscription avec recherche de pays par continent, connexion, deconnexion).
+- Moteur de combat Solo en affichage horizontal force contre l'IA (5 niveaux de difficulte, filtre par anime et par arc, timer, barres de PV, combos x3, animations de secousse et onomatopees).
+- Progression joueur (XP, niveaux, rangs, statistiques) et validation serveur anti-triche via l'Edge Function Supabase `valider-reponse`.
+- Dashboard Admin Next.js (`admin_dashboard/`) avec acces securise (`Drx@otaku.admin` / `Heat@otaku.admin`), CRUD questions, import en masse et upload d'images (`questions-images`).
 
-### V1 (complete)
-- Etape 0 : structure de dossiers, .gitignore, .env.example, repo Git init
-- Etape 1 : projet Flutter cree, compile et tourne sur emulateur Android (Pixel 8)
-- Etape 2 : Supabase connecte (URL + anon key, test OK)
-- Etape 3 : Design system (theme.dart, violet electrique #7B2FF7)
-- Etape 4 : Authentification (inscription, connexion, deconnexion)
-- Etape 5 : 20 questions One Piece importees dans Supabase via script Node.js
-- Etape 6 : moteur de combat complet (PV, degats, combo, bot, parametrage, paysage force, animations shake + onomatopees)
-- Etape 7 : progression (XP, niveaux, rangs) + table profiles dans Supabase, affichage XP en fin de combat
-- Etape 8 : ecran profil (stats, niveau, rang, barre XP, skin rotatif, taux de victoire)
-- Etape 9 : recompenses (connexion quotidienne +15 XP, 3 defis du jour +30 XP chacun, badges)
-- Etape 10 : ecran accueil style eFootball (top bar, banniere evenement, navigation tabs, boutons raccourcis, quitter, deconnexion dans profil)
-- Etape 11 : dashboard admin Next.js (login securise Drx/Heat, gestion questions CRUD, vue utilisateurs, API routes avec service_role key)
-- Etape 12 : validation serveur — Edge Function "valider-reponse" deployee sur Supabase (anti-triche, le serveur verifie les reponses et calcule les degats)
-- Refonte design complete (DA V2.1 "Apple rencontre Shonen Jump") — 7 sous-etapes
+### V1.5 — Social, Collection & Distribution (TERMINE)
+- Systeme d'amis complet (recherche par pseudo, demandes, presence en ligne et statut "en combat", notifications push FCM V1).
+- Classements (Mondial, National, Amis), Boite aux lettres (`mailbox`), Quetes synchronisees avec Supabase et Partage de resultat en image PNG.
+- Collection de 10 skins deblocables par niveau ou XP avec apercu 3D oscillant.
+- Signature Android Release (`upload-keystore.jks`) et distribution automatisee via `upload-apk.bat` sur Firebase App Distribution (`otaku-verse-6e05e`).
 
-### V1.5 (COMPLETE — 2026-08-03)
-- Systeme d'amis complet (recherche par pseudo, ajout, statut en ligne/en combat, demandes)
-- Classements (mondial, national, amis — ecran 3 tabs, top 3 medailles)
-- Partage de resultats (capture PNG + share sheet Android)
-- Collection de skins (10 skins, deblocage par level/XP, ecran detail 3D rotatif)
-- Notifications push (FCM API V1, Edge Function, trigger SQL sur demande d'ami)
-- Ecran Parametres (compte, graphismes, audio, session)
-- Redesign complet selon PDF "Disposition et design" (tab bar 5 onglets, accueil Free Fire, boutique 4 categories, quetes, boite a lettres)
-- Boite a lettres (table mailbox Supabase, rewards reclames manuellement)
-- Boutique separee de la Collection (onglet tab bar = achat, modal profil = possedes)
+### V2 — Verse Multijoueur Temps Reel (TERMINE)
+- Regles de securite Firebase Realtime Database publiees (`scripts/firebase_database_rules.json`).
+- **Mode Division (Classe)** : 10 divisions (`Academie` a `Legende du Verse`), matchmaking temps reel (±2 divisions) avec repli sur bot adaptatif apres 10s, synchronisation de tour (`answeredIndex`) et validation serveur (`cloturer_match_verse`).
+- **Duel Amical personnalisable** : creation et jonction par code a 6 chiffres avec choix de l'anime, de l'arc, de la difficulte et du nombre de questions (`verse_duel_setup_page.dart`).
+- **Mode Cooperatif (Coop)** : 2 joueurs allies (ou duo avec l'IA alliee `A.K.I.N.A`) contre les 200 PV du Gardien du Verse, avec bonus de synergie (`verse_coop_page.dart`).
+- **Systeme Anti-abandon** : confirmation avant de quitter, penalite de -30 PTS, victoire immediate pour l'adversaire et blocage temporaire (`cooldownUntil` de 5 min au 1er abandon, 30 min des 3 abandons consecutifs).
 
-### Hebergement / Distribution (COMPLETE — 2026-08-04)
-- Keystore de signature cree (upload-keystore.jks, alias otaku-verse, validite 10000 jours)
-- Build Gradle configure pour signer en release (key.properties)
-- APK release genere (app-release.apk, 51.8 MB)
-- Firebase App Distribution configure (projet otaku-verse-6e05e)
-- Groupe "testers" cree (shibatarik129@gmail.com, constantinove16@gmail.com)
-- APK uploade et invitations envoyees par email
-- Script upload-apk.bat pour les futures mises a jour
+### V3 — Saisons, Evenements & Competition Avancee (TERMINE)
+- **Saisons (8 semaines)** : Saison 1 "L'Ere des Pirates" (theme One Piece), classement saisonnier temps reel, 4 paliers de recompenses et calcul du Soft Reset protege (`max -2 divisions`).
+- **Evenements temporaires (3 a 7 jours)** : evenements thematiques par anime (`Semaine One Piece`, `Semaine Naruto`, `Defi Communautaire Multi-Verse`) avec lancement direct de combat.
+- **Tournois** : inscription au Tournoi Mensuel, phase de groupes (score cumule sur 10 duels) et arbre de Finale Top 8.
+- **Missions Carriere** : suivi et reclamation des 5 objectifs longue duree de la Roadmap (`verse_v3_hub_page.dart` & `verse_v3_service.dart`).
 
-## Prochaine etape
+### V4 — Monetisation & Economie Virtuelle Non Pay-to-Win (TERMINE)
+- **Verse Coins** : portefeuille joueur (100 Coins offerts au depart), bonus quotidien (+15/j gratuit, +50/j avec Pass) et packs en mode test (`monetisation_v4_service.dart`).
+- **Publicites recompensees opt-in** : spot simule octroyant `Double XP 15 min` + `30 Verse Coins` (jamais pendant un duel).
+- **Pass Premium mensuel** : activation test donnant zero pub, +20% XP, +50 Coins/jour, Cadre Premium et file prioritaire.
+- **Boutique Cosmetique & Confort** : Coffre Mystere Otaku, Cadre Shonen Jump, Effet K.O. Eclairs du Haki, Titre Seigneur du Verse et Boosters XP (`boutique_screen.dart`).
 
-### Prochaine session — Dashboard Admin & Import en Masse
-- Coder la fonctionnalite d'importation de questions en masse (via upload de fichier .md ou .csv) directement depuis le Dashboard Admin (Next.js).
-- Parser et inserer les nouveaux fichiers fournis par Heat (`naruto introduction quiz.md` et `otaku verse east blue v2.md`) via ce nouveau systeme.
-- Si le temps le permet : entamer la V2
+### V5 — Expansion : Battle Royale & Guildes (TERMINE)
+- **Battle Royale Quiz (10 joueurs)** : survie a 10 combattants, -35 PV par erreur, elimination a 0 PV et recompenses selon le rang (`verse_battle_royale_page.dart`).
+- **Guildes / Clans** : creation de guilde (Nom, Tag, Devise), adhesion, chat temps reel et Classement Mondial des Guildes (`verse_guildes_page.dart`).
 
-### V2 — Multijoueur temps reel
-Objectif : permettre aux joueurs de s'affronter en duel live (1v1).
+### DA Liquid Glass & Nettoyage Architecture (TERMINE — 2026-11-03)
+- Decoupage et integration des **21 illustrations manga** dans `app/assets/images/skins/`, `app/assets/images/modes/` et `app/assets/images/events/`.
+- Connexion visuelle sur l'Accueil (`app_shell.dart`), la Boutique (`boutique_screen.dart`), le Profil (`profile_page.dart`), les Arenes (`verse_combat_page.dart`, `verse_coop_page.dart`) et le Hub V3 (`verse_v3_hub_page.dart`).
+- Nettoyage du depot : suppression des dossiers vides (`assets/textures/`, `assets/models/`), des anciens ecrans V1 obsoletes (`quiz_page.dart`, `quiz_result_page.dart`, `rewards_page.dart`), des scripts Python temporaires (`fix_progress.py`, `update_progress.py`) et des `.gitkeep` inutiles.
 
-Etapes prevues :
-1. Firebase Realtime Database — setup + regles de securite
-2. Matchmaking (file d'attente, appairage par niveau/rang)
-3. Mode Duel 1v1 (defier un ami via notif, ou trouver un adversaire aleatoire)
-4. Combat synchronise (memes questions, timer partage, PV en temps reel)
-5. Mode Division (classement PvP separe du classement IA, rangs competitifs)
-6. Systeme de clans / equipes
-7. Separation XP IA vs XP PvP (comme eFootball)
-8. Evenements / saisons (a preciser)
+---
 
-### Avant la V2 — a faire idealement
-- Enrichir la base de questions (objectif 10 000, actuellement 20)
-- Brancher les quetes sur Supabase (actuellement donnees statiques)
-- Remplir les articles/boosters/promos dans la boutique (actuellement placeholders)
-- Tester les performances sur telephones entree de gamme
+## 2. PROCHAINE SESSION : RETOURS TESTS TERRAIN (TARIQ & HEAT)
 
-## Decisions techniques prises
-- Couleur d'accent : violet electrique #7B2FF7
-- Auth : email sans confirmation (dev)
-- Navigation auth : StreamBuilder dans AuthGate
-- RLS questions : lecture pour anon + authenticated
-- Import questions : service_role key (bypass RLS)
-- Timer combat : 20 secondes par question
-- PV de depart : 100 pour chaque combattant
-- Degats normaux : 15 PV / Degats combo (attaque speciale) : 30 PV
-- Seuil combo : 3 bonnes reponses d'affilee
-- Bot : probabilite de reussite selon difficulte (facile 30%, moyen 50%, difficile 70%, expert 85%)
-- Format de combat : max 10 questions, K.O. immediat possible, sinon decompte PV
-- Dashboard admin : acces restreint a Drx@otaku.admin et Heat@otaku.admin
-- Validation reponses : Edge Function cote serveur (fallback local si hors-ligne)
-- Pseudo : unique, 3-20 chars (lettres/chiffres/underscore), obligatoire a l'inscription
-- Pays : choisi a l'inscription, non modifiable apres (classement national)
-- Skins : deblocage par niveau ou depense XP, un seul equipe a la fois
-- Partage : capture RepaintBoundary + Share.shareXFiles (share_plus)
-- Notifications : FCM API V1 + Edge Function + trigger pg_net
-- Boite a lettres : table mailbox Supabase, rewards reclames manuellement
-- Boutique : onglet tab bar (achat), Collection : modal profil (possedes)
-- Signature APK : keystore JKS, alias otaku-verse, key.properties (gitignore)
-- Distribution : Firebase App Distribution, groupe "testers", upload via CLI
-
-## Problemes connus / points d'attention
-- Flutter non accessible depuis bash de Claude Code (Tariq doit tester manuellement)
-- 20 questions One Piece en base (besoin d'enrichir massivement avant lancement — objectif 10 000)
-- Le fallback local en cas d'erreur reseau considere la reponse comme fausse (acceptable pour la V1)
-- Performances a surveiller sur telephones d'entree de gamme
-- Smart App Control Windows 11 bloquait impellerc.exe → desactive (solution definitive)
-- Le fichier scripts/fcm_secret_b64.txt est dans le repo (contient le service account encode) — a retirer avant open source
-- Quetes : donnees statiques pour l'instant (a brancher sur Supabase comme mailbox)
-- Articles/Boosters/Promos dans la boutique : placeholders (a remplir quand les items existent)
-- iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
-
-## Dernier commit pousse
-- `cd7e5be` : "feat(v5): battle royale quiz 10 joueurs, systeme de guildes et classement mondial" (2026-11-03)
-
-## 5. ÉTAPES V2 RÉALISÉES (2026-11-03)
-
-1. **Amélioration de la synchronisation de combat (FAIT — 2026-11-03)**
-   - Enregistrement de `answeredIndex` par joueur dans Firebase et passage à la question suivante uniquement quand les deux joueurs ont répondu ou que le chronomètre de 15s est écoulé (`_passerQuestionSuivante`).
-2. **Supabase Edge Functions pour la V2 (FAIT — 2026-11-03)**
-   - Suppression de `bonneReponse` dans Firebase (`matchmaking_service.dart`), validation des réponses et combos V2 via l'Edge Function `valider-reponse`, et ajout de l'action serveur `cloturer_match_verse` pour attribuer l'XP et calculer les points de division en fin de match.
-3. **Mode Division (Classé) (FAIT — 2026-11-03)**
-   - Nettoyage des doublons de syntaxe dans `combat_service.dart`.
-   - File d'attente globale dans `matchmaking_service.dart` avec appairage réel entre joueurs humains (±2 divisions) et repli sur bot adaptatif au bout de 10s.
-   - Gestion complète des 10 divisions (`Académie` à `Légende du Verse`), des points de division et de l'XP PvP dans `verse_division_page.dart` et `verse_combat_page.dart`.
-4. **Finalisation du Dashboard Admin (FAIT — 2026-11-03)**
-   - Ajout de la route API `/api/questions/upload-image` (vérification MIME et taille max 5 Mo, stockage Supabase Storage `questions-images`), mise à jour de l'interface `app/questions/page.tsx` avec aperçu miniature, script SQL `scripts/add_question_image_column.sql` et affichage de l'image dans `verse_combat_page.dart`.
-
-## 6. PROCHAINES ÉTAPES (SELON ROADMAP_OTAKU_VERSE.md)
-
-### A. Déploiement, correctifs initiaux et cahier de tests (FAIT — 2026-11-03)
-1. **SQL & Edge Function déployés** : `scripts/add_question_image_column.sql` exécuté sur Supabase (`Success. No rows returned`) et Edge Function `valider-reponse` redéployée en production sur `houbjgugzznytilkfwyf`.
-2. **Upload d'image Admin validé** : ajout et persistance d'une image sur une question depuis `admin_dashboard/app/questions/page.tsx` vérifiés.
-3. **Correctifs UI & Firebase V2** :
-   - Suppression de l'icône de cadenas forcée sur le sélecteur de mode de l'accueil (`app/lib/shared/app_shell.dart`).
-   - Correction du dépassement vertical de 22 pixels en affichage horizontal sur `app/lib/features/verse/verse_division_page.dart`.
-   - Création des règles de sécurité Firebase Realtime Database (`scripts/firebase_database_rules.json`) et sécurisation des appels dans `matchmaking_service.dart`.
-4. **Cahier de tests créé** : ajout de `CAHIER_TESTS.md` à la racine pour centraliser tous les tests sur téléphones réels (Tariq & Heat) après la compilation de l'APK.
-
-### B. Finition de la V2 (Section 9 de la Roadmap) — FAIT (2026-11-03)
-1. **Paramètres personnalisables en Duel Amical (FAIT)** : choix de l'anime, de l'arc, de la difficulté et du nombre de questions lors de la création d'un salon privé (`verse_duel_setup_page.dart` & `matchmaking_service.dart`).
-2. **Mode Coopératif (Coop) (FAIT)** : 2 joueurs alliés (ou duo avec l'IA alliée `A.K.I.N.A`) contre les 200 PV du Gardien du Verse, avec bonus de synergie, PV d'équipe partagés et récompenses (`verse_coop_page.dart` & `app_shell.dart`).
-3. **Système Anti-abandon (Section 9.6) (FAIT)** : boîte de confirmation d'abandon dans `verse_combat_page.dart`, pénalité de -30 points, compteur `abandonsConsecutifs`, blocage temporaire (`cooldownUntil` de 5 min au 1er abandon, 30 min dès 3 abandons consécutifs) vérifié dans `verse_division_page.dart` et victoire automatique attribuée à l'adversaire.
-
-### C. V3 — Saisons, Événements & Compétition avancée (Section 10 de la Roadmap) — FAIT (2026-11-03)
-1. **Saisons (8 semaines) (FAIT)** : Saison 1 "L'Ère des Pirates" (thème One Piece), classement saisonnier dédié en temps réel, 4 paliers de récompenses réclamables et calcul du Soft Reset protégé (`max -2 divisions`) dans `verse_v3_service.dart` et `verse_v3_hub_page.dart`.
-2. **Événements temporaires (3 à 7 jours) (FAIT)** : calendrier d'événements thématiques par anime (`Semaine One Piece : East Blue`, `Semaine Naruto : Examen Chunin`, `Défi Communautaire Multi-Verse`) avec lancement direct de match et classement dédié.
-3. **Tournois (FAIT)** : inscription libre au Tournoi Mensuel, suivi de la phase de groupes (score cumulé sur 10 duels) et affichage de l'arbre de la Finale Top 8 en élimination directe.
-4. **Missions longue durée / Carrière (FAIT)** : suivi en temps réel des 5 objectifs officiels de la Roadmap (`100 duels Verse`, `Division 5`, `3 événements`, `Top 100 saison`, `5 000 questions réussies`) avec barres de progression et réclamation des récompenses XP/Titres/Badges.
-5. **Intégration Hub Accueil (FAIT)** : déblocage du mode `EVENEMENT` dans le sélecteur de modes et ajout du bouton d'accès rapide `Saison V3` sur l'accueil (`app_shell.dart`).
-
-### D. V4 — Monétisation & Économie Virtuelle (Section 11 de la Roadmap) — FAIT (2026-11-03)
-1. **Monnaie virtuelle Verse Coins (FAIT)** : portefeuille joueur (`100 Coins` offerts au départ), bonus quotidien (`+15 Coins/j` gratuit, `+50 Coins/j` avec Pass Premium) et packs de 500, 1 500 et 5 000 Coins en mode test (`monetisation_v4_service.dart` & `boutique_screen.dart`).
-2. **Publicités récompensées opt-in (FAIT)** : spot publicitaire simulé de 3s (fréquence max respectée, jamais pendant un duel Verse) octroyant `Double XP pendant 15 min` + `30 Verse Coins`.
-3. **Pass Premium mensuel (FAIT)** : activation en un clic en mode test avec zéro publicité, `+20% XP`, `+50 Verse Coins/jour`, Cadre exclusif "Premium", accès anticipé et file matchmaking prioritaire.
-4. **Boutique Cosmétique & Confort 100% anti Pay-to-Win (FAIT)** : remplacement de tous les placeholders dans `boutique_screen.dart` par les **Articles & Coffres** (Coffre Mystère Otaku, Cadre Shonen Jump, Effet K.O. Éclairs du Haki, Titre Seigneur du Verse) et les **Boosters XP** (Double XP 60m, 4e slot de défi quotidien, Pass Quiz Personnalisé illimité).
-
-### E. V5 — Expansion (Battle Royale Quiz & Guildes / Clans) — FAIT (2026-11-03)
-1. **Battle Royale Quiz (10 joueurs) (FAIT)** : arène de survie à 10 combattants (joueurs via code à 6 chiffres + bots survivants), perte de 35 PV par erreur, élimination directe à 0 PV, bandeau des survivants en direct et récompenses XP + Verse Coins selon le rang final (`verse_battle_royale_page.dart` & `verse_v5_service.dart`).
-2. **Système de Guildes / Clans & Classement Mondial (FAIT)** : création de guilde (Nom, Tag `[TAG]`, Devise), adhésion en un clic, salon de discussion temps réel du clan et **Classement Mondial des Guildes** par points cumulés (`verse_guildes_page.dart`).
-3. **Intégration Hub Accueil (FAIT)** : ajout du mode `BATTLE_ROYALE` dans le sélecteur de modes et du bouton `Guildes` dans la colonne droite de l'accueil (`app_shell.dart`).
-4. **Build APK Release & Distribution (FAIT — 2026-11-03)** : compilation de `app-release.apk` (53,8 Mo) et envoi sur Firebase App Distribution au groupe `testers` (Tariq & Heat).
-
-### F. Intégration Graphique Manga — DA Liquid Glass (FAIT — 2026-11-03)
-1. **Découpage automatique des 3 planches IA en 21 assets PNG** :
-   - `app/assets/images/skins/` : `skin_default.png`, `skin_ninja.png`, `skin_pirate.png`, `skin_samourai.png`, `skin_titan.png`, `skin_demon.png`, `skin_ermite.png`, `skin_dragon.png`, `skin_hokage.png`, `skin_roi.png`, `bot_akina.png`, `boss_gardien.png`.
-   - `app/assets/images/modes/` : `mode_solo.png`, `mode_division.png`, `mode_duel.png`, `mode_coop.png`, `mode_events.png`, `mode_br.png`.
-   - `app/assets/images/events/` : `event_one_piece.png`, `event_naruto.png`, `event_multiverse.png`.
-   - Archivage des 3 planches sources dans `scripts/planches_sources/` pour ne pas alourdir l'APK.
-2. **Connexion des illustrations dans l'interface Flutter** :
-   - `app/lib/shared/app_shell.dart` : affichage du skin équipé dans la capsule centrale 3D et dans l'avatar du haut, miniature manga sur le sélecteur de mode et cartes illustrées dans le tiroir de sélection des modes.
-   - `app/lib/features/skins/boutique_screen.dart` & `app/lib/features/profile/profile_page.dart` : remplacement des icônes génériques par les portraits manga des 10 skins dans la boutique, l'aperçu 3D, le profil et la modale de collection.
-   - `app/lib/features/verse/verse_combat_page.dart` & `app/lib/features/verse/verse_coop_page.dart` : portraits des combattants, de l'alliée IA `A.K.I.N.A` et du boss `Gardien du Verse`.
-   - `app/lib/features/verse/verse_v3_hub_page.dart` : bannières manga sur l'en-tête de la Saison 1 et sur les événements temporaires.
+1. Parcourir `CAHIER_TESTS.md` a deux sur les telephones Android avec l'APK Release.
+2. Noter les ajustements souhaites (equilibrage des degats/timers, ergonomie UI, nouveaux packs de questions via le Dashboard Admin).
+3. Appliquer les correctifs et ameliorations demandes suite aux tests.

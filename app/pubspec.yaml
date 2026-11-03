@@ -69,8 +69,6 @@ flutter:
     - assets/images/modes/
     - assets/images/events/
     - assets/images/skins/
-    - assets/textures/
-    - assets/models/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

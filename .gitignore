@@ -47,6 +47,8 @@ admin_dashboard/out/
 app/android/upload-keystore.jks
 app/android/key.properties
 generate-keystore.bat
+scripts/fcm_secret_b64.txt
+scripts/planches_sources/
 
 # Divers
 *.log
