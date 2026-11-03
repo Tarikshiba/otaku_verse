@@ -12,6 +12,7 @@ import '../features/profile/profile_page.dart';
 import '../features/progression/progression_service.dart';
 import '../features/rewards/boite_lettres_page.dart';
 import '../features/skins/boutique_screen.dart';
+import '../features/skins/skin_service.dart';
 import '../features/social/amis_screen.dart';
 import '../features/social/friends_service.dart';
 import 'textures.dart';
@@ -42,7 +43,9 @@ class _AccueilPage extends StatefulWidget {
 
 class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderStateMixin {
   final _progressionService = ProgressionService();
+  final _skinService = SkinService();
   Map<String, dynamic>? _profil;
+  String _skinImageKey = 'skin_default';
   double _skinRotation = 0;
   late AnimationController _idleRotation;
   bool _notifAmis = false;
@@ -69,10 +72,39 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
   Future<void> _chargerProfil() async {
     try {
       await _progressionService.creerProfilSiAbsent();
+      await _skinService.donnerSkinGratuit();
       final profil = await _progressionService.recupererProfil();
-      if (mounted) setState(() => _profil = profil);
+      final skins = await _skinService.tousLesSkins();
+      final equipe = skins.where((s) => s.equipped).firstOrNull;
+      if (mounted) {
+        setState(() {
+          _profil = profil;
+          if (equipe != null && equipe.imageKey.isNotEmpty) {
+            _skinImageKey = equipe.imageKey;
+          }
+        });
+      }
       FriendsService().mettreAJourPresence();
     } catch (_) {}
+  }
+
+  String _modeAssetPath(String mode) {
+    switch (mode) {
+      case 'SOLO':
+        return 'assets/images/modes/mode_solo.png';
+      case 'DIVISION':
+        return 'assets/images/modes/mode_division.png';
+      case 'DUEL':
+        return 'assets/images/modes/mode_duel.png';
+      case 'COOP':
+        return 'assets/images/modes/mode_coop.png';
+      case 'EVENTS':
+        return 'assets/images/modes/mode_events.png';
+      case 'BATTLE_ROYALE':
+        return 'assets/images/modes/mode_br.png';
+      default:
+        return 'assets/images/modes/mode_solo.png';
+    }
   }
 
   Future<void> _verifierNotifAmis() async {
@@ -131,44 +163,78 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
   }
 
   Widget _buildModeOption(String label, IconData icon, Color couleur, bool actif, String mode) {
+    final bool estSelectionne = _modeActif == mode;
+    final String imgPath = _modeAssetPath(mode);
     return GestureDetector(
       onTap: actif ? () {
         setState(() => _modeActif = mode);
         Navigator.pop(context);
       } : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        height: 68,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: actif ? couleur.withValues(alpha: 0.12) : OtakuColors.glassBackground,
+          color: OtakuColors.surface,
           border: Border.all(
-            color: actif ? couleur.withValues(alpha: 0.6) : OtakuColors.glassBorder,
-            width: actif ? 1.5 : 1,
+            color: estSelectionne ? couleur : couleur.withValues(alpha: 0.45),
+            width: estSelectionne ? 2 : 1,
           ),
         ),
-        child: Row(
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Container(
-              width: 34, height: 34,
+            // Illustration manga du mode en fond (DA Liquid Glass : image principale + dégradé sombre)
+            Image.asset(
+              imgPath,
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+            DecoratedBox(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(9),
-                color: couleur.withValues(alpha: 0.15),
-                border: Border.all(color: couleur.withValues(alpha: 0.4)),
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    OtakuColors.background.withValues(alpha: 0.92),
+                    OtakuColors.background.withValues(alpha: 0.65),
+                    couleur.withValues(alpha: 0.25),
+                  ],
+                ),
               ),
-              child: Icon(icon, size: 18, color: couleur),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label, style: OtakuTypo.headlineSmall.copyWith(fontSize: 12, color: actif ? OtakuColors.textPrimary : OtakuColors.textMuted)),
-            ),
-            if (actif)
-              Icon(Icons.check_circle_rounded, size: 18, color: couleur)
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: OtakuColors.border, borderRadius: BorderRadius.circular(4)),
-                child: Text('BIENTOT', style: OtakuTypo.label.copyWith(fontSize: 7, color: OtakuColors.textMuted)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: couleur.withValues(alpha: 0.22),
+                      border: Border.all(color: couleur.withValues(alpha: 0.6)),
+                    ),
+                    child: Icon(icon, size: 20, color: couleur),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: OtakuTypo.headlineSmall.copyWith(
+                        fontSize: 13,
+                        color: actif ? OtakuColors.textPrimary : OtakuColors.textMuted,
+                      ),
+                    ),
+                  ),
+                  if (estSelectionne)
+                    Icon(Icons.check_circle_rounded, size: 22, color: couleur)
+                  else
+                    Icon(Icons.chevron_right_rounded, size: 20, color: couleur.withValues(alpha: 0.8)),
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -202,7 +268,7 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
               animation: _idleRotation,
               builder: (context, _) {
                 final angle = _skinRotation + (_idleRotation.value * 2 * pi);
-                return _SkinDisplay(rotation: angle);
+                return _SkinDisplay(rotation: angle, imageKey: _skinImageKey);
               },
             ),
           ),
@@ -238,10 +304,13 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                 children: [
                   // Profil (reduit)
                   GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    ),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                      );
+                      _chargerProfil();
+                    },
                     child: LiquidGlass(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       borderRadius: 20,
@@ -249,11 +318,16 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                         children: [
                           Container(
                             width: 32, height: 32,
+                            clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: OtakuColors.accent, width: 2),
                             ),
-                            child: const Icon(Icons.person, color: OtakuColors.accent, size: 18),
+                            child: Image.asset(
+                              'assets/images/skins/$_skinImageKey.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.person, color: OtakuColors.accent, size: 18),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Column(
@@ -338,7 +412,10 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSideNavButton('Boutique', Icons.store_rounded, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true)))),
+                _buildSideNavButton('Boutique', Icons.store_rounded, () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true)));
+                  _chargerProfil();
+                }),
                 const SizedBox(height: 12),
                 _buildSideNavButton('Quetes', Icons.assignment_rounded, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const _QuetePage()))),
                 const SizedBox(height: 12),
@@ -432,7 +509,7 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
           ),
         ),
         
-        // === MODE DE JEU ===
+        // === MODE DE JEU (avec miniature manga du mode actif) ===
         Positioned(
           bottom: 24,
           left: 24,
@@ -441,45 +518,35 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
               onTap: () => _showModeDrawer(context),
               child: LiquidGlass(
                 tintColor: OtakuColors.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 borderRadius: 16,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        _modeAssetPath(_modeActif),
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox(width: 44, height: 44),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('MODE SELECTIONNE', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.textMuted)),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.expand_less_rounded, color: OtakuColors.textMuted, size: 14),
-                      ]
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          _modeActif == 'SOLO'
-                              ? Icons.bolt_rounded
-                              : _modeActif == 'DIVISION'
-                                  ? Icons.military_tech_rounded
-                                  : _modeActif == 'DUEL'
-                                      ? Icons.people_alt_rounded
-                                      : _modeActif == 'COOP'
-                                          ? Icons.group_work_rounded
-                                          : Icons.local_fire_department_rounded,
-                          color: _modeActif == 'SOLO'
-                              ? OtakuColors.modeSolo
-                              : _modeActif == 'DIVISION'
-                                  ? OtakuColors.modeDivision
-                                  : _modeActif == 'DUEL'
-                                      ? OtakuColors.modeDuel
-                                      : _modeActif == 'COOP'
-                                          ? OtakuColors.modeCoop
-                                          : OtakuColors.modeEvent,
-                          size: 18,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('MODE SELECTIONNE', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.textMuted)),
+                            const SizedBox(width: 6),
+                            const Icon(Icons.expand_less_rounded, color: OtakuColors.textMuted, size: 14),
+                          ],
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(height: 2),
                         Text(_modeActif, style: OtakuTypo.headlineLarge.copyWith(fontSize: 16)),
                       ],
                     ),
@@ -518,49 +585,56 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
 
 class _SkinDisplay extends StatelessWidget {
   final double rotation;
-  const _SkinDisplay({required this.rotation});
+  final String imageKey;
+  const _SkinDisplay({required this.rotation, required this.imageKey});
 
   @override
   Widget build(BuildContext context) {
+    // Oscillation douce (max +-12 degres) pour que l'illustration manga reste toujours visible de face
+    final double oscillation = sin(rotation) * 0.22;
     return Center(
       child: Transform(
         alignment: Alignment.center,
         transform: Matrix4.identity()
           ..setEntry(3, 2, 0.001)
-          ..rotateY(rotation),
+          ..rotateY(oscillation),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 180,
-              height: 300,
+              width: 220,
+              height: 270,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    OtakuColors.accent.withValues(alpha: 0.1),
-                    OtakuColors.accentDark.withValues(alpha: 0.3),
+                    OtakuColors.accent.withValues(alpha: 0.15),
+                    OtakuColors.accentDark.withValues(alpha: 0.35),
                   ],
                 ),
-                border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.4), width: 2),
+                border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.6), width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: OtakuColors.accent.withValues(alpha: 0.15),
+                    color: OtakuColors.accent.withValues(alpha: 0.25),
                     blurRadius: 50,
                     spreadRadius: 10,
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.person, size: 120, color: OtakuColors.accent.withValues(alpha: 0.8)),
-                ],
+              child: Image.asset(
+                'assets/images/skins/$imageKey.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.person,
+                  size: 120,
+                  color: OtakuColors.accent.withValues(alpha: 0.8),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Container(
               width: 240,
               height: 20,

@@ -119,46 +119,72 @@ class _VerseV3HubPageState extends State<VerseV3HubPage> with SingleTickerProvid
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: OtakuColors.surface,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: OtakuColors.modeEvent.withOpacity(0.5)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Stack(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        s['titre'] ?? "SAISON 1 : L'ÈRE DES PIRATES",
-                        style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.modeEvent),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "Thème : ${s['themeAnime'] ?? 'One Piece'} | Durée : 8 semaines (${s['joursRestants'] ?? 35} j restants)",
-                        style: OtakuTypo.bodySmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "Fin de saison : Soft Reset protégé (Division $maDiv -> Division $divReset max)",
-                        style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted, fontSize: 11),
-                      ),
-                    ],
+                Positioned.fill(
+                  child: Image.asset(
+                    'assets/images/events/event_one_piece.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: OtakuColors.background,
-                    borderRadius: BorderRadius.circular(10),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          OtakuColors.background.withValues(alpha: 0.92),
+                          OtakuColors.background.withValues(alpha: 0.65),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Column(
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("RANG #${s['monRang'] ?? 1}", style: OtakuTypo.headlineSmall.copyWith(color: Colors.amber)),
-                      Text("$mesPoints PTS", style: OtakuTypo.bodySmall),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              s['titre'] ?? "SAISON 1 : L'ÈRE DES PIRATES",
+                              style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.modeEvent),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Thème : ${s['themeAnime'] ?? 'One Piece'} | Durée : 8 semaines (${s['joursRestants'] ?? 35} j restants)",
+                              style: OtakuTypo.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Fin de saison : Soft Reset protégé (Division $maDiv -> Division $divReset max)",
+                              style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: OtakuColors.background.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          children: [
+                            Text("RANG #${s['monRang'] ?? 1}", style: OtakuTypo.headlineSmall.copyWith(color: Colors.amber)),
+                            Text("$mesPoints PTS", style: OtakuTypo.bodySmall),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -236,52 +262,84 @@ class _VerseV3HubPageState extends State<VerseV3HubPage> with SingleTickerProvid
   // ONGLET 2 : ÉVÉNEMENTS TEMPORAIRES (3 à 7 jours, thème anime, récompenses)
   // ===========================================================================
   Widget _buildEvenementsTab() {
+    const bannieres = [
+      'assets/images/events/event_one_piece.png',
+      'assets/images/events/event_naruto.png',
+      'assets/images/events/event_multiverse.png',
+    ];
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _evenements.length,
       itemBuilder: (context, index) {
         final ev = _evenements[index];
+        final String imgAsset = bannieres[index % bannieres.length];
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: OtakuColors.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: OtakuColors.modeEvent.withOpacity(0.4)),
+            border: Border.all(color: OtakuColors.modeEvent.withOpacity(0.5)),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Stack(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(ev['titre'] ?? '', style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.modeEvent)),
-                    const SizedBox(height: 4),
-                    Text("Anime : ${ev['anime']}  |  ${ev['duree']}", style: OtakuTypo.bodySmall),
-                    const SizedBox(height: 4),
-                    Text("Récompense : ${ev['recompense']}", style: OtakuTypo.bodySmall.copyWith(color: Colors.amber, fontSize: 11)),
-                  ],
+              Positioned.fill(
+                child: Image.asset(
+                  imgAsset,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: OtakuColors.modeEvent),
-                onPressed: () async {
-                  setState(() => _loading = true);
-                  try {
-                    final matchId = await _service.participerEvenement(ev['id'] as String, ev['anime'] as String);
-                    if (!mounted) return;
-                    setState(() => _loading = false);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => VerseCombatPage(matchId: matchId)),
-                    );
-                  } catch (_) {
-                    if (mounted) setState(() => _loading = false);
-                  }
-                },
-                child: const Text("PARTICIPER"),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        OtakuColors.background.withValues(alpha: 0.92),
+                        OtakuColors.background.withValues(alpha: 0.65),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(ev['titre'] ?? '', style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.modeEvent)),
+                          const SizedBox(height: 4),
+                          Text("Anime : ${ev['anime']}  |  ${ev['duree']}", style: OtakuTypo.bodySmall),
+                          const SizedBox(height: 4),
+                          Text("Récompense : ${ev['recompense']}", style: OtakuTypo.bodySmall.copyWith(color: Colors.amber, fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: OtakuColors.modeEvent),
+                      onPressed: () async {
+                        setState(() => _loading = true);
+                        try {
+                          final matchId = await _service.participerEvenement(ev['id'] as String, ev['anime'] as String);
+                          if (!mounted) return;
+                          setState(() => _loading = false);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => VerseCombatPage(matchId: matchId)),
+                          );
+                        } catch (_) {
+                          if (mounted) setState(() => _loading = false);
+                        }
+                      },
+                      child: const Text("PARTICIPER"),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

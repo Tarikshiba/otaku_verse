@@ -42,7 +42,7 @@ Ce document recense l'ensemble des fonctionnalites a verifier sur vos deux telep
 - [ ] Guildes / Clans (`verse_guildes_page.dart`) : creer une guilde avec Nom, Tag (2 a 4 lettres) et Devise, envoyer un message dans le salon de discussion du clan, puis verifier l'onglet `CLASSEMENT MONDIAL` et rejoindre la guilde depuis le telephone de Heat.
 
 ## 7. Procedure de Build APK & Envoi a Heat (Firebase App Distribution)
-1. Copier une derniere fois le contenu complet de `scripts/firebase_database_rules.json` dans la console Firebase (`Realtime Database > Regles > Publier`) pour activer les noeuds V3, V4 et V5 (`saisons`, `evenements`, `tournois`, `carriere`, `economie`, `battle_royale`, `guildes`).
-2. Compiler l'APK release signe depuis `C:\All-projects\2026\Otaku_verse\app` :
-   `flutter build apk --release`
-3. Envoyer l'APK a Heat et au groupe `testers` via `C:\All-projects\2026\Otaku_verse\upload-apk.bat`.
+1. [x] Copier une derniere fois le contenu complet de `scripts/firebase_database_rules.json` dans la console Firebase (`Realtime Database > Regles > Publier`) pour activer les noeuds V3, V4 et V5 (`saisons`, `evenements`, `tournois`, `carriere`, `economie`, `battle_royale`, `guildes`) (fait le 2026-11-03).
+2. [x] Compiler l'APK release signe depuis `C:\All-projects\2026\Otaku_verse\app` :
+   `flutter build apk --release` (fait le 2026-11-03 : `app-release.apk` 53.8 MB).
+3. [x] Envoyer l'APK a Heat et au groupe `testers` via `C:\All-projects\2026\Otaku_verse\upload-apk.bat` (fait le 2026-11-03).

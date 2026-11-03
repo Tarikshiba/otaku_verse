@@ -622,10 +622,11 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
         ),
         child: Column(
           children: [
-            // Visuel du skin
+            // Visuel du skin (illustration manga depuis assets/images/skins/)
             Expanded(
               child: Container(
                 width: double.infinity,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
                   gradient: LinearGradient(
@@ -634,21 +635,29 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                     end: Alignment.bottomCenter,
                   ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Icon(_iconRarete(skin.rarity), size: 36, color: couleur),
-                    if (skin.equipped) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: OtakuColors.accent.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text('EQUIPE', style: OtakuTypo.label.copyWith(fontSize: 7, color: OtakuColors.accent)),
+                    Image.asset(
+                      'assets/images/skins/${skin.imageKey}.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Icon(_iconRarete(skin.rarity), size: 36, color: couleur),
                       ),
-                    ],
+                    ),
+                    if (skin.equipped)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: OtakuColors.accent,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text('EQUIPE', style: OtakuTypo.label.copyWith(fontSize: 7, color: Colors.white)),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -797,7 +806,7 @@ class _SkinDetailPageState extends State<_SkinDetailPage> with SingleTickerProvi
                   child: AnimatedBuilder(
                     animation: _rotationController,
                     builder: (context, child) {
-                      final angle = _dragRotation + (_rotationController.value * 2 * pi);
+                      final angle = sin(_dragRotation + (_rotationController.value * 2 * pi)) * 0.22;
                       return Transform(
                         alignment: Alignment.center,
                         transform: Matrix4.identity()
@@ -807,6 +816,7 @@ class _SkinDetailPageState extends State<_SkinDetailPage> with SingleTickerProvi
                       );
                     },
                     child: Container(
+                      clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
                         gradient: LinearGradient(
@@ -817,10 +827,16 @@ class _SkinDetailPageState extends State<_SkinDetailPage> with SingleTickerProvi
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        border: Border.all(color: _couleur.withValues(alpha: 0.4)),
+                        border: Border.all(color: _couleur.withValues(alpha: 0.6), width: 2),
                       ),
-                      child: Center(
-                        child: Icon(_icon, size: 80, color: _couleur.withValues(alpha: 0.8)),
+                      child: Image.asset(
+                        'assets/images/skins/${skin.imageKey}.png',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Icon(_icon, size: 80, color: _couleur.withValues(alpha: 0.8)),
+                        ),
                       ),
                     ),
                   ),

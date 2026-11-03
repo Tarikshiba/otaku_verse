@@ -332,9 +332,9 @@ class _VerseCombatPageState extends State<VerseCombatPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildPlayerAvatar(player1['pseudo'] ?? 'Joueur 1', player1['pv'] ?? 100, isMe: isPlayer1),
+                      _buildPlayerAvatar(player1['pseudo'] ?? 'Joueur 1', player1['pv'] ?? 100, isMe: isPlayer1, isBot: player1['isBot'] == true),
                       const Text('VS', style: TextStyle(color: Colors.redAccent, fontSize: 20, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)),
-                      _buildPlayerAvatar(player2['pseudo'] ?? 'Adversaire', player2['pv'] ?? 100, isMe: !isPlayer1),
+                      _buildPlayerAvatar(player2['pseudo'] ?? 'Adversaire', player2['pv'] ?? 100, isMe: !isPlayer1, isBot: player2['isBot'] == true),
                     ],
                   ),
                 ),
@@ -583,15 +583,30 @@ class _VerseCombatPageState extends State<VerseCombatPage> {
     );
   }
 
-  Widget _buildPlayerAvatar(String pseudo, int pv, {required bool isMe}) {
+  Widget _buildPlayerAvatar(String pseudo, int pv, {required bool isMe, bool isBot = false}) {
+    final String portraitPath = isBot
+        ? 'assets/images/skins/bot_akina.png'
+        : (isMe ? 'assets/images/skins/skin_default.png' : 'assets/images/skins/skin_ninja.png');
     return Column(
       children: [
-        CircleAvatar(
-          radius: 30,
-          backgroundColor: isMe ? OtakuColors.accent : Colors.redAccent,
-          child: const Icon(Icons.person, color: Colors.white, size: 30),
+        Container(
+          width: 58,
+          height: 58,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isMe ? OtakuColors.modeSolo : Colors.redAccent,
+              width: 2.5,
+            ),
+          ),
+          child: Image.asset(
+            portraitPath,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 30),
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(pseudo, style: OtakuTypo.headlineSmall.copyWith(fontSize: 14)),
         const SizedBox(height: 4),
         Container(

@@ -456,7 +456,7 @@ class _VerseCoopArenaPageState extends State<VerseCoopArenaPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text("Score combiné : $scoreEquipe bonnes réponses", style: OtakuTypo.bodyMedium),
+              Text("Score combiné : $scoreEquipe bonnes réponses", style: OtakuTypo.bodySmall),
               if (_xpPartagee != null) ...[
                 const SizedBox(height: 10),
                 Text("+$_xpPartagee XP COOP", style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.accent)),
@@ -487,14 +487,54 @@ class _VerseCoopArenaPageState extends State<VerseCoopArenaPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "ÉQUIPE (${p1['pseudo'] ?? 'J1'} & ${p2['pseudo'] ?? 'J2'}) : $teamPv PV",
-                    style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.modeCoop, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/images/skins/skin_default.png',
+                          width: 34,
+                          height: 34,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/images/skins/bot_akina.png',
+                          width: 34,
+                          height: 34,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "ÉQUIPE (${p1['pseudo'] ?? 'J1'} & ${p2['pseudo'] ?? 'J2'}) : $teamPv PV",
+                        style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.modeCoop, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                   Text("$_timeLeft s", style: OtakuTypo.headlineSmall),
-                  Text(
-                    "GARDIEN DU VERSE : $bossPv / 200 PV",
-                    style: OtakuTypo.bodySmall.copyWith(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "GARDIEN DU VERSE : $bossPv / 200 PV",
+                        style: OtakuTypo.bodySmall.copyWith(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/images/skins/boss_gardien.png',
+                          width: 38,
+                          height: 38,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

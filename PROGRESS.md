@@ -123,7 +123,7 @@ Etapes prevues :
 - iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- `5411475` : "feat(v4): economie verse coins, pass premium, pubs recompensees et boutique complete" (2026-11-03)
+- `cd7e5be` : "feat(v5): battle royale quiz 10 joueurs, systeme de guildes et classement mondial" (2026-11-03)
 
 ## 5. ÉTAPES V2 RÉALISÉES (2026-11-03)
 
@@ -171,3 +171,16 @@ Etapes prevues :
 1. **Battle Royale Quiz (10 joueurs) (FAIT)** : arène de survie à 10 combattants (joueurs via code à 6 chiffres + bots survivants), perte de 35 PV par erreur, élimination directe à 0 PV, bandeau des survivants en direct et récompenses XP + Verse Coins selon le rang final (`verse_battle_royale_page.dart` & `verse_v5_service.dart`).
 2. **Système de Guildes / Clans & Classement Mondial (FAIT)** : création de guilde (Nom, Tag `[TAG]`, Devise), adhésion en un clic, salon de discussion temps réel du clan et **Classement Mondial des Guildes** par points cumulés (`verse_guildes_page.dart`).
 3. **Intégration Hub Accueil (FAIT)** : ajout du mode `BATTLE_ROYALE` dans le sélecteur de modes et du bouton `Guildes` dans la colonne droite de l'accueil (`app_shell.dart`).
+4. **Build APK Release & Distribution (FAIT — 2026-11-03)** : compilation de `app-release.apk` (53,8 Mo) et envoi sur Firebase App Distribution au groupe `testers` (Tariq & Heat).
+
+### F. Intégration Graphique Manga — DA Liquid Glass (FAIT — 2026-11-03)
+1. **Découpage automatique des 3 planches IA en 21 assets PNG** :
+   - `app/assets/images/skins/` : `skin_default.png`, `skin_ninja.png`, `skin_pirate.png`, `skin_samourai.png`, `skin_titan.png`, `skin_demon.png`, `skin_ermite.png`, `skin_dragon.png`, `skin_hokage.png`, `skin_roi.png`, `bot_akina.png`, `boss_gardien.png`.
+   - `app/assets/images/modes/` : `mode_solo.png`, `mode_division.png`, `mode_duel.png`, `mode_coop.png`, `mode_events.png`, `mode_br.png`.
+   - `app/assets/images/events/` : `event_one_piece.png`, `event_naruto.png`, `event_multiverse.png`.
+   - Archivage des 3 planches sources dans `scripts/planches_sources/` pour ne pas alourdir l'APK.
+2. **Connexion des illustrations dans l'interface Flutter** :
+   - `app/lib/shared/app_shell.dart` : affichage du skin équipé dans la capsule centrale 3D et dans l'avatar du haut, miniature manga sur le sélecteur de mode et cartes illustrées dans le tiroir de sélection des modes.
+   - `app/lib/features/skins/boutique_screen.dart` & `app/lib/features/profile/profile_page.dart` : remplacement des icônes génériques par les portraits manga des 10 skins dans la boutique, l'aperçu 3D, le profil et la modale de collection.
+   - `app/lib/features/verse/verse_combat_page.dart` & `app/lib/features/verse/verse_coop_page.dart` : portraits des combattants, de l'alliée IA `A.K.I.N.A` et du boss `Gardien du Verse`.
+   - `app/lib/features/verse/verse_v3_hub_page.dart` : bannières manga sur l'en-tête de la Saison 1 et sur les événements temporaires.

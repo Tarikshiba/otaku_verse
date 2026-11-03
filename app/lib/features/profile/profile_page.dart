@@ -28,6 +28,7 @@ class _ProfilePageState extends State<ProfilePage>
   bool _chargement = true;
   List<Skin> _mesSkins = [];
   String _skinActifNom = 'GUERRIER BASIQUE';
+  String _skinActifImageKey = 'skin_default';
 
   @override
   void initState() {
@@ -69,7 +70,10 @@ class _ProfilePageState extends State<ProfilePage>
       final equipe = possedes.where((s) => s.equipped).firstOrNull;
       setState(() {
         _mesSkins = possedes;
-        if (equipe != null) _skinActifNom = equipe.name.toUpperCase();
+        if (equipe != null) {
+          _skinActifNom = equipe.name.toUpperCase();
+          _skinActifImageKey = equipe.imageKey;
+        }
       });
     } catch (_) {}
   }
@@ -129,7 +133,20 @@ class _ProfilePageState extends State<ProfilePage>
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.person, size: 36, color: OtakuColors.accent.withValues(alpha: 0.7)),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.asset(
+                                    'assets/images/skins/${skin.imageKey}.png',
+                                    width: 56,
+                                    height: 56,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.person,
+                                      size: 36,
+                                      color: OtakuColors.accent.withValues(alpha: 0.7),
+                                    ),
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 Text(skin.name, style: OtakuTypo.headlineSmall.copyWith(fontSize: 10), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 if (skin.equipped) ...[
@@ -273,7 +290,7 @@ class _ProfilePageState extends State<ProfilePage>
                             child: AnimatedBuilder(
                               animation: _skinRotation,
                               builder: (context, child) {
-                                final angle = _dragRotation + (_skinRotation.value * 2 * pi);
+                                final angle = sin(_dragRotation + (_skinRotation.value * 2 * pi)) * 0.22;
                                 return Transform(
                                   alignment: Alignment.center,
                                   transform: Matrix4.identity()
@@ -282,19 +299,30 @@ class _ProfilePageState extends State<ProfilePage>
                                   child: child,
                                 );
                               },
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Stack(
+                                  fit: StackFit.expand,
                                   children: [
-                                    Icon(Icons.person, size: 70, color: OtakuColors.accent.withValues(alpha: 0.7)),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.threesixty_rounded, size: 12, color: OtakuColors.textMuted.withValues(alpha: 0.6)),
-                                        const SizedBox(width: 4),
-                                        Text('Glisser pour pivoter', style: OtakuTypo.bodySmall.copyWith(fontSize: 9, color: OtakuColors.textMuted)),
-                                      ],
+                                    Image.asset(
+                                      'assets/images/skins/$_skinActifImageKey.png',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Center(
+                                        child: Icon(Icons.person, size: 70, color: OtakuColors.accent.withValues(alpha: 0.7)),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 6,
+                                      left: 0,
+                                      right: 0,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.threesixty_rounded, size: 12, color: Colors.white70),
+                                          const SizedBox(width: 4),
+                                          Text('Glisser pour pivoter', style: OtakuTypo.bodySmall.copyWith(fontSize: 9, color: Colors.white70)),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
