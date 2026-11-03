@@ -52,6 +52,12 @@
         ".write": true
       }
     },
+    "economie": {
+      ".read": true,
+      "$userId": {
+        ".write": true
+      }
+    },
     "battle_royale": {
       ".read": true,
       "$lobbyId": {

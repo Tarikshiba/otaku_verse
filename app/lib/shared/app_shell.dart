@@ -265,6 +265,27 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                     ),
                   ),
                   const Spacer(),
+
+                  // Bouton Pass Premium & Verse Coins (V4)
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 3)),
+                    ),
+                    child: LiquidGlass(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      borderRadius: 20,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.monetization_on_rounded, color: Colors.amber, size: 18),
+                          const SizedBox(width: 6),
+                          Text('PASS & COINS', style: OtakuTypo.label.copyWith(fontSize: 10, color: Colors.amber)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
                   
                   // Boite a lettres avec pastille rouge dynamique
                   GestureDetector(

@@ -1,8 +1,8 @@
 # PROGRESS — Otaku Verse
 
 Derniere mise a jour : 2026-11-03
-Version en cours : V3 (100% TERMINEE) -> Passage a la V4
-Module en cours : verse_v3 (Saisons, Evenements temporaires, Tournois, Missions Carriere)
+Version en cours : V4 (100% TERMINEE) -> Passage a la V5
+Module en cours : monetisation_v4 (Verse Coins, Pass Premium, Pubs opt-in, Boutique complete)
 
 ## MISE A JOUR DE LA ROADMAP (2026-09-20)
 
@@ -123,7 +123,7 @@ Etapes prevues :
 - iOS : necessite un Mac + compte Apple Developer (99$/an) — pas disponible pour l'instant
 
 ## Dernier commit pousse
-- `1cd1ead` : "feat(v2): salon amical personnalisable, mode cooperatif, systeme anti-abandon et regles firebase" (2026-11-03)
+- `aa30ab7` : "feat(v3): saisons 8 semaines, evenements temporaires, tournois top 8 et missions carriere" (2026-11-03)
 
 ## 5. ÉTAPES V2 RÉALISÉES (2026-11-03)
 
@@ -161,6 +161,12 @@ Etapes prevues :
 4. **Missions longue durée / Carrière (FAIT)** : suivi en temps réel des 5 objectifs officiels de la Roadmap (`100 duels Verse`, `Division 5`, `3 événements`, `Top 100 saison`, `5 000 questions réussies`) avec barres de progression et réclamation des récompenses XP/Titres/Badges.
 5. **Intégration Hub Accueil (FAIT)** : déblocage du mode `EVENEMENT` dans le sélecteur de modes et ajout du bouton d'accès rapide `Saison V3` sur l'accueil (`app_shell.dart`).
 
-### D. V4 & V5 (Sections 11 et suite de la Roadmap)
-1. **V4 Monétisation** : monnaie virtuelle Verse Coins, publicités inter-quiz et récompensées (opt-in), Pass Premium mensuel et boutique cosmétique complète.
-2. **V5 Expansion** : Battle Royale Quiz et système de Guildes / Clans.
+### D. V4 — Monétisation & Économie Virtuelle (Section 11 de la Roadmap) — FAIT (2026-11-03)
+1. **Monnaie virtuelle Verse Coins (FAIT)** : portefeuille joueur (`100 Coins` offerts au départ), bonus quotidien (`+15 Coins/j` gratuit, `+50 Coins/j` avec Pass Premium) et packs de 500, 1 500 et 5 000 Coins en mode test (`monetisation_v4_service.dart` & `boutique_screen.dart`).
+2. **Publicités récompensées opt-in (FAIT)** : spot publicitaire simulé de 3s (fréquence max respectée, jamais pendant un duel Verse) octroyant `Double XP pendant 15 min` + `30 Verse Coins`.
+3. **Pass Premium mensuel (FAIT)** : activation en un clic en mode test avec zéro publicité, `+20% XP`, `+50 Verse Coins/jour`, Cadre exclusif "Premium", accès anticipé et file matchmaking prioritaire.
+4. **Boutique Cosmétique & Confort 100% anti Pay-to-Win (FAIT)** : remplacement de tous les placeholders dans `boutique_screen.dart` par les **Articles & Coffres** (Coffre Mystère Otaku, Cadre Shonen Jump, Effet K.O. Éclairs du Haki, Titre Seigneur du Verse) et les **Boosters XP** (Double XP 60m, 4e slot de défi quotidien, Pass Quiz Personnalisé illimité).
+
+### E. Passage à la V5 — Expansion (Battle Royale Quiz & Guildes / Clans)
+1. **Battle Royale Quiz** : salon multi-joueurs à élimination progressive jusqu'au dernier survivant.
+2. **Système de Guildes / Clans** : création et gestion de clan, recrutement, classement des guildes et tableau d'équipe.

@@ -29,10 +29,12 @@ Ce document recense l'ensemble des fonctionnalites a verifier sur vos deux telep
 - [ ] Onglet `TOURNOIS` : cliquer sur `S'INSCRIRE`, lancer un duel de poule (`JOUER DUEL 1/10`), verifier que le score cumule augmente et que l'arbre des Quarts de Finale Top 8 s'affiche.
 - [ ] Onglet `CARRIERE` : verifier les barres de progression des 5 missions longue duree (`100 duels`, `Division 5`, `3 evenements`, `Top 100`, `5 000 questions`) et la reclamation d'une mission terminee.
 
-## 5. V4 — Monetisation (Verse Coins, Pass Premium, Boutique)
-- [ ] Compteur de `Verse Coins` dans l'en-tete et gain/depense en boutique.
-- [ ] Pass Premium mensuel : affichage de la piste gratuite et de la piste Premium + deblocage de recompenses.
-- [ ] Publicites recompensees (mode simulation/test) : verifier le bonus de Verse Coins / XP apres visionnage.
+## 5. V4 — Monetisation (Verse Coins, Pass Premium, Boutique `boutique_screen.dart`)
+- [ ] Accueil : cliquer sur le bouton `PASS & COINS` en haut a droite et verifier qu'il ouvre directement l'onglet Pass & Coins de la Boutique.
+- [ ] En-tete Boutique : verifier l'affichage du solde de depart (`100 COINS`).
+- [ ] Onglet `Articles & Coffres` : acheter un article cosmetique (ex: Cadre Shonen Jump a 150 Coins apres avoir pris un pack) ou ouvrir un `Coffre Mystere Otaku` (200 Coins) et verifier le gain d'XP aleatoire.
+- [ ] Onglet `Booster XP & Pub` : cliquer sur `REGARDER` sur la Publicite Recompensee Opt-In (spot simule de 3s) et verifier l'activation du badge `2X XP (15 m)` en haut de la boutique + le gain de `+30 Verse Coins`.
+- [ ] Onglet `Pass Premium & Coins` : cliquer sur `ACTIVER (TEST)` sur le Pass Premium Mensuel, verifier l'apparition du badge `PASS PREMIUM`, puis tester le bouton `RECLAMER +50/J` et l'achat d'un Pack (`500`, `1500` ou `5000 COINS`).
 
 ## 6. V5 — Expansion (Battle Royale Quiz & Guildes/Clans)
 - [ ] Battle Royale Quiz : tester une partie multi-joueurs avec elimination progressive jusqu'au dernier survivant.
