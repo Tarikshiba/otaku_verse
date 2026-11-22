@@ -1,24 +1,25 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:io';
+import 'package:flutter/services.dart';
 import '../../core/theme.dart';
-import '../quiz/quiz_service.dart';
+import '../../shared/rank_badge.dart';
+import '../../shared/victory_share_card.dart';
+import '../economy/economy_v92_service.dart';
 import '../progression/progression_service.dart';
+import '../quiz/quiz_service.dart';
 import '../rewards/rewards_service.dart';
+import '../skins/skin_service.dart';
 import '../social/friends_service.dart';
 import 'combat_models.dart';
 import 'combat_service.dart';
 
-/// === ECRAN DE COMBAT ===
-/// Mode PAYSAGE force : deux personnages face a face,
-/// barres de PV, question au centre, 4 choix, timer.
-/// Inclut des animations de shake et des onomatopees visuelles.
-
+/// === ECRAN DE COMBAT V9.2 (350 PV / 40 Q / DOUBLE TIMER 2 MIN / 5 MALUS) ===
+/// - Chrono Global 02:00 en haut (en pause pendant les animations) + Timer 20s/question
+/// - Auto-sizing des textes longs (Ticket UI-03) et anti-overflow (UI-02)
+/// - Badge de Rang officiel permanent (ECO-04)
+/// - 5 Malus Flutter : Texte Inverse, Miroir, Sans Voyelles, Brouillard d'Encre, Eclipse 2,5s
+/// - Seconde Chance Solo (+100 PV) et Bouton Roi "Doubler mes OC (x2)" en fin de match
 class CombatPage extends StatefulWidget {
   final List<Question> questions;
   final CombatParams params;
@@ -33,120 +34,109 @@ class CombatPage extends StatefulWidget {
   State<CombatPage> createState() => _CombatPageState();
 }
 
+enum _MalusType { aucun, inverse, miroir, sansVoyelles, brouillard, eclipse }
+
 class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
   final CombatService _combatService = CombatService();
+  final EconomyV92Service _economyService = EconomyV92Service();
+  final ProgressionService _progressionService = ProgressionService();
+  final Random _rng = Random();
 
-  // Etat du combat
   late CombatState _etat;
-
-  // Nombre reel de questions pour ce combat
   late int _nbQuestionsReelles;
 
-  // Timer par question (20 secondes)
+  // Double Timer officiel V9.2 (§7.2)
   static const int _tempsParQuestion = 20;
-  int _tempsRestant = _tempsParQuestion;
+  int _tempsRestantQuestion = _tempsParQuestion;
+  int _chronoGlobalRestantSec = CombatState.chronoGlobalSec;
   Timer? _timer;
+  DateTime _questionStartTime = DateTime.now();
 
-  // Reponse du joueur ce tour (null = pas encore repondu)
   String? _reponseChoisie;
-
-  // Resultat du dernier tour (pour afficher le feedback)
   ResultatTour? _dernierResultat;
-
-  // Phase d'affichage : 'question', 'feedback', 'termine'
-  String _phase = 'question';
-
-  // Compteur de bonnes reponses (pour le calcul d'XP)
+  String _phase = 'question'; // 'question', 'feedback', 'termine'
   int _bonnesReponses = 0;
+  int _questionsRepondues = 0;
+  int _hayaCount = 0;
+  int _maxCombo = 0;
+  int _totalResponseMs = 0;
+  bool _estMortSubite = false;
 
-  // Donnees de progression (remplies a la fin du combat)
-  int _xpGagne = 0;
-  Map<String, dynamic>? _profilMisAJour;
-  bool _progressionChargee = false;
+  // 5 Malus (§7.5)
+  _MalusType _malusActif = _MalusType.aucun;
+  bool _brouillardGratte = false;
+  bool _eclipseCachee = false;
 
-  // Cle pour capturer l'ecran resultat en image (partage)
-  final _repaintKey = GlobalKey();
+  // Profil & bilan serveur fin de match
+  int _monNiveau = 1;
+  String _monPseudo = 'TOI';
+  String _monSkinKey = 'skin_default';
+  Map<String, dynamic>? _summaryServeur;
+  bool _doubleOcDejaReclame = false;
+  bool _doublageEnCours = false;
+  bool _secondeChanceActive = false;
 
-  // --- ANIMATIONS (DA V2.1 : nerveuses, ~350ms) ---
-  // Shake quand le joueur prend des degats (court et violent)
+  // Animations nerveuses (< 350ms)
   late AnimationController _shakeJoueur;
-  // Shake quand le bot prend des degats
   late AnimationController _shakeBot;
-  // Onomatopee qui apparait et disparait (overshoot elastic)
   late AnimationController _onomatopeeController;
   late Animation<double> _onomatopeeOpacity;
   late Animation<double> _onomatopeeScale;
   String _onomatopeeTexte = '';
   Color _onomatopeeCouleur = OtakuColors.accent;
-  // Flash d'impact (blanc, bref)
   bool _flashActif = false;
-  // Etat combo special (fond rouge/or, screen shake)
   bool _comboSpecialActif = false;
-  // Etat critique (PV < 20%)
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
-  // Screen shake global pour combo
   late AnimationController _screenShakeController;
 
   @override
   void initState() {
     super.initState();
-    // Signaler que je suis en combat (statut visible par mes amis)
     FriendsService().setEnCombat(true);
     _nbQuestionsReelles = widget.questions.length;
     _etat = CombatState(nbQuestions: _nbQuestionsReelles);
+    _chargerInfosJoueur();
 
-    // Shake joueur — 150ms, violent
-    _shakeJoueur = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-    );
-
-    // Shake bot — 150ms, violent
-    _shakeBot = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-    );
-
-    // Onomatopee — rapide avec overshoot
-    _onomatopeeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
+    _shakeJoueur = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _shakeBot = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _onomatopeeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
     _onomatopeeOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _onomatopeeController,
-        curve: const Interval(0.6, 1.0),
-      ),
+      CurvedAnimation(parent: _onomatopeeController, curve: const Interval(0.6, 1.0)),
     );
     _onomatopeeScale = Tween<double>(begin: 0.3, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _onomatopeeController,
-        curve: Curves.elasticOut,
-      ),
+      CurvedAnimation(parent: _onomatopeeController, curve: Curves.elasticOut),
     );
-
-    // Pulse pour PV critique
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
+      ..repeat(reverse: true);
     _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-
-    // Screen shake global pour combo x3
-    _screenShakeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
+    _screenShakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
 
     _demarrerTour();
   }
 
+  Future<void> _chargerInfosJoueur() async {
+    try {
+      final p = await _progressionService.recupererProfil();
+      final skins = await SkinService().tousLesSkins();
+      final equipe = skins.where((s) => s.equipped).firstOrNull;
+      if (!mounted) return;
+      setState(() {
+        if (p != null) {
+          _monNiveau = (p['niveau'] as num?)?.toInt() ?? 1;
+          _monPseudo = p['pseudo']?.toString() ?? 'TOI';
+        }
+        if (equipe != null && equipe.imageKey.isNotEmpty) {
+          _monSkinKey = equipe.imageKey;
+        }
+      });
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
-    // Signaler que je ne suis plus en combat
     FriendsService().setEnCombat(false);
     _timer?.cancel();
     _shakeJoueur.dispose();
@@ -157,31 +147,64 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  /// Demarre un nouveau tour (timer + attente de reponse)
-  void _demarrerTour() {
-    _tempsRestant = _tempsParQuestion;
+  /// Tire un Malus selon le contrat choisi (Zen = 0%, Normal = 20%, Malicieux = 55%)
+  _MalusType _tirerMalusPourTour() {
+    if (widget.params.malusMode == 'zen' || _estMortSubite) return _MalusType.aucun;
+    final proba = widget.params.malusMode == 'malicieux' ? 0.55 : 0.20;
+    if (_rng.nextDouble() >= proba) return _MalusType.aucun;
+    const pool = [
+      _MalusType.inverse,
+      _MalusType.miroir,
+      _MalusType.sansVoyelles,
+      _MalusType.brouillard,
+      _MalusType.eclipse,
+    ];
+    return pool[_rng.nextInt(pool.length)];
+  }
+
+  void _demarrerTour({bool mortSubite = false}) {
+    _estMortSubite = mortSubite;
+    _tempsRestantQuestion = mortSubite ? 5 : _tempsParQuestion;
     _reponseChoisie = null;
     _dernierResultat = null;
     _phase = 'question';
+    _malusActif = _tirerMalusPourTour();
+    _brouillardGratte = false;
+    _eclipseCachee = false;
+    _questionStartTime = DateTime.now();
+
+    // Si Malus Eclipse : cache la question apres 2,5 secondes
+    if (_malusActif == _MalusType.eclipse) {
+      Future.delayed(const Duration(milliseconds: 2500), () {
+        if (mounted && _phase == 'question' && _reponseChoisie == null) {
+          setState(() => _eclipseCachee = true);
+        }
+      });
+    }
+
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_tempsRestant <= 0) {
+      if (!mounted) return;
+      if (_tempsRestantQuestion <= 0) {
         timer.cancel();
         _validerReponse(null);
       } else {
-        setState(() => _tempsRestant--);
+        setState(() {
+          _tempsRestantQuestion--;
+          if (!_estMortSubite && _chronoGlobalRestantSec > 0) {
+            _chronoGlobalRestantSec--;
+          }
+        });
       }
     });
   }
 
-  /// Le joueur clique sur un choix
   void _onChoixSelectionne(String lettre) {
-    if (_reponseChoisie != null) return;
+    if (_reponseChoisie != null || _secondeChanceActive) return;
     _timer?.cancel();
     _validerReponse(lettre);
   }
 
-  /// Affiche une onomatopee animee
   void _afficherOnomatopee(String texte, Color couleur) {
     _onomatopeeTexte = texte;
     _onomatopeeCouleur = couleur;
@@ -189,34 +212,44 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     _onomatopeeController.forward();
   }
 
-  /// Valide la reponse via le serveur — feedback nerveux DA V2.1
-  /// Sequence : flash (60ms) → shake (100ms) → onomatopee overshoot → barre PV → tour suivant
-  void _validerReponse(String? reponse) {
+  Future<void> _validerReponse(String? reponse) async {
     final question = widget.questions[_indexQuestion];
+    final elapsedMs = DateTime.now().difference(_questionStartTime).inMilliseconds;
 
     setState(() {
       _reponseChoisie = reponse ?? '';
     });
 
-    _combatService.jouerTourServeur(
-      etat: _etat,
-      questionId: question.id,
-      reponseJoueur: reponse,
-      difficulte: widget.params.difficulte,
-    ).then((resultat) async {
+    try {
+      final resultat = await _combatService.jouerTourV92(
+        etat: _etat,
+        matchId: widget.params.matchId,
+        question: question,
+        reponseJoueur: reponse,
+        responseTimeMs: elapsedMs,
+        difficulte: widget.params.difficulte,
+      );
+
       if (!mounted) return;
 
+      _questionsRepondues++;
+      _totalResponseMs += elapsedMs.clamp(100, 20000);
       if (resultat.joueurCorrect) _bonnesReponses++;
+      if (resultat.hayaTriggered) _hayaCount++;
+      if (_etat.comboJoueur > _maxCombo) _maxCombo = _etat.comboJoueur;
+      if (resultat.remainingGlobalMs != null) {
+        _chronoGlobalRestantSec = (resultat.remainingGlobalMs! / 1000).ceil();
+      }
 
-      // === FLASH D'IMPACT (60ms) ===
+      // Flash & vibration haptique (< 350ms)
       if (resultat.degatsInfliges > 0 || resultat.degatsSubis > 0) {
+        HapticFeedback.heavyImpact();
         setState(() => _flashActif = true);
         await Future.delayed(const Duration(milliseconds: 60));
         if (!mounted) return;
         setState(() => _flashActif = false);
       }
 
-      // === SHAKE (100ms, en parallele du reste) ===
       if (resultat.degatsInfliges > 0) {
         _shakeBot.reset();
         _shakeBot.forward();
@@ -226,100 +259,232 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
         _shakeJoueur.forward();
       }
 
-      // === ONOMATOPEE AVEC OVERSHOOT (demarre 60ms apres le shake) ===
       await Future.delayed(const Duration(milliseconds: 60));
       if (!mounted) return;
 
+      // Onomatopees officielles V9.2 (HAYA!!, CLASH!, COMBO x3, MISS)
       if (resultat.comboJoueurDeclenche || resultat.comboBotDeclenche) {
-        // === COMBO x3 : CHANGEMENT D'ETAT TOTAL ===
         setState(() => _comboSpecialActif = true);
         _screenShakeController.reset();
         _screenShakeController.forward();
-
-        // Flash blanc intense
-        setState(() => _flashActif = true);
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (!mounted) return;
-        setState(() => _flashActif = false);
-
-        // Onomatopee geante
         _afficherOnomatopee(
-          resultat.comboJoueurDeclenche ? 'SPECIAL!' : 'BOOM!',
+          resultat.comboJoueurDeclenche
+              ? (resultat.hayaTriggered ? 'COMBO + HAYA!!' : 'COMBO ×3!')
+              : 'BOOM!',
           resultat.comboJoueurDeclenche ? OtakuColors.combo3 : OtakuColors.error,
         );
-
-        // Garder l'etat special visible un moment
-        await Future.delayed(const Duration(milliseconds: 400));
+        await Future.delayed(const Duration(milliseconds: 360));
         if (!mounted) return;
         setState(() => _comboSpecialActif = false);
-      } else if (resultat.joueurCorrect && resultat.degatsInfliges > 0) {
+      } else if (resultat.clashWinner != null) {
+        _afficherOnomatopee(
+          resultat.clashWinner == 'p1' ? 'CLASH · 1ER!' : 'CLASH!',
+          const Color(0xFF4CC9F0),
+        );
+      } else if (resultat.hayaTriggered) {
+        _afficherOnomatopee('HAYA!!', const Color(0xFF3FFFB0));
+      } else if (resultat.joueurCorrect) {
         _afficherOnomatopee('HIT!', OtakuColors.pvHaut);
-      } else if (!resultat.joueurCorrect && reponse != null) {
-        _afficherOnomatopee('MISS', OtakuColors.textMuted);
+      } else {
+        _afficherOnomatopee('AUTO-FAUTE -5', OtakuColors.error);
       }
 
-      // === MISE A JOUR ETAT (barre PV se vide) ===
       setState(() {
         _dernierResultat = resultat;
         _phase = 'feedback';
+        if (resultat.summary != null) {
+          _summaryServeur = resultat.summary;
+        }
       });
 
-      // === 1.2 secondes de feedback visible puis tour suivant ===
-      await Future.delayed(const Duration(milliseconds: 1200));
+      await Future.delayed(const Duration(milliseconds: 1050));
       if (!mounted) return;
 
-      _etat.questionActuelle++;
+      // Cas 1 : Seconde Chance Solo (+100 PV pendant 5s)
+      if (resultat.canSecondChance && widget.params.matchId != null) {
+        await _proposerSecondeChance();
+        return;
+      }
 
-      if (_etat.estTermine) {
-        if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
-          _afficherOnomatopee('K.O.!', OtakuColors.warning);
+      // Cas 2 : Question Unique de Mort Subite (0 PV simultane)
+      if (resultat.suddenDeathTriggered) {
+        _afficherOnomatopee('MORT SUBITE!', OtakuColors.pvCritique);
+        if (_etat.questionActuelle < _nbQuestionsReelles) {
+          _etat.questionActuelle++;
         }
-        _finaliserCombat();
-        await Future.delayed(const Duration(milliseconds: 600));
+        _demarrerTour(mortSubite: true);
+        setState(() {});
+        return;
+      }
+
+      // Cas 3 : Match termine cote serveur ou plus de questions
+      if (resultat.matchFinished || _etat.estTermine || _chronoGlobalRestantSec <= 0) {
+        if (_etat.pvBot <= 0 || _etat.pvJoueur <= 0) {
+          _afficherOnomatopee('KECCHAKU!', OtakuColors.combo3);
+        }
+        await _finaliserSiNecessaire();
+        await Future.delayed(const Duration(milliseconds: 500));
         if (!mounted) return;
+        setState(() => _phase = 'termine');
+        return;
+      }
+
+      // Tour suivant
+      _etat.questionActuelle++;
+      _demarrerTour();
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur reseau : $e')),
+      );
+      _etat.questionActuelle++;
+      if (_etat.estTermine) {
         setState(() => _phase = 'termine');
       } else {
         _demarrerTour();
         setState(() {});
       }
-    });
+    }
   }
 
-  /// Calcule l'XP gagnee et met a jour le profil + defis + badges dans Supabase
-  Future<void> _finaliserCombat() async {
-    final victoire = _etat.vainqueur == 'joueur';
-    final ko = _etat.pvBot <= 0;
-    final sansDegat = _etat.pvJoueur == CombatState.pvDepart;
-
-    _xpGagne = ProgressionService.calculerXpCombat(
-      bonnesReponses: _bonnesReponses,
-      victoire: victoire,
-      ko: ko,
-      sansDegat: sansDegat,
+  /// Popup Seconde Chance (Mode Solo uniquement : +100 PV sur 350 PV, 1 fois/match)
+  Future<void> _proposerSecondeChance() async {
+    _secondeChanceActive = true;
+    final bool? revive = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: OtakuColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: OtakuColors.combo3),
+        ),
+        title: Text('SECONDE CHANCE !', style: OtakuTypo.headlineLarge.copyWith(color: OtakuColors.combo3)),
+        content: Text(
+          'Tu es tombe a 0 PV ! Regarde une pub volontaire (ou paie 30 OC) pour ressusciter avec 100 PV sur 350 PV et continuer le duel.',
+          style: OtakuTypo.bodySmall,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('ABANDONNER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: OtakuColors.combo3, foregroundColor: Colors.black),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.favorite_rounded, size: 16),
+            label: const Text('+100 PV (PUB)'),
+          ),
+        ],
+      ),
     );
+    _secondeChanceActive = false;
 
-    try {
-      final progressionService = ProgressionService();
-      _profilMisAJour = await progressionService.mettreAJourApresComabat(
-        xpGagne: _xpGagne,
-        victoire: victoire,
-      );
-
-      // Mettre a jour les defis quotidiens
-      final rewardsService = RewardsService();
-      await rewardsService.mettreAJourDefis(
-        victoire: victoire,
-        ko: ko,
-        bonnesReponses: _bonnesReponses,
-      );
-    } catch (_) {
-      // En cas d'erreur reseau, on affiche quand meme le resultat
+    if (!mounted) return;
+    if (revive == true && widget.params.matchId != null) {
+      try {
+        await _economyService.activerSecondeChance(widget.params.matchId!, payWithOc: false);
+        setState(() => _etat.pvJoueur = 100);
+        _etat.questionActuelle++;
+        _demarrerTour();
+        setState(() {});
+        return;
+      } catch (_) {}
     }
 
-    if (mounted) setState(() => _progressionChargee = true);
+    // Refus de Seconde Chance -> cloture definitive cote serveur
+    await _finaliserSiNecessaire();
+    if (mounted) setState(() => _phase = 'termine');
   }
 
-  /// Index de la question actuelle (0-based pour acceder a la liste)
+  Future<void> _finaliserSiNecessaire() async {
+    if (_summaryServeur == null && widget.params.matchId != null) {
+      try {
+        final res = await _economyService.cloturerMatch(
+          matchId: widget.params.matchId!,
+          abandon: false,
+        );
+        if (res['summary'] is Map) {
+          _summaryServeur = Map<String, dynamic>.from(res['summary']);
+        }
+      } catch (_) {}
+    }
+    try {
+      final won = _summaryServeur?['won'] == true || _etat.vainqueur == 'joueur';
+      await RewardsService().mettreAJourDefis(
+        victoire: won,
+        ko: _etat.pvBot <= 0,
+        bonnesReponses: _bonnesReponses,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _confirmerQuitter() async {
+    final bool? quitter = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: OtakuColors.surface,
+        title: Text('ABANDONNER LE MATCH ?', style: OtakuTypo.headlineSmall),
+        content: Text(
+          'Un abandon retire -50 XP a tous les niveaux, detruit les frais OC et applique un cooldown de 5 minutes.',
+          style: OtakuTypo.bodySmall,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CONTINUER', style: TextStyle(color: Colors.white)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: OtakuColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('ABANDONNER'),
+          ),
+        ],
+      ),
+    );
+
+    if (quitter == true) {
+      _timer?.cancel();
+      if (widget.params.matchId != null) {
+        try {
+          await _economyService.cloturerMatch(matchId: widget.params.matchId!, abandon: true);
+        } catch (_) {}
+      }
+      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+    }
+  }
+
+  /// Formate le texte selon le Malus actif (§7.5)
+  String _appliquerTexteMalus(String texte) {
+    if (_malusActif == _MalusType.inverse) {
+      return String.fromCharCodes(texte.runes.toList().reversed);
+    }
+    if (_malusActif == _MalusType.sansVoyelles) {
+      return texte.replaceAll(RegExp(r'[aeiouyAEIOUYàâäéèêëîïôöùûü]'), '_');
+    }
+    return texte;
+  }
+
+  /// Auto-sizing de la police selon la longueur du texte (Ticket UI-03)
+  double _taillePoliceQuestion(String texte) {
+    if (texte.length > 150) return 12.0;
+    if (texte.length > 110) return 13.5;
+    return 15.0;
+  }
+
+  double _taillePoliceChoix(String texte) {
+    if (texte.length > 65) return 11.0;
+    if (texte.length > 40) return 12.0;
+    return 13.0;
+  }
+
+  String _formatChronoGlobal() {
+    final mins = (_chronoGlobalRestantSec ~/ 60).toString().padLeft(2, '0');
+    final secs = (_chronoGlobalRestantSec % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
+
   int get _indexQuestion => (_etat.questionActuelle - 1).clamp(0, widget.questions.length - 1);
 
   @override
@@ -329,6 +494,7 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     }
 
     final question = widget.questions[_indexQuestion];
+    final texteAffiche = _appliquerTexteMalus(question.question);
 
     return Scaffold(
       backgroundColor: OtakuColors.background,
@@ -337,114 +503,177 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
           animation: _screenShakeController,
           builder: (context, child) {
             final shake = _screenShakeController.isAnimating
-                ? sin(_screenShakeController.value * pi * 6) * 3
+                ? sin(_screenShakeController.value * pi * 6) * 4
                 : 0.0;
-            return Transform.translate(
-              offset: Offset(shake, shake * 0.5),
-              child: child,
-            );
+            return Transform.translate(offset: Offset(shake, shake * 0.5), child: child);
           },
           child: Stack(
-          children: [
-            // Overlay fond combo special (rouge/or)
-            if (_comboSpecialActif)
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      OtakuColors.combo3.withValues(alpha: 0.15),
-                      OtakuColors.error.withValues(alpha: 0.1),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+            children: [
+              if (_comboSpecialActif)
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        OtakuColors.combo3.withValues(alpha: 0.16),
+                        OtakuColors.error.withValues(alpha: 0.1),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                   ),
+                ),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                child: Column(
+                  children: [
+                    // === BARRES DE PV 350 + CHRONO GLOBAL 02:00 + BADGE RANG ===
+                    _buildBarresPV(),
+                    const SizedBox(height: 6),
+
+                    // === ZONE QUESTION + CHOIX (scrollable si texte tres long : UI-02/UI-03) ===
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Ligne info : Qx/40, Timer 20s, badge Malus, Quitter
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _estMortSubite
+                                      ? 'MORT SUBITE (1 PV)'
+                                      : 'Q${_etat.questionActuelle}/$_nbQuestionsReelles',
+                                  style: OtakuTypo.label.copyWith(
+                                    color: _estMortSubite ? OtakuColors.pvCritique : OtakuColors.textMuted,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                _buildTimer(),
+                                if (_malusActif != _MalusType.aucun) ...[
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: OtakuColors.modeDuel.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: OtakuColors.modeDuel),
+                                    ),
+                                    child: Text(
+                                      'MALUS : ${_malusActif.name.toUpperCase()}',
+                                      style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.modeDuel),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(width: 12),
+                                GestureDetector(
+                                  onTap: _confirmerQuitter,
+                                  child: const Icon(Icons.flag_outlined, size: 18, color: OtakuColors.textMuted),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Carte question avec gestion des 5 Malus et auto-sizing (UI-03)
+                            _buildQuestionCard(texteAffiche),
+                            const SizedBox(height: 10),
+
+                            // Grille des choix (2 ou 4 selon variante V9.2)
+                            _buildChoix(question),
+
+                            if (_phase == 'feedback' && _dernierResultat != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: _buildFeedback(),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-            // Contenu principal
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                children: [
-                  // --- BARRES DE PV ---
-                  _buildBarresPV(),
-                  const SizedBox(height: 12),
+              _buildFlashOverlay(),
+              _buildOnomatopeeOverlay(),
 
-                  // --- QUESTION ---
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Timer + numero de question
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Q${_etat.questionActuelle}/$_nbQuestionsReelles',
-                              style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted),
-                            ),
-                            const SizedBox(width: 16),
-                            _buildTimer(),
+              // Vignette PV critique (< 20 % = 70 PV sur 350)
+              if (_etat.pvJoueur <= 70 || _etat.pvBot <= 70)
+                AnimatedBuilder(
+                  animation: _pulseAnimation,
+                  builder: (context, _) => IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.transparent,
+                            OtakuColors.pvCritique.withValues(alpha: 0.14 * _pulseAnimation.value),
                           ],
+                          radius: 1.2,
                         ),
-                        const SizedBox(height: 12),
-
-                        // Texte de la question
-                        Text(
-                          question.question,
-                          style: OtakuTypo.bodyLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // 4 choix en grille 2x2
-                        _buildChoix(question),
-
-                        // Feedback du tour
-                        if (_phase == 'feedback' && _dernierResultat != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: _buildFeedback(),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // --- FLASH D'IMPACT ---
-            _buildFlashOverlay(),
-
-            // --- ONOMATOPEE EN OVERLAY ---
-            _buildOnomatopeeOverlay(),
-
-            // --- VIGNETTE PV CRITIQUE ---
-            if (_etat.pvJoueur <= 20 || _etat.pvBot <= 20)
-              AnimatedBuilder(
-                animation: _pulseAnimation,
-                builder: (context, _) => IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.transparent,
-                          OtakuColors.pvCritique.withValues(alpha: 0.12 * _pulseAnimation.value),
-                        ],
-                        radius: 1.2,
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Overlay des onomatopees — style Bangers, overshoot, glow
+  Widget _buildQuestionCard(String texteAffiche) {
+    Widget textWidget = Text(
+      _eclipseCachee ? 'ECLIPSE ACTIVE ! Reponds de memoire !' : texteAffiche,
+      style: OtakuTypo.bodyLarge.copyWith(
+        fontSize: _taillePoliceQuestion(texteAffiche),
+        height: 1.35,
+      ),
+      textAlign: TextAlign.center,
+    );
+
+    if (_malusActif == _MalusType.miroir && !_eclipseCachee) {
+      textWidget = Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.rotationY(pi),
+        child: textWidget,
+      );
+    }
+
+    if (_malusActif == _MalusType.brouillard && !_brouillardGratte) {
+      return GestureDetector(
+        onTap: () => setState(() => _brouillardGratte = true),
+        onPanUpdate: (_) => setState(() => _brouillardGratte = true),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: OtakuColors.modeDuel),
+          ),
+          child: Text(
+            'BROUILLARD D\'ENCRE : Touche ou gratte pour reveler la question !',
+            textAlign: TextAlign.center,
+            style: OtakuTypo.headlineSmall.copyWith(fontSize: 13, color: OtakuColors.modeDuel),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: OtakuColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: OtakuColors.border),
+      ),
+      child: textWidget,
+    );
+  }
+
   Widget _buildOnomatopeeOverlay() {
     return AnimatedBuilder(
       animation: _onomatopeeController,
@@ -452,27 +681,22 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
         if (!_onomatopeeController.isAnimating && _onomatopeeController.status != AnimationStatus.forward) {
           return const SizedBox.shrink();
         }
-        return Center(
-          child: Opacity(
-            opacity: _onomatopeeOpacity.value,
-            child: Transform.scale(
-              scale: _onomatopeeScale.value,
-              child: Text(
-                _onomatopeeTexte,
-                style: OtakuTypo.impact.copyWith(
-                  fontSize: 56,
-                  color: _onomatopeeCouleur,
-                  letterSpacing: 4,
-                  shadows: [
-                    Shadow(
-                      color: _onomatopeeCouleur.withValues(alpha: 0.7),
-                      blurRadius: 24,
-                    ),
-                    Shadow(
-                      color: _onomatopeeCouleur.withValues(alpha: 0.4),
-                      blurRadius: 48,
-                    ),
-                  ],
+        return IgnorePointer(
+          child: Center(
+            child: Opacity(
+              opacity: _onomatopeeOpacity.value,
+              child: Transform.scale(
+                scale: _onomatopeeScale.value,
+                child: Text(
+                  _onomatopeeTexte,
+                  style: OtakuTypo.impact.copyWith(
+                    fontSize: 48,
+                    color: _onomatopeeCouleur,
+                    letterSpacing: 3,
+                    shadows: [
+                      Shadow(color: _onomatopeeCouleur.withValues(alpha: 0.7), blurRadius: 24),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -482,55 +706,68 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     );
   }
 
-  /// Overlay flash blanc d'impact
   Widget _buildFlashOverlay() {
     if (!_flashActif) return const SizedBox.shrink();
-    return Container(color: Colors.white.withValues(alpha: 0.3));
+    return IgnorePointer(child: Container(color: Colors.white.withValues(alpha: 0.28)));
   }
 
-  /// Barres de PV joueur (gauche) et bot (droite) avec shake
   Widget _buildBarresPV() {
     return Row(
       children: [
-        // Joueur (gauche) — shake violent si touche
         Expanded(
           child: AnimatedBuilder(
             animation: _shakeJoueur,
             builder: (context, child) {
-              final offset = _shakeJoueur.isAnimating
-                  ? sin(_shakeJoueur.value * pi * 8) * 8
-                  : 0.0;
-              return Transform.translate(
-                offset: Offset(offset, 0),
-                child: child,
-              );
+              final offset = _shakeJoueur.isAnimating ? sin(_shakeJoueur.value * pi * 8) * 8 : 0.0;
+              return Transform.translate(offset: Offset(offset, 0), child: child);
             },
             child: _buildBarrePV(
-              label: 'TOI',
+              label: _monPseudo,
+              niveau: _monNiveau,
               pv: _etat.pvJoueur,
               combo: _etat.comboJoueur,
               alignDroite: false,
             ),
           ),
         ),
-        const SizedBox(width: 24),
-        Text('VS', style: OtakuTypo.impact.copyWith(fontSize: 20)),
-        const SizedBox(width: 24),
-        // Bot (droite) — shake violent si touche
+        const SizedBox(width: 12),
+        // Chrono Global 02:00 au centre (§7.2)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: _chronoGlobalRestantSec <= 20
+                ? OtakuColors.pvCritique.withValues(alpha: 0.2)
+                : OtakuColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _chronoGlobalRestantSec <= 20 ? OtakuColors.pvCritique : OtakuColors.accent,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatChronoGlobal(),
+                style: OtakuTypo.hud.copyWith(
+                  fontSize: 13,
+                  color: _chronoGlobalRestantSec <= 20 ? OtakuColors.pvCritique : OtakuColors.textPrimary,
+                ),
+              ),
+              Text('VS', style: OtakuTypo.label.copyWith(fontSize: 8, color: OtakuColors.accent)),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: AnimatedBuilder(
             animation: _shakeBot,
             builder: (context, child) {
-              final offset = _shakeBot.isAnimating
-                  ? sin(_shakeBot.value * pi * 8) * 8
-                  : 0.0;
-              return Transform.translate(
-                offset: Offset(offset, 0),
-                child: child,
-              );
+              final offset = _shakeBot.isAnimating ? sin(_shakeBot.value * pi * 8) * 8 : 0.0;
+              return Transform.translate(offset: Offset(offset, 0), child: child);
             },
             child: _buildBarrePV(
-              label: 'BOT',
+              label: widget.params.opponentPseudo,
+              divisionId: widget.params.opponentDivisionId,
               pv: _etat.pvBot,
               combo: _etat.comboBot,
               alignDroite: true,
@@ -541,14 +778,15 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
     );
   }
 
-  /// Barre de PV d'un combattant
   Widget _buildBarrePV({
     required String label,
+    int? niveau,
+    int? divisionId,
     required int pv,
     required int combo,
     required bool alignDroite,
   }) {
-    final pourcentage = pv / CombatState.pvDepart;
+    final pourcentage = (pv / CombatState.pvDepart).clamp(0.0, 1.0);
     Color couleurPV = OtakuColors.pvHaut;
     if (pourcentage <= 0.2) {
       couleurPV = OtakuColors.pvCritique;
@@ -562,150 +800,138 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
         Row(
           mainAxisAlignment: alignDroite ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
-            Text(label, style: OtakuTypo.hud.copyWith(fontSize: 12)),
-            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: OtakuTypo.hud.copyWith(fontSize: 11),
+              ),
+            ),
+            const SizedBox(width: 6),
             Text(
               '$pv/${CombatState.pvDepart}',
-              style: OtakuTypo.hud.copyWith(fontSize: 13, color: couleurPV),
+              style: OtakuTypo.hud.copyWith(fontSize: 12, color: couleurPV),
             ),
             if (combo > 0) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (combo >= 2 ? OtakuColors.combo3 : OtakuColors.combo2).withValues(alpha: 0.2),
+                  color: (combo % 3 == 2 ? OtakuColors.combo3 : OtakuColors.combo2).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: combo >= 2 ? OtakuColors.combo3 : OtakuColors.combo2),
                 ),
                 child: Text(
                   '×$combo',
                   style: OtakuTypo.hud.copyWith(
-                    fontSize: 12,
-                    color: combo >= 2 ? OtakuColors.combo3 : OtakuColors.combo2,
+                    fontSize: 10,
+                    color: combo % 3 == 2 ? OtakuColors.combo3 : OtakuColors.combo2,
                   ),
                 ),
               ),
             ],
           ],
         ),
-        const SizedBox(height: 4),
-        // Barre PV avec bordure qui "respire"
-        AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: couleurPV.withValues(alpha: 0.2 + 0.15 * _pulseAnimation.value),
-                  width: 1,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: pourcentage,
-                  minHeight: 8,
-                  backgroundColor: OtakuColors.border,
-                  valueColor: AlwaysStoppedAnimation(couleurPV),
-                ),
-              ),
-            );
-          },
+        if (niveau != null) ...[
+          const SizedBox(height: 2),
+          OfficialRankBadge(niveau: niveau, divisionId: divisionId, compact: true),
+        ],
+        const SizedBox(height: 3),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pourcentage,
+            minHeight: 8,
+            backgroundColor: OtakuColors.border,
+            valueColor: AlwaysStoppedAnimation(couleurPV),
+          ),
         ),
       ],
     );
   }
 
-  /// Timer visuel
   Widget _buildTimer() {
-    final enDanger = _tempsRestant <= 5;
-    // Pulse a chaque seconde (scale 1.0 → 1.04 → 1.0)
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        final scale = enDanger ? (1.0 + 0.06 * _pulseAnimation.value) : 1.0;
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: enDanger ? OtakuColors.pvCritique.withValues(alpha: 0.15) : OtakuColors.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: enDanger ? OtakuColors.pvCritique : OtakuColors.border,
-                width: enDanger ? 1.5 : 1,
-              ),
-            ),
-            child: Text(
-              '${_tempsRestant}s',
-              style: OtakuTypo.hud.copyWith(
-                fontSize: 15,
-                color: enDanger ? OtakuColors.pvCritique : OtakuColors.textPrimary,
-              ),
-            ),
-          ),
-        );
-      },
+    final enDanger = _tempsRestantQuestion <= 5;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: enDanger ? OtakuColors.pvCritique.withValues(alpha: 0.16) : OtakuColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: enDanger ? OtakuColors.pvCritique : OtakuColors.border),
+      ),
+      child: Text(
+        '${_tempsRestantQuestion}s',
+        style: OtakuTypo.hud.copyWith(
+          fontSize: 13,
+          color: enDanger ? OtakuColors.pvCritique : OtakuColors.textPrimary,
+        ),
+      ),
     );
   }
 
-  /// Grille 2x2 des choix de reponse
   Widget _buildChoix(Question question) {
     final aRepondu = _reponseChoisie != null;
+    final bonneReponseServeur = _dernierResultat?.bonneReponse ?? '';
     final choix = question.choix;
+
+    if (choix.length <= 2) {
+      return Row(
+        children: [
+          Expanded(child: _buildBoutonChoix(choix[0], bonneReponseServeur, aRepondu)),
+          const SizedBox(width: 8),
+          if (choix.length > 1)
+            Expanded(child: _buildBoutonChoix(choix[1], bonneReponseServeur, aRepondu)),
+        ],
+      );
+    }
 
     return Column(
       children: [
         Row(
           children: [
-            Expanded(child: _buildBoutonChoix(choix[0], question.bonneReponse, aRepondu, 0)),
+            Expanded(child: _buildBoutonChoix(choix[0], bonneReponseServeur, aRepondu)),
             const SizedBox(width: 8),
-            Expanded(child: _buildBoutonChoix(choix[1], question.bonneReponse, aRepondu, 1)),
+            Expanded(child: _buildBoutonChoix(choix[1], bonneReponseServeur, aRepondu)),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: _buildBoutonChoix(choix[2], question.bonneReponse, aRepondu, 2)),
+            Expanded(child: _buildBoutonChoix(choix[2], bonneReponseServeur, aRepondu)),
             const SizedBox(width: 8),
-            Expanded(child: _buildBoutonChoix(choix[3], question.bonneReponse, aRepondu, 3)),
+            if (choix.length > 3)
+              Expanded(child: _buildBoutonChoix(choix[3], bonneReponseServeur, aRepondu))
+            else
+              const Spacer(),
           ],
         ),
       ],
     );
   }
 
-  /// Un bouton de choix individuel — oscillation subtile quand pas encore repondu
-  Widget _buildBoutonChoix(MapEntry<String, String> choix, String bonneReponse, bool aRepondu, int index) {
+  Widget _buildBoutonChoix(MapEntry<String, String> choix, String bonneReponse, bool aRepondu) {
     Color couleurBordure = OtakuColors.border;
-    Color couleurFond = Colors.transparent;
+    Color couleurFond = OtakuColors.surface;
 
-    if (aRepondu) {
-      if (choix.key == bonneReponse) {
+    if (aRepondu && _dernierResultat != null) {
+      if (bonneReponse.isNotEmpty && choix.key == bonneReponse) {
         couleurBordure = OtakuColors.success;
-        couleurFond = OtakuColors.success.withValues(alpha: 0.1);
+        couleurFond = OtakuColors.success.withValues(alpha: 0.14);
       } else if (choix.key == _reponseChoisie) {
-        couleurBordure = OtakuColors.error;
-        couleurFond = OtakuColors.error.withValues(alpha: 0.1);
+        couleurBordure = _dernierResultat!.joueurCorrect ? OtakuColors.success : OtakuColors.error;
+        couleurFond = couleurBordure.withValues(alpha: 0.14);
       }
     }
 
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        // Oscillation subtile (±1px) quand pas encore repondu, decalee par index
-        final offset = aRepondu ? 0.0 : sin((_pulseAnimation.value * pi * 2) + index * 0.8) * 1.0;
-        return Transform.translate(offset: Offset(0, offset), child: child);
-      },
-      child: GestureDetector(
+    return GestureDetector(
       onTap: aRepondu ? null : () => _onChoixSelectionne(choix.key),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        constraints: const BoxConstraints(minHeight: 46),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: couleurFond,
           border: Border.all(color: couleurBordure, width: aRepondu ? 2 : 1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
@@ -715,16 +941,14 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 border: Border.all(color: couleurBordure, width: 1.5),
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(5),
               ),
               child: Text(
                 choix.key,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: couleurBordure == OtakuColors.border
-                      ? OtakuColors.textSecondary
-                      : couleurBordure,
+                  color: couleurBordure == OtakuColors.border ? OtakuColors.textSecondary : couleurBordure,
                 ),
               ),
             ),
@@ -732,283 +956,251 @@ class _CombatPageState extends State<CombatPage> with TickerProviderStateMixin {
             Expanded(
               child: Text(
                 choix.value,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 13,
-                  color: couleurBordure == OtakuColors.border
-                      ? OtakuColors.textPrimary
-                      : couleurBordure,
+                  fontSize: _taillePoliceChoix(choix.value),
+                  color: couleurBordure == OtakuColors.border ? OtakuColors.textPrimary : couleurBordure,
                 ),
               ),
             ),
           ],
         ),
       ),
-    ),
     );
   }
 
-  /// Feedback apres reponse (degats infliges/subis, combo)
   Widget _buildFeedback() {
     final r = _dernierResultat!;
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // Feedback joueur (gauche)
-        Column(
-          children: [
-            if (r.joueurCorrect) ...[
-              if (r.comboJoueurDeclenche)
-                const Text('ATTAQUE SPECIALE !',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: OtakuColors.accent)),
-              Text(
-                'Tu infliges -${r.degatsInfliges} PV',
-                style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.success),
-              ),
-            ] else
-              Text(
-                'Tu rates...',
-                style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted),
-              ),
-          ],
+        Flexible(
+          child: Text(
+            r.joueurCorrect
+                ? 'Tu infliges -${r.degatsInfliges} PV${r.hayaTriggered ? " (HAYA!!)" : ""}'
+                : 'Rate (-5 PV Auto-faute)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: OtakuTypo.bodySmall.copyWith(
+              color: r.joueurCorrect ? OtakuColors.success : OtakuColors.error,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-        // Feedback bot (droite)
-        Column(
-          children: [
-            if (r.botCorrect) ...[
-              if (r.comboBotDeclenche)
-                const Text('BOT SPECIAL !',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: OtakuColors.error)),
-              Text(
-                'Bot inflige -${r.degatsSubis} PV',
-                style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.error),
-              ),
-            ] else
-              Text(
-                'Bot rate !',
-                style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted),
-              ),
-          ],
+        Flexible(
+          child: Text(
+            r.botCorrect
+                ? '${widget.params.opponentPseudo} inflige -${r.degatsSubis} PV'
+                : '${widget.params.opponentPseudo} rate (-5 PV)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: OtakuTypo.bodySmall.copyWith(
+              color: r.botCorrect ? OtakuColors.error : OtakuColors.textMuted,
+            ),
+          ),
         ),
       ],
     );
   }
 
-  /// Ecran de resultat — DA V2.1 : victoire explosive, defaite sobre
   Widget _buildEcranResultat() {
-    final victoire = _etat.vainqueur == 'joueur';
-    final egalite = _etat.vainqueur == 'egalite';
-    final ko = _etat.pvBot <= 0 || _etat.pvJoueur <= 0;
+    final s = _summaryServeur;
+    final bool victoire = s != null ? s['won'] == true : _etat.vainqueur == 'joueur';
+    final int scenario = (s?['scenario_code'] as num?)?.toInt() ?? 3;
+    final bool egalite = scenario == 4 || scenario == 5 || (s == null && _etat.vainqueur == 'egalite');
+    final bool ko = s?['ended_by_ko'] == true || _etat.pvBot <= 0 || _etat.pvJoueur <= 0;
 
-    final niveau = _profilMisAJour?['niveau'] ?? 1;
-    final ancienNiveau = _profilMisAJour?['ancien_niveau'] ?? niveau;
-    final aMonteDeNiveau = niveau > ancienNiveau;
-    final rangActuel = _profilMisAJour?['rang'] ?? 'Debutant';
+    final int deltaXp = (s?['delta_xp'] as num?)?.toInt() ?? 0;
+    final int newLevel = (s?['new_level'] as num?)?.toInt() ?? _monNiveau;
+    final int ocPerf = (s?['oc_performance_net'] as num?)?.toInt() ?? 0;
+    final int ocRefund = (s?['oc_refund'] as num?)?.toInt() ?? 0;
+    final int deltaDiv = (s?['delta_division_pts'] as num?)?.toInt() ?? 0;
+    final bool canDoubleOc = s?['can_double_oc'] == true && !_doubleOcDejaReclame && widget.params.matchId != null;
 
     final couleurTitre = victoire ? OtakuColors.victoire : (egalite ? OtakuColors.pvMoyen : OtakuColors.defaite);
 
     return Scaffold(
       backgroundColor: OtakuColors.background,
       body: SafeArea(
-        child: RepaintBoundary(
-          key: _repaintKey,
-          child: Stack(
-          children: [
-            // Fond stylise selon le resultat
-            Container(color: OtakuColors.background),
-            if (victoire)
-              // Victoire : radial glow vert/violet
-              Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      OtakuColors.victoire.withValues(alpha: 0.08),
-                      OtakuColors.background,
-                    ],
-                    radius: 1.0,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    victoire ? (ko ? 'VICTOIRE K.O.!' : 'VICTOIRE!') : (egalite ? 'MATCH NUL' : 'DEFAITE'),
+                    style: OtakuTypo.impact.copyWith(fontSize: 42, color: couleurTitre),
                   ),
-                ),
-              )
-            else if (!egalite)
-              // Defaite : vignette sombre + craquelures visuelles (bandes)
-              Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.transparent,
-                      OtakuColors.defaite.withValues(alpha: 0.08),
-                    ],
-                    radius: 0.8,
+                  const SizedBox(height: 6),
+                  OfficialRankBadge(
+                    niveau: newLevel,
+                    divisionId: (s?['new_division_id'] as num?)?.toInt(),
                   ),
-                ),
-              ),
+                  const SizedBox(height: 12),
 
-            // Contenu principal
-            Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Titre avec glow
-                    Text(
-                      victoire ? 'VICTOIRE!' : (egalite ? 'EGALITE' : 'DEFAITE'),
-                      style: OtakuTypo.impact.copyWith(
-                        fontSize: victoire ? 48 : 40,
-                        color: couleurTitre,
-                        shadows: [
-                          Shadow(color: couleurTitre.withValues(alpha: 0.6), blurRadius: 24),
-                          Shadow(color: couleurTitre.withValues(alpha: 0.3), blurRadius: 48),
-                        ],
-                      ),
-                    ),
-
-                    if (ko) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'K.O.!',
-                        style: OtakuTypo.impact.copyWith(
-                          fontSize: 24,
-                          color: OtakuColors.combo3,
-                          shadows: [Shadow(color: OtakuColors.combo3.withValues(alpha: 0.5), blurRadius: 16)],
-                        ),
-                      ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildStatResultat(_monPseudo, _etat.pvJoueur, CombatState.pvDepart),
+                      const SizedBox(width: 28),
+                      Text('VS', style: OtakuTypo.hud.copyWith(color: OtakuColors.textMuted)),
+                      const SizedBox(width: 28),
+                      _buildStatResultat(widget.params.opponentPseudo, _etat.pvBot, CombatState.pvDepart),
                     ],
+                  ),
+                  const SizedBox(height: 14),
 
-                    const SizedBox(height: 14),
-
-                    // Stats PV en row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildStatResultat('TOI', _etat.pvJoueur, CombatState.pvDepart),
-                        const SizedBox(width: 32),
-                        Text('VS', style: OtakuTypo.hud.copyWith(color: OtakuColors.textMuted)),
-                        const SizedBox(width: 32),
-                        _buildStatResultat('BOT', _etat.pvBot, CombatState.pvDepart),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // XP gagnee — carte en verre
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: OtakuColors.accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.4)),
+                  // Bilan serveur XP / OC / Division
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      _buildRewardChip(
+                        '${deltaXp >= 0 ? "+" : ""}$deltaXp XP',
+                        deltaXp >= 0 ? OtakuColors.accent : OtakuColors.error,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '+$_xpGagne XP',
-                            style: OtakuTypo.hud.copyWith(fontSize: 22, color: OtakuColors.accent),
-                          ),
-                          if (_progressionChargee) ...[
-                            const SizedBox(width: 16),
-                            Text(
-                              'Nv.$niveau · $rangActuel',
-                              style: OtakuTypo.bodySmall,
-                            ),
-                          ],
-                          if (aMonteDeNiveau) ...[
-                            const SizedBox(width: 12),
-                            Text(
-                              'LEVEL UP!',
-                              style: OtakuTypo.impact.copyWith(fontSize: 16, color: OtakuColors.combo3),
-                            ),
-                          ],
-                        ],
+                      if (ocPerf > 0 || ocRefund > 0)
+                        _buildRewardChip(
+                          '+${ocPerf + ocRefund} OC${_doubleOcDejaReclame ? " (×2)" : ""}',
+                          const Color(0xFF4CC9F0),
+                        ),
+                      if (widget.params.mode == 'division')
+                        _buildRewardChip(
+                          '${deltaDiv >= 0 ? "+" : ""}$deltaDiv PTS DIV',
+                          deltaDiv >= 0 ? OtakuColors.victoire : OtakuColors.error,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Bouton Roi : Doubler mes OC (x2) via pub volontaire (ECO-06)
+                  if (canDoubleOc) ...[
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CC9F0),
+                        foregroundColor: Colors.black,
                       ),
+                      onPressed: _doublageEnCours ? null : _activerDoubleOc,
+                      icon: const Icon(Icons.play_circle_filled_rounded, size: 18),
+                      label: Text('DOUBLER MES OC (+$ocPerf OC · PUB)'),
                     ),
-
-                    const SizedBox(height: 28),
-
-                    // Boutons — PARTAGER, REJOUER, ACCUEIL
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Bouton PARTAGER
-                        OutlinedButton.icon(
-                          onPressed: _partagerResultat,
-                          icon: const Icon(Icons.share_rounded, size: 16),
-                          label: Text('PARTAGER', style: OtakuTypo.label.copyWith(color: OtakuColors.accent)),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => CombatPage(
-                                  questions: widget.questions..shuffle(),
-                                  params: widget.params,
-                                ),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                          ),
-                          child: Text('REJOUER', style: OtakuTypo.label.copyWith(color: Colors.black)),
-                        ),
-                        const SizedBox(width: 12),
-                        OutlinedButton(
-                          onPressed: () {
-                            Navigator.of(context).popUntil((route) => route.isFirst);
-                          },
-                          child: Text('ACCUEIL', style: OtakuTypo.label.copyWith(color: OtakuColors.accent)),
-                        ),
-                      ],
-                    ),
+                    const SizedBox(height: 12),
                   ],
-                ),
+
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _partagerResultat,
+                        icon: const Icon(Icons.share_rounded, size: 16),
+                        label: Text(
+                          victoire ? 'PARTAGER MA VICTOIRE (9:16)' : 'PARTAGER',
+                          style: OtakuTypo.label.copyWith(color: OtakuColors.accent),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                        child: Text('ACCUEIL', style: OtakuTypo.label.copyWith(color: Colors.black)),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
+    );
+  }
+
+  Future<void> _activerDoubleOc() async {
+    if (widget.params.matchId == null) return;
+    setState(() => _doublageEnCours = true);
+    try {
+      final res = await _economyService.doublerOcMatch(widget.params.matchId!);
+      if (!mounted) return;
+      final bonus = (res['bonus_oc'] as num?)?.toInt() ?? 0;
+      setState(() {
+        _doubleOcDejaReclame = true;
+        _doublageEnCours = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('+$bonus Otaku Coins bonus credites !')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _doublageEnCours = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
+  }
+
+  Widget _buildRewardChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.55)),
+      ),
+      child: Text(text, style: OtakuTypo.hud.copyWith(fontSize: 14, color: color)),
+    );
+  }
+
+  Future<void> _partagerResultat() async {
+    final s = _summaryServeur;
+    final int newLevel = (s?['new_level'] as num?)?.toInt() ?? _monNiveau;
+    final int? divId = (s?['new_division_id'] as num?)?.toInt();
+    final bool ko = s?['ended_by_ko'] == true || _etat.pvBot <= 0;
+    final int ocPerf = (s?['oc_performance_net'] as num?)?.toInt() ?? 0;
+    final double avgSec = _questionsRepondues > 0 ? (_totalResponseMs / _questionsRepondues / 1000.0) : 0.0;
+
+    final String modeLabel = widget.params.mode == 'division' ? 'Division Mondiale' : 'Combat Solo';
+    final String animeNom = widget.params.anime ?? 'TOUS';
+    final String workLabel = animeNom == 'TOUS'
+        ? 'Mix 21 Oeuvres'
+        : (widget.params.arc != null ? '$animeNom (${widget.params.arc})' : animeNom);
+
+    await showDialog(
+      context: context,
+      builder: (_) => VictoryShareCardDialog(
+        data: VictoryShareData(
+          modeLabel: modeLabel,
+          workAndArc: workLabel,
+          winnerPseudo: _monPseudo,
+          winnerSkinKey: _monSkinKey,
+          winnerLevel: newLevel,
+          winnerDivisionId: divId,
+          isKo: ko,
+          winnerHpRemaining: _etat.pvJoueur,
+          initialHp: CombatState.pvDepart,
+          correctAnswers: _bonnesReponses,
+          totalQuestionsPlayed: _questionsRepondues > 0 ? _questionsRepondues : _etat.questionActuelle,
+          avgResponseSec: avgSec,
+          hayaCount: _hayaCount,
+          maxCombo: _maxCombo,
+          matchOcGained: ocPerf,
+          opponentDivisionId: divId ?? 10,
+          opponentRankTitle: EconomyV92Service.titreRangOfficiel(newLevel),
         ),
       ),
     );
   }
 
-  /// Capture l'ecran resultat et le partage via le share sheet natif
-  Future<void> _partagerResultat() async {
-    try {
-      // Capturer le widget en image
-      final boundary = _repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
-
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-
-      // Sauvegarder temporairement
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/otaku_verse_resultat.png');
-      await file.writeAsBytes(byteData.buffer.asUint8List());
-
-      // Partager
-      final result = _etat.vainqueur == 'joueur' ? 'VICTOIRE' : (_etat.vainqueur == 'egalite' ? 'EGALITE' : 'DEFAITE');
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: '$result sur Otaku Verse ! +$_xpGagne XP',
-      );
-    } catch (_) {}
-  }
-
-  /// Mini stat pour l'ecran resultat (PV restants)
   Widget _buildStatResultat(String label, int pv, int pvMax) {
-    final pourcentage = pv / pvMax;
-    final couleur = pourcentage <= 0.2 ? OtakuColors.pvCritique : (pourcentage <= 0.5 ? OtakuColors.pvMoyen : OtakuColors.pvHaut);
+    final pct = pv / pvMax;
+    final couleur = pct <= 0.2 ? OtakuColors.pvCritique : (pct <= 0.5 ? OtakuColors.pvMoyen : OtakuColors.pvHaut);
     return Column(
       children: [
         Text(label, style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
-        const SizedBox(height: 4),
-        Text('$pv', style: OtakuTypo.hud.copyWith(fontSize: 24, color: couleur)),
-        Text('/$pvMax', style: OtakuTypo.bodySmall.copyWith(fontSize: 11)),
+        const SizedBox(height: 2),
+        Text('$pv', style: OtakuTypo.hud.copyWith(fontSize: 22, color: couleur)),
+        Text('/$pvMax', style: OtakuTypo.bodySmall.copyWith(fontSize: 10)),
       ],
     );
   }

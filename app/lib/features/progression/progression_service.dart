@@ -1,60 +1,30 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../economy/economy_v92_service.dart';
 
-/// === SERVICE DE PROGRESSION ===
+/// === SERVICE DE PROGRESSION (ALIGNE V9.2) ===
 /// Gere l'XP, les niveaux et les rangs du joueur.
 /// Les donnees sont stockees dans la table `profiles` de Supabase.
 
 class ProgressionService {
   final _supabase = Supabase.instance.client;
 
-  // --- BAREME XP (voir ROADMAP section 9.2) ---
-  static const int xpCombatTermine = 20;
-  static const int xpBonneReponse = 10;
-  static const int xpBonusKO = 30;
+  // --- BAREME XP V9.2 (§1.2) ---
+  static const int xpCombatTermine = 15;
+  static const int xpBonneReponse = 3;
+  static const int xpBonusKO = 15;
   static const int xpBonusSansDegat = 50;
 
-  /// Calcule l'XP requise pour atteindre le niveau N.
-  /// Formule : 100 * N * 1.2
-  static int xpRequise(int niveau) {
-    return (100 * niveau * 1.2).round();
-  }
+  /// Cout en XP pour passer au niveau suivant (courbe V9.2 §1.3)
+  static int xpRequise(int niveau) => EconomyV92Service.xpPourNiveauSuivant(niveau);
 
-  /// Calcule le niveau a partir de l'XP totale accumulee.
-  /// On monte de niveau quand l'XP totale depasse la somme des paliers.
-  static int calculerNiveau(int xpTotale) {
-    int niveau = 1;
-    int xpAccumulee = 0;
-    while (true) {
-      final palier = xpRequise(niveau);
-      if (xpAccumulee + palier > xpTotale) break;
-      xpAccumulee += palier;
-      niveau++;
-    }
-    return niveau;
-  }
+  /// Niveau exact calcule depuis l'XP totale (courbe V9.2 §1.3)
+  static int calculerNiveau(int xpTotale) => EconomyV92Service.calculerNiveau(xpTotale);
 
-  /// XP restante dans le niveau actuel (pour la barre de progression)
-  static int xpDansNiveauActuel(int xpTotale) {
-    int niveau = 1;
-    int xpAccumulee = 0;
-    while (true) {
-      final palier = xpRequise(niveau);
-      if (xpAccumulee + palier > xpTotale) break;
-      xpAccumulee += palier;
-      niveau++;
-    }
-    return xpTotale - xpAccumulee;
-  }
+  /// XP accumulee dans le niveau actuel (pour la barre de progression)
+  static int xpDansNiveauActuel(int xpTotale) => EconomyV92Service.xpDansNiveauActuel(xpTotale);
 
-  /// Retourne le rang correspondant au niveau
-  static String rang(int niveau) {
-    if (niveau <= 5) return 'Debutant';
-    if (niveau <= 15) return 'Apprenti Otaku';
-    if (niveau <= 30) return 'Passionne';
-    if (niveau <= 50) return 'Expert';
-    if (niveau <= 75) return 'Maitre du Verse';
-    return 'Legende';
-  }
+  /// Badge de Rang officiel permanent (Novice du Verse -> Legende Eternelle ★)
+  static String rang(int niveau) => EconomyV92Service.titreRangOfficiel(niveau);
 
   /// Calcule l'XP gagnee a la fin d'un combat.
   /// [bonnesReponses] : nombre de bonnes reponses du joueur

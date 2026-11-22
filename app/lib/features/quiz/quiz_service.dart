@@ -1,70 +1,162 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Represente une question de quiz
+/// Represente une question de quiz (compatible Supabase V1 et Cloudflare R2 V9.2)
 class Question {
   final String id;
   final String anime;
+  final String? workSlug;
   final String? arc;
+  final String domain;
   final String type;
   final String difficulte;
+  final int difficultyLevel;
+  final String variantCode;
   final String question;
   final String choixA;
   final String choixB;
   final String choixC;
   final String choixD;
-  // bonneReponse garde en local uniquement pour le mode hors-ligne (fallback)
+  // Securite : toujours vide avant la reponse du joueur (revele par le serveur apres clic)
   final String bonneReponse;
   final String? explication;
   final String? imageUrl;
+  final List<String>? wordBank;
+  final String? unit;
+  final double? minSlider;
+  final double? maxSlider;
 
   Question({
     required this.id,
     required this.anime,
+    this.workSlug,
     this.arc,
+    this.domain = 'GLOBAL',
     required this.type,
     required this.difficulte,
+    this.difficultyLevel = 2,
+    this.variantCode = '1.1',
     required this.question,
     required this.choixA,
     required this.choixB,
     required this.choixC,
     required this.choixD,
-    required this.bonneReponse,
+    this.bonneReponse = '',
     this.explication,
     this.imageUrl,
+    this.wordBank,
+    this.unit,
+    this.minSlider,
+    this.maxSlider,
   });
 
-  /// Cree une Question depuis les donnees Supabase (Map)
+  static String _labelFromLevel(int lvl) {
+    switch (lvl) {
+      case 1:
+        return 'facile';
+      case 2:
+        return 'moyen';
+      case 3:
+        return 'difficile';
+      case 4:
+        return 'expert';
+      case 5:
+        return 'maitre';
+      default:
+        return 'moyen';
+    }
+  }
+
+  static int _levelFromLabel(String? lbl) {
+    switch ((lbl ?? '').toLowerCase()) {
+      case 'facile':
+        return 1;
+      case 'moyen':
+        return 2;
+      case 'difficile':
+        return 3;
+      case 'expert':
+        return 4;
+      case 'maitre':
+      case 'maître':
+        return 5;
+      default:
+        return 2;
+    }
+  }
+
+  /// Cree une Question depuis Supabase (format V1)
   factory Question.fromMap(Map<String, dynamic> map) {
+    final diff = map['difficulte']?.toString() ?? 'moyen';
     return Question(
-      id: map['id'],
-      anime: map['anime'],
-      arc: map['arc'],
-      type: map['type'],
-      difficulte: map['difficulte'],
-      question: map['question'],
-      choixA: map['choix_a'],
-      choixB: map['choix_b'],
-      choixC: map['choix_c'],
-      choixD: map['choix_d'],
-      bonneReponse: map['bonne_reponse'],
-      explication: map['explication'],
-      imageUrl: map['image_url'],
+      id: map['id'].toString(),
+      anime: map['anime']?.toString() ?? '',
+      workSlug: map['work_slug']?.toString(),
+      arc: map['arc']?.toString(),
+      domain: map['domain']?.toString() ?? 'GLOBAL',
+      type: map['type']?.toString() ?? 'general',
+      difficulte: diff,
+      difficultyLevel: (map['difficulty_level'] as num?)?.toInt() ?? _levelFromLabel(diff),
+      variantCode: map['variant_code']?.toString() ?? '1.1',
+      question: map['question']?.toString() ?? '',
+      choixA: map['choix_a']?.toString() ?? '',
+      choixB: map['choix_b']?.toString() ?? '',
+      choixC: map['choix_c']?.toString() ?? '',
+      choixD: map['choix_d']?.toString() ?? '',
+      bonneReponse: '',
+      explication: map['explication']?.toString(),
+      imageUrl: map['image_url']?.toString(),
     );
   }
 
-  /// Retourne la liste des 4 choix sous forme [lettre, texte]
-  List<MapEntry<String, String>> get choix => [
-        MapEntry('A', choixA),
-        MapEntry('B', choixB),
-        MapEntry('C', choixC),
-        MapEntry('D', choixD),
-      ];
+  /// Cree une Question depuis le Cloudflare Worker R2 (format V9.2 sans bonne reponse)
+  factory Question.fromR2Map(Map<String, dynamic> map) {
+    final lvl = (map['difficulty_level'] as num?)?.toInt() ?? 2;
+    final slug = map['work_slug']?.toString() ?? '';
+    return Question(
+      id: map['id']?.toString() ?? '',
+      anime: slug.replaceAll('_', ' '),
+      workSlug: slug,
+      arc: map['arc_name']?.toString(),
+      domain: map['domain']?.toString() ?? 'GLOBAL',
+      type: map['variant_code']?.toString() ?? '1.1',
+      difficulte: _labelFromLevel(lvl),
+      difficultyLevel: lvl,
+      variantCode: map['variant_code']?.toString() ?? '1.1',
+      question: map['question']?.toString() ?? '',
+      choixA: map['choix_a']?.toString() ?? '',
+      choixB: map['choix_b']?.toString() ?? '',
+      choixC: map['choix_c']?.toString() ?? '',
+      choixD: map['choix_d']?.toString() ?? '',
+      bonneReponse: '',
+      wordBank: map['word_bank'] is List
+          ? (map['word_bank'] as List).map((e) => e.toString()).toList()
+          : null,
+      unit: map['unit']?.toString(),
+      minSlider: (map['min_slider'] as num?)?.toDouble(),
+      maxSlider: (map['max_slider'] as num?)?.toDouble(),
+    );
+  }
+
+  /// Retourne les choix non vides (gere QCM 4 choix et Vrai/Faux ou Duel 2 choix)
+  List<MapEntry<String, String>> get choix {
+    final list = <MapEntry<String, String>>[
+      MapEntry('A', choixA),
+      MapEntry('B', choixB),
+    ];
+    if (choixC.isNotEmpty) list.add(MapEntry('C', choixC));
+    if (choixD.isNotEmpty) list.add(MapEntry('D', choixD));
+    return list;
+  }
 }
 
 /// Resultat retourne par l'Edge Function apres validation
 class ResultatValidation {
   final bool joueurCorrect;
   final bool botCorrect;
+  final String bonneReponse;
   final int degatsInfliges;
   final int degatsSubis;
   final bool comboJoueurDeclenche;
@@ -75,6 +167,7 @@ class ResultatValidation {
   ResultatValidation({
     required this.joueurCorrect,
     required this.botCorrect,
+    this.bonneReponse = '',
     required this.degatsInfliges,
     required this.degatsSubis,
     required this.comboJoueurDeclenche,
@@ -87,6 +180,7 @@ class ResultatValidation {
     return ResultatValidation(
       joueurCorrect: json['joueur_correct'] ?? false,
       botCorrect: json['bot_correct'] ?? false,
+      bonneReponse: json['bonne_reponse'] ?? '',
       degatsInfliges: json['degats_infliges'] ?? 0,
       degatsSubis: json['degats_subis'] ?? 0,
       comboJoueurDeclenche: json['combo_joueur_declenche'] ?? false,
@@ -97,27 +191,104 @@ class ResultatValidation {
   }
 }
 
-/// Service qui gere la recuperation des questions depuis Supabase.
+/// Service qui gere la recuperation des questions (Cloudflare R2 en priorite, Supabase en secours).
 class QuizService {
   final _supabase = Supabase.instance.client;
 
-  /// Acces au client Supabase (utilise par CombatService pour les requetes)
+  // URL publique du Cloudflare Worker (ne contient aucun secret)
+  static String get workerUrl {
+    final envUrl = dotenv.env['QUIZ_WORKER_URL'];
+    if (envUrl != null && envUrl.isNotEmpty) return envUrl.replaceAll(RegExp(r'/$'), '');
+    return 'https://otaku-verse-quiz-api.otakuverse-221.workers.dev';
+  }
+
+  // Cache local du catalogue des 21 oeuvres (evite des appels reseau repetes)
+  static Map<String, dynamic>? _catalogCache;
+
   SupabaseClient get supabaseClient => _supabase;
 
-  /// Recupere un lot de questions aleatoires.
-  /// [nombre] : combien de questions on veut
-  /// [anime] : filtrer par anime (optionnel)
-  /// [difficulte] : filtrer par difficulte (optionnel)
+  /// Recupere le catalogue complet des 21 oeuvres depuis Cloudflare R2 (`/catalog`).
+  Future<List<Map<String, dynamic>>> recupererCatalogueR2() async {
+    if (_catalogCache != null && _catalogCache!['works'] is List) {
+      return List<Map<String, dynamic>>.from(_catalogCache!['works']);
+    }
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
+      final req = await client.getUrl(Uri.parse('$workerUrl/catalog'));
+      final res = await req.close().timeout(const Duration(seconds: 8));
+      final body = await res.transform(utf8.decoder).join();
+      client.close();
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(body) as Map<String, dynamic>;
+        _catalogCache = decoded;
+        if (decoded['works'] is List) {
+          return List<Map<String, dynamic>>.from(decoded['works']);
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Tire un lot de 40 questions (ou N questions) depuis Cloudflare R2 (`/draw`).
+  /// Aucune bonne reponse ne transite jamais vers l'application.
+  Future<List<Question>> tirerLotR2({
+    String mode = 'solo',
+    String? workSlug,
+    String? arcName,
+    String? domain,
+    String? difficulty,
+    int count = 40,
+    List<String>? variants,
+  }) async {
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final req = await client.postUrl(Uri.parse('$workerUrl/draw'));
+      req.headers.set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8');
+      req.write(jsonEncode({
+        'mode': mode,
+        'count': count,
+        if (workSlug != null && workSlug.isNotEmpty) 'work_slug': workSlug,
+        if (arcName != null && arcName.isNotEmpty) 'arc_name': arcName,
+        if (domain != null && domain.isNotEmpty) 'domain': domain,
+        if (difficulty != null && difficulty.isNotEmpty) 'difficulty': difficulty,
+        // Par defaut : formats a choix (QCM, Intrus, Qui suis-je, Vrai/Faux, Duel A/B)
+        'variants': variants ?? ['1.1', '1.2', '1.4', '2.1', '2.2'],
+      }));
+      final res = await req.close().timeout(const Duration(seconds: 12));
+      final body = await res.transform(utf8.decoder).join();
+      client.close();
+
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(body) as Map<String, dynamic>;
+        final rawList = decoded['questions'] as List? ?? [];
+        final questions = rawList
+            .whereType<Map>()
+            .map((e) => Question.fromR2Map(Map<String, dynamic>.from(e)))
+            .where((q) => q.choixA.isNotEmpty && q.choixB.isNotEmpty)
+            .toList();
+        if (questions.isNotEmpty) return questions;
+      }
+    } catch (_) {}
+
+    // Repli automatique sur Supabase si R2 est injoignable
+    return recupererQuestions(
+      nombre: count,
+      anime: workSlug?.replaceAll('_', ' '),
+      arc: arcName,
+      difficulte: difficulty == 'adaptatif' ? null : difficulty,
+    );
+  }
+
+  /// Recupere un lot de questions depuis Supabase (sans bonne_reponse).
   Future<List<Question>> recupererQuestions({
     int nombre = 10,
     String? anime,
     String? arc,
     String? difficulte,
   }) async {
-    // Construit la requete
     var requete = _supabase
         .from('questions')
-        .select()
+        .select('id, anime, arc, type, difficulte, question, choix_a, choix_b, choix_c, choix_d, explication, image_url')
         .eq('statut', 'actif');
 
     if (anime != null) {
@@ -130,22 +301,13 @@ class QuizService {
       requete = requete.eq('difficulte', difficulte);
     }
 
-    // Recupere les questions, limitees au nombre voulu, en ordre aleatoire
     final reponse = await requete.limit(nombre);
-
-    // Convertit en objets Question
-    final questions = (reponse as List)
-        .map((q) => Question.fromMap(q))
-        .toList();
-
-    // Melange pour avoir un ordre aleatoire
+    final questions = (reponse as List).map((q) => Question.fromMap(q)).toList();
     questions.shuffle();
-
     return questions;
   }
 
-  /// Appelle l'Edge Function pour valider une reponse cote serveur.
-  /// C'est le serveur qui verifie si la reponse est correcte et calcule les degats.
+  /// Validation legacy (mode Verse V2) via l'Edge Function `valider-reponse`.
   Future<ResultatValidation> validerReponse({
     required String questionId,
     required String reponse,

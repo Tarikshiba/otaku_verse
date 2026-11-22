@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../core/theme.dart';
+import '../combat/combat_service.dart';
 import 'matchmaking_service.dart';
 import 'verse_combat_page.dart';
 
@@ -14,14 +15,51 @@ class VerseDuelSetupPage extends StatefulWidget {
 
 class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
   final MatchmakingService _matchmakingService = MatchmakingService();
+  final CombatService _combatService = CombatService();
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
 
-  // Paramètres personnalisables du salon amical (Roadmap 9.1)
+  // FIX-04 : Liste dynamique des 21 oeuvres et de leurs arcs depuis R2 / Supabase
+  List<String> _animesItems = ['Tous'];
+  List<String> _arcsItems = ['Tous'];
   String _selectedAnime = 'Tous';
   String _selectedArc = 'Tous';
   String _selectedDifficulte = 'Toutes';
   int _selectedNombre = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _chargerAnimesDynamiques();
+  }
+
+  Future<void> _chargerAnimesDynamiques() async {
+    try {
+      final animes = await _combatService.recupererAnimesDisponibles();
+      if (!mounted) return;
+      setState(() {
+        _animesItems = ['Tous', ...animes];
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _chargerArcsDynamiques(String anime) async {
+    if (anime == 'Tous') {
+      setState(() {
+        _arcsItems = ['Tous'];
+        _selectedArc = 'Tous';
+      });
+      return;
+    }
+    try {
+      final arcs = await _combatService.recupererArcsDisponibles(anime);
+      if (!mounted) return;
+      setState(() {
+        _arcsItems = ['Tous', ...arcs];
+        _selectedArc = 'Tous';
+      });
+    } catch (_) {}
+  }
 
   void _creerSalon() async {
     setState(() => _isLoading = true);
@@ -125,8 +163,12 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
                           child: _buildDropdown(
                             label: "ANIME",
                             value: _selectedAnime,
-                            items: const ['Tous', 'One Piece', 'naruto'],
-                            onChanged: (v) => setState(() => _selectedAnime = v!),
+                            items: _animesItems,
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _selectedAnime = v);
+                              _chargerArcsDynamiques(v);
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -134,7 +176,7 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
                           child: _buildDropdown(
                             label: "ARC",
                             value: _selectedArc,
-                            items: const ['Tous', 'East Blue', 'Introduction'],
+                            items: _arcsItems,
                             onChanged: (v) => setState(() => _selectedArc = v!),
                           ),
                         ),
@@ -147,7 +189,7 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
                           child: _buildDropdown(
                             label: "DIFFICULTÉ",
                             value: _selectedDifficulte,
-                            items: const ['Toutes', 'facile', 'moyen', 'difficile', 'expert'],
+                            items: const ['Toutes', 'facile', 'moyen', 'difficile', 'expert', 'maitre'],
                             onChanged: (v) => setState(() => _selectedDifficulte = v!),
                           ),
                         ),
@@ -156,7 +198,7 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
                           child: _buildDropdown(
                             label: "QUESTIONS",
                             value: _selectedNombre.toString(),
-                            items: const ['5', '10', '15'],
+                            items: const ['10', '20', '40'],
                             onChanged: (v) => setState(() => _selectedNombre = int.parse(v!)),
                           ),
                         ),
@@ -218,7 +260,8 @@ class _VerseDuelSetupPageState extends State<VerseDuelSetupPage> {
         Text(label, style: OtakuTypo.label.copyWith(fontSize: 10, color: OtakuColors.textMuted)),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
-          value: value,
+          key: ValueKey('$label-$value'),
+          initialValue: value,
           dropdownColor: OtakuColors.surface,
           style: OtakuTypo.bodySmall.copyWith(color: Colors.white),
           decoration: InputDecoration(

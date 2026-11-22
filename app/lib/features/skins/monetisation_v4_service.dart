@@ -1,191 +1,165 @@
-import 'dart:math';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../economy/economy_v92_service.dart';
 
-/// Service de la V4 (Section 11 de la Roadmap) :
-/// Gère la monnaie virtuelle Verse Coins, les Publicités récompensées opt-in,
-/// le Pass Premium mensuel, les Coffres et les Articles/Boosters de la Boutique.
+/// === SERVICE BOUTIQUE & MONETISATION V9.2 (100% SUPABASE) ===
+/// Remplace l'ancien service V4 Firebase RTDB :
+/// - ZERO Booster d'XP, ZERO Coffre Mystere XP, ZERO VC contre pub (ECO-02)
+/// - 5 Packs VC calibres au franc pres (SHOP-01)
+/// - 3 Offres claires : Sans Pub 1 An, Pack Demarrage (1x), VIP Mensuel/Annuel (SHOP-02)
+/// - Calendrier 21 jours (plafond 150 VC/saison + swap 250 OC cycle 2)
+/// - Verse Analytics : 7 Stats Pro exclusives VIP (§2.3 #4)
 class MonetisationV4Service {
-  final FirebaseDatabase _db = FirebaseDatabase.instanceFor(
-    app: Firebase.app(),
-    databaseURL: 'https://otaku-verse-6e05e-default-rtdb.europe-west1.firebasedatabase.app',
-  );
   final SupabaseClient _supabase = Supabase.instance.client;
+  final EconomyV92Service _economy = EconomyV92Service();
 
-  /// Récupère le portefeuille V4 du joueur (Verse Coins, Pass Premium, Boost XP, inventaire)
+  Future<Map<String, dynamic>> _invokeShop(Map<String, dynamic> body) async {
+    final res = await _supabase.functions.invoke('shop-tutorial-engine', body: body);
+    final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    if (res.status >= 400 || data['error'] != null) {
+      throw Exception(data['error']?.toString() ?? 'Erreur serveur boutique (${res.status})');
+    }
+    return data;
+  }
+
+  /// Recupere l'etat complet du portefeuille, des abonnements et des cosmetiques depuis Supabase
   Future<Map<String, dynamic>> recupererPortefeuille() async {
-    final userId = _supabase.auth.currentUser!.id;
-    try {
-      final ref = _db.ref('economie/$userId');
-      final snap = await ref.get();
-      if (snap.exists && snap.value is Map) {
-        final data = Map<String, dynamic>.from(snap.value as Map);
-        final int now = DateTime.now().millisecondsSinceEpoch;
-        final int doubleXpUntil = data['doubleXpUntil'] ?? 0;
-        final int minutesBoost = doubleXpUntil > now ? ((doubleXpUntil - now) / 60000).ceil() : 0;
-        final List<String> articles = (data['articlesPossedes'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      return {
+        'ocBalance': 0,
+        'verseCoins': 0,
+        'vcBonus': 0,
+        'vcPaid': 0,
+        'seasonFreeVcEarned': 0,
+        'passPremium': false,
+        'noAdsActif': false,
+        'starterPackClaimed': false,
+        'articlesPossedes': <String>[],
+        'calendarDay': 0,
+        'calendarCycle': 1,
+        'calendarClaimedToday': false,
+      };
+    }
 
-        return {
-          'verseCoins': data['verseCoins'] ?? 100,
-          'passPremium': data['passPremium'] == true,
-          'doubleXpActif': minutesBoost > 0,
-          'minutesBoostRestantes': minutesBoost,
-          'pubsVuesSession': data['pubsVuesSession'] ?? 0,
-          'articlesPossedes': articles,
-          'dernierBonusQuotidien': data['dernierBonusQuotidien'] ?? '',
-        };
-      } else {
-        // Initialisation d'un portefeuille de départ avec 100 Verse Coins offerts
-        final initData = {
-          'verseCoins': 100,
-          'passPremium': false,
-          'doubleXpUntil': 0,
-          'pubsVuesSession': 0,
-          'articlesPossedes': <String>[],
-          'dernierBonusQuotidien': '',
-        };
-        await ref.set(initData);
-        return {
-          'verseCoins': 100,
-          'passPremium': false,
-          'doubleXpActif': false,
-          'minutesBoostRestantes': 0,
-          'pubsVuesSession': 0,
-          'articlesPossedes': <String>[],
-          'dernierBonusQuotidien': '',
-        };
+    try {
+      final wallet = await _economy.recupererPortefeuille();
+      final prof = await _supabase
+          .from('profiles')
+          .select('is_vip, vip_expires_at, no_ads_expires_at, starter_pack_claimed')
+          .eq('id', userId)
+          .maybeSingle();
+
+      final cosmetics = await _supabase
+          .from('player_cosmetics')
+          .select('item_id, category, equipped')
+          .eq('user_id', userId);
+
+      final claims = await _supabase
+          .from('daily_calendar_claims')
+          .select('cycle_number, day_number, claimed_date')
+          .eq('user_id', userId)
+          .order('cycle_number', ascending: false)
+          .order('day_number', ascending: false)
+          .limit(1);
+
+      final now = DateTime.now();
+      final todayIso = now.toIso8601String().substring(0, 10);
+      final vipExp = prof?['vip_expires_at'] != null ? DateTime.tryParse(prof!['vip_expires_at'].toString()) : null;
+      final noAdsExp = prof?['no_ads_expires_at'] != null ? DateTime.tryParse(prof!['no_ads_expires_at'].toString()) : null;
+
+      final bool isVip = prof?['is_vip'] == true && (vipExp == null || vipExp.isAfter(now));
+      final bool noAdsActif = isVip || (noAdsExp != null && noAdsExp.isAfter(now));
+
+      final ownedIds = List<Map<String, dynamic>>.from(cosmetics)
+          .map((e) => e['item_id']?.toString() ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      int calCycle = 1;
+      int calDay = 0;
+      bool claimedToday = false;
+      if ((claims as List).isNotEmpty) {
+        final last = Map<String, dynamic>.from(claims.first as Map);
+        calCycle = (last['cycle_number'] as num?)?.toInt() ?? 1;
+        calDay = (last['day_number'] as num?)?.toInt() ?? 0;
+        claimedToday = last['claimed_date']?.toString() == todayIso;
       }
+
+      return {
+        'ocBalance': wallet.ocBalance,
+        'verseCoins': wallet.totalVc,
+        'vcBonus': wallet.vcBonus,
+        'vcPaid': wallet.vcPaid,
+        'seasonFreeVcEarned': wallet.seasonFreeVcEarned,
+        'passPremium': isVip,
+        'vipExpiresAt': prof?['vip_expires_at']?.toString(),
+        'noAdsActif': noAdsActif,
+        'noAdsExpiresAt': prof?['no_ads_expires_at']?.toString(),
+        'starterPackClaimed': prof?['starter_pack_claimed'] == true,
+        'articlesPossedes': ownedIds,
+        'calendarDay': calDay,
+        'calendarCycle': calCycle,
+        'calendarClaimedToday': claimedToday,
+      };
     } catch (_) {
       return {
-        'verseCoins': 100,
+        'ocBalance': 0,
+        'verseCoins': 0,
+        'vcBonus': 0,
+        'vcPaid': 0,
+        'seasonFreeVcEarned': 0,
         'passPremium': false,
-        'doubleXpActif': false,
-        'minutesBoostRestantes': 0,
-        'pubsVuesSession': 0,
+        'noAdsActif': false,
+        'starterPackClaimed': false,
         'articlesPossedes': <String>[],
-        'dernierBonusQuotidien': '',
+        'calendarDay': 0,
+        'calendarCycle': 1,
+        'calendarClaimedToday': false,
       };
     }
   }
 
-  /// Acheter un pack de Verse Coins (mode simulation pour tests APK Tariq & Heat)
-  Future<int> acheterPackCoins(int quantite) async {
-    final userId = _supabase.auth.currentUser!.id;
-    final p = await recupererPortefeuille();
-    final int nouveauSolde = (p['verseCoins'] as int) + quantite;
-    await _db.ref('economie/$userId').update({'verseCoins': nouveauSolde});
-    return nouveauSolde;
+  /// Acheter un des 5 Packs VC officiels (§2.1 / SHOP-01)
+  Future<String> acheterPackVcOfficiel(String packId) async {
+    final res = await _invokeShop({'action': 'purchase_vc_pack', 'pack_id': packId});
+    return res['message']?.toString() ?? 'Pack VC credite !';
   }
 
-  /// Activer l'abonnement mensuel Pass Premium (+20% XP, sans pub, +50 Coins/jour, cadre Premium)
-  Future<void> activerPassPremium() async {
-    final userId = _supabase.auth.currentUser!.id;
-    final p = await recupererPortefeuille();
-    final int nouveauSolde = (p['verseCoins'] as int) + 50; // Premier bonus quotidien crédité d'office
-    final List<String> articles = List<String>.from(p['articlesPossedes'] as List<String>);
-    if (!articles.contains('cadre_premium_or')) {
-      articles.add('cadre_premium_or');
-    }
-    await _db.ref('economie/$userId').update({
-      'passPremium': true,
-      'verseCoins': nouveauSolde,
-      'articlesPossedes': articles,
-    });
+  /// Activer une des 3 offres monetisation (§2.2 / SHOP-02 : no_ads_1y, starter_pack, vip_monthly, vip_yearly)
+  Future<String> acheterOffreOfficielle(String offerId) async {
+    final res = await _invokeShop({'action': 'purchase_offer', 'offer_id': offerId});
+    return res['message']?.toString() ?? 'Offre activee !';
   }
 
-  /// Réclamer le bonus quotidien de Verse Coins (+50 Coins avec Pass Premium, +15 Coins en gratuit)
-  Future<String> reclamerBonusQuotidienCoins() async {
-    final userId = _supabase.auth.currentUser!.id;
-    final p = await recupererPortefeuille();
-    final String today = DateTime.now().toIso8601String().substring(0, 10);
-    if (p['dernierBonusQuotidien'] == today) {
-      throw Exception("Bonus quotidien de Verse Coins déjà récupéré aujourd'hui.");
-    }
-    final bool isPremium = p['passPremium'] == true;
-    final int gain = isPremium ? 50 : 15;
-    final int nouveauSolde = (p['verseCoins'] as int) + gain;
-    await _db.ref('economie/$userId').update({
-      'verseCoins': nouveauSolde,
-      'dernierBonusQuotidien': today,
+  /// Acheter un cosmetique ou Goodies via le catalogue serveur (§2.4 / SHOP-03)
+  Future<String> acheterArticleBoutiqueV92(String itemId, {bool autoEquip = false}) async {
+    final res = await _invokeShop({
+      'action': 'purchase_goodie',
+      'item_id': itemId,
+      'auto_equip': autoEquip,
     });
-    return "+$gain Verse Coins récupérés (${isPremium ? 'Bonus Pass Premium' : 'Bonus Gratuit'}) !";
+    return res['message']?.toString() ?? 'Article debloque !';
   }
 
-  /// Regarder une publicité récompensée opt-in (Roadmap 11.2 : Double XP 15 min + 30 Coins, max 1 pub / 3 quiz)
-  Future<String> validerPubRecompensee() async {
-    final userId = _supabase.auth.currentUser!.id;
-    final p = await recupererPortefeuille();
-    final int pubsVues = p['pubsVuesSession'] as int? ?? 0;
-    if (pubsVues >= 3) {
-      throw Exception("Limite atteinte (fréquence max respectée). Joue 3 quiz avant la prochaine pub.");
-    }
-
-    final int nouveauSolde = (p['verseCoins'] as int) + 30;
-    final int doubleXpUntil = DateTime.now().millisecondsSinceEpoch + (15 * 60 * 1000);
-
-    await _db.ref('economie/$userId').update({
-      'verseCoins': nouveauSolde,
-      'doubleXpUntil': doubleXpUntil,
-      'pubsVuesSession': pubsVues + 1,
-    });
-
-    return "Double XP activé pendant 15 minutes + 30 Verse Coins reçus !";
+  /// Reclamer la case du jour du Calendrier 21 jours (§2.1)
+  Future<String> reclamerJourCalendrier21() async {
+    final res = await _invokeShop({'action': 'claim_calendar_day'});
+    return res['message']?.toString() ?? 'Recompense du jour recuperee !';
   }
 
-  /// Acheter un article cosmétique ou un booster avec des Verse Coins (aucun Pay-to-Win : Roadmap 11.4)
-  Future<String> acheterArticleBoutique({
-    required String articleId,
-    required String nom,
-    required int coutCoins,
-    int xpBonus = 0,
-    int minutesDoubleXp = 0,
-    bool estCoffre = false,
-  }) async {
-    final userId = _supabase.auth.currentUser!.id;
-    final p = await recupererPortefeuille();
-    final int solde = p['verseCoins'] as int;
-    final List<String> articles = List<String>.from(p['articlesPossedes'] as List<String>);
+  /// Coup de Pouce anti-soft-lock : +40 OC via pub volontaire (max 3/jour, ZERO VC)
+  Future<String> reclamerCoupDePouceOc({String mode = 'solo'}) async {
+    final res = await _economy.reclamerCoupDePouceOc(mode);
+    return res['message']?.toString() ?? '+40 OC credites !';
+  }
 
-    if (!estCoffre && minutesDoubleXp == 0 && articles.contains(articleId)) {
-      throw Exception("Tu possèdes déjà cet article.");
-    }
-    if (solde < coutCoins) {
-      throw Exception("Solde insuffisant ($solde / $coutCoins Verse Coins).");
-    }
+  /// Depenser des VC pour creer un Donjon (100 VC) ou un Salon Live (150 VC) — gratuit pour VIP
+  Future<Map<String, dynamic>> payerCreationCommunaute(String feature) async {
+    return _invokeShop({'action': 'spend_vc_feature', 'feature': feature});
+  }
 
-    final int nouveauSolde = solde - coutCoins;
-    int doubleXpUntil = DateTime.now().millisecondsSinceEpoch;
-    int gainXpTotal = xpBonus;
-    String messageResultat = "$nom débloqué !";
-
-    if (estCoffre) {
-      final tirages = [150, 250, 400];
-      gainXpTotal = tirages[Random().nextInt(tirages.length)];
-      messageResultat = "Coffre Mystère ouvert : +$gainXpTotal XP gagnés !";
-    } else if (minutesDoubleXp > 0) {
-      doubleXpUntil = DateTime.now().millisecondsSinceEpoch + (minutesDoubleXp * 60 * 1000);
-      messageResultat = "$nom activé pendant $minutesDoubleXp min !";
-    } else {
-      articles.add(articleId);
-    }
-
-    await _db.ref('economie/$userId').update({
-      'verseCoins': nouveauSolde,
-      'articlesPossedes': articles,
-      if (minutesDoubleXp > 0) 'doubleXpUntil': doubleXpUntil,
-    });
-
-    if (gainXpTotal > 0) {
-      try {
-        final prof = await _supabase.from('profiles').select('xp_totale').eq('id', userId).maybeSingle();
-        if (prof != null) {
-          final int xp = (prof['xp_totale'] ?? 0) + gainXpTotal;
-          await _supabase.from('profiles').update({'xp_totale': xp}).eq('id', userId);
-        }
-      } catch (_) {}
-    }
-
-    return messageResultat;
+  /// Recuperer les 7 Stats Pro VIP ("Verse Analytics") depuis le serveur (§2.3 #4)
+  Future<Map<String, dynamic>> recupererVerseAnalyticsVip() async {
+    return _invokeShop({'action': 'get_vip_analytics'});
   }
 }

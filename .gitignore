@@ -50,5 +50,12 @@ generate-keystore.bat
 scripts/fcm_secret_b64.txt
 scripts/planches_sources/
 
+# Archives Drive & donnees massives (ne jamais pousser sur GitHub)
+*.zip
+drive_sources/
+01_RÉSUMÉS*/
+r2_build/
+cloudflare_worker/.wrangler/
+
 # Divers
 *.log

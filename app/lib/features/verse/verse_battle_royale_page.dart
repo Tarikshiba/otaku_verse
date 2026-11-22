@@ -72,7 +72,7 @@ class _VerseBattleRoyalePageState extends State<VerseBattleRoyalePage> {
                 Text("SURVIS JUSQU'AU TOP #1", style: OtakuTypo.headlineLarge),
                 const SizedBox(height: 6),
                 Text(
-                  "10 combattants entrent dans l'arène. Chaque mauvaise réponse retire 35 PV. À 0 PV, c'est l'élimination immédiate.",
+                  "10 combattants, 350 PV chacun, 40 questions et Chrono Global 2 min (comble par bots apres 8s). Auto-faute -15 PV ; le Top 3 rapide frappe tous les autres (-15/-10/-5 PV).",
                   style: OtakuTypo.bodySmall,
                   textAlign: TextAlign.center,
                 ),

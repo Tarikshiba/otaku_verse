@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../../core/theme.dart';
+import '../../shared/rank_badge.dart';
 import '../progression/progression_service.dart';
+import '../skins/boutique_screen.dart';
+import '../skins/monetisation_v4_service.dart';
 import '../skins/skin_model.dart';
 import '../skins/skin_service.dart';
 import '../social/classement_screen.dart';
@@ -140,7 +143,7 @@ class _ProfilePageState extends State<ProfilePage>
                                     width: 56,
                                     height: 56,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Icon(
+                                    errorBuilder: (_, _, _) => Icon(
                                       Icons.person,
                                       size: 36,
                                       color: OtakuColors.accent.withValues(alpha: 0.7),
@@ -304,11 +307,15 @@ class _ProfilePageState extends State<ProfilePage>
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    Image.asset(
-                                      'assets/images/skins/$_skinActifImageKey.png',
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Center(
-                                        child: Icon(Icons.person, size: 70, color: OtakuColors.accent.withValues(alpha: 0.7)),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12, left: 6, right: 6, bottom: 20),
+                                      child: Image.asset(
+                                        'assets/images/skins/$_skinActifImageKey.png',
+                                        fit: BoxFit.contain,
+                                        alignment: Alignment.topCenter,
+                                        errorBuilder: (_, _, _) => Center(
+                                          child: Icon(Icons.person, size: 70, color: OtakuColors.accent.withValues(alpha: 0.7)),
+                                        ),
                                       ),
                                     ),
                                     Positioned(
@@ -373,9 +380,18 @@ class _ProfilePageState extends State<ProfilePage>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('@$pseudo', style: OtakuTypo.headlineLarge.copyWith(fontSize: 16)),
-                                  const SizedBox(height: 2),
-                                  Text('Niveau $niveau ($rangActuel)', style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.accent)),
+                                  Text(
+                                    '@$pseudo',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: OtakuTypo.headlineLarge.copyWith(fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  OfficialRankBadge(
+                                    niveau: (niveau as num).toInt(),
+                                    divisionId: (_profil?['division_id'] as num?)?.toInt(),
+                                    compact: true,
+                                  ),
                                   const SizedBox(height: 6),
                                   // Barre XP
                                   Row(
@@ -484,6 +500,38 @@ class _ProfilePageState extends State<ProfilePage>
                           ),
                         ),
                       ),
+                      const SizedBox(height: 8),
+
+                      // Verse Analytics : 7 Statistiques Pro VIP (§2.3 #4)
+                      GestureDetector(
+                        onTap: _ouvrirVerseAnalyticsVip,
+                        child: LiquidGlass(
+                          tintColor: const Color(0xFFFFD700),
+                          borderRadius: 14,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _profil?['is_vip'] == true ? Icons.insights_rounded : Icons.lock_rounded,
+                                size: 18,
+                                color: const Color(0xFFFFD700),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _profil?['is_vip'] == true
+                                      ? 'VERSE ANALYTICS (7 STATS PRO)'
+                                      : 'VERSE ANALYTICS (VIP)',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: OtakuTypo.label.copyWith(fontSize: 11, color: const Color(0xFFFFD700)),
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFFFD700)),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   ),
@@ -494,6 +542,83 @@ class _ProfilePageState extends State<ProfilePage>
         ],
       ),
     );
+  }
+
+  Future<void> _ouvrirVerseAnalyticsVip() async {
+    final bool isVip = _profil?['is_vip'] == true;
+    if (!isVip) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: OtakuColors.surface,
+          title: Text('VERSE ANALYTICS (7 STATS PRO)', style: OtakuTypo.headlineSmall.copyWith(color: const Color(0xFFFFD700))),
+          content: Text(
+            'Exclusif aux abonnes VIP : Radar 5 axes, reussite par difficulte, chrono moyen & ratio Haya!!, resistance aux Malus, courbe 50 derniers matchs, carnet d\'erreurs et bilan Face-a-Face.',
+            style: OtakuTypo.bodySmall,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700), foregroundColor: Colors.black),
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 3)));
+              },
+              child: const Text('VOIR L\'OFFRE VIP', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    try {
+      final data = await MonetisationV4Service().recupererVerseAnalyticsVip();
+      if (!mounted) return;
+      final radar = Map<String, dynamic>.from(data['radar_5_axes'] as Map? ?? {});
+      final h2h = Map<String, dynamic>.from(data['head_to_head_summary'] as Map? ?? {});
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: OtakuColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.insights_rounded, color: Color(0xFFFFD700)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'VERSE ANALYTICS (${data['sample_size'] ?? 0} MATCHS)',
+                          style: OtakuTypo.headlineSmall.copyWith(fontSize: 14, color: const Color(0xFFFFD700)),
+                        ),
+                      ),
+                      IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded, color: OtakuColors.textMuted)),
+                    ],
+                  ),
+                  const Divider(color: OtakuColors.border),
+                  Text('1. Radar 5 axes : Precision ${radar['precision'] ?? 0}% | Vitesse ${radar['vitesse'] ?? 0}% | Haya!! ${radar['haya'] ?? 0}% | Malus ${radar['resistance_malus'] ?? 0}% | Combativite ${radar['combativite'] ?? 0}%', style: OtakuTypo.bodySmall),
+                  const SizedBox(height: 6),
+                  Text('2. Temps de reaction moyen : ${data['avg_reaction_sec'] ?? 0} s  |  Ratio Haya!! (< 2s) : ${data['haya_ratio_pct'] ?? 0}%', style: OtakuTypo.bodySmall),
+                  const SizedBox(height: 6),
+                  Text('3. Resistance aux Malus : ${data['malus_resistance_pct'] ?? 100}% de victoires sous Malus', style: OtakuTypo.bodySmall),
+                  const SizedBox(height: 6),
+                  Text('4. Carnet d\'erreurs (50 derniers matchs) : ${data['total_errors_recent'] ?? 0} erreurs a reviser', style: OtakuTypo.bodySmall),
+                  const SizedBox(height: 6),
+                  Text('5. Bilan Face-a-Face : ${h2h['wins'] ?? 0} V / ${h2h['losses'] ?? 0} D (Taux K.O. : ${h2h['ko_rate_pct'] ?? 0}%)', style: OtakuTypo.bodySmall),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (_) {}
   }
 
   Widget _buildStatCard(String label, String valeur, Color couleur, IconData icon) {

@@ -1,180 +1,144 @@
-import 'dart:math';
+import '../economy/economy_v92_service.dart';
 import '../quiz/quiz_service.dart';
 import 'combat_models.dart';
 
-/// === SERVICE DE COMBAT ===
-/// Gere toute la logique d'un combat : recuperation des questions,
-/// validation des reponses via Edge Function (cote serveur),
-/// fallback local si pas de reseau.
-
+/// === SERVICE DE COMBAT V9.2 ===
+/// Recupere les 40 questions depuis Cloudflare R2 (1,25 M questions)
+/// et valide chaque reponse cote serveur via l'Edge Function `match-engine`.
 class CombatService {
   final QuizService _quizService = QuizService();
-  final Random _random = Random();
+  final EconomyV92Service _economyService = EconomyV92Service();
 
-  /// Recupere les questions pour un combat selon les parametres choisis.
+  /// Prepare un lot de 40 questions (mix progressif en Division ou niveau choisi en Solo).
   Future<List<Question>> preparerCombat(CombatParams params) async {
-    return await _quizService.recupererQuestions(
-      nombre: CombatState.questionsMax,
-      anime: params.anime,
-      arc: params.arc,
-      difficulte: params.difficulte == 'adaptatif' ? null : params.difficulte,
+    return await _quizService.tirerLotR2(
+      mode: params.mode,
+      workSlug: params.anime,
+      arcName: params.arc,
+      difficulty: params.difficulte,
+      count: CombatState.questionsMax,
     );
   }
 
-  /// Valide la reponse via l'Edge Function (cote serveur).
-  /// Le serveur verifie la bonne reponse, simule le bot, calcule les degats.
-  /// En cas d'erreur reseau, on fallback sur la validation locale.
-  Future<ResultatTour> jouerTourServeur({
+  /// Valide la reponse via `match-engine` (V9.2 : 350 PV, Auto-Faute -5 PV, Haya!!, Combo x3, 0 PV simultane).
+  Future<ResultatTour> jouerTourV92({
     required CombatState etat,
-    required String questionId,
+    required String? matchId,
+    required Question question,
     required String? reponseJoueur,
+    required int responseTimeMs,
     required String difficulte,
   }) async {
-    // Si le joueur n'a pas repondu (timeout), on envoie une reponse vide
-    final reponse = reponseJoueur ?? '';
+    final bool isTimeout = reponseJoueur == null || reponseJoueur.isEmpty;
+    final String answer = reponseJoueur ?? '';
 
-    try {
-      final validation = await _quizService.validerReponse(
-        questionId: questionId,
-        reponse: reponse,
-        comboJoueur: etat.comboJoueur,
-        comboBot: etat.comboBot,
-        difficulte: difficulte,
+    // Si on a un matchId cree par `match-engine`, on passe par le moteur officiel V9.2
+    if (matchId != null && matchId.isNotEmpty) {
+      final data = await _economyService.soumettreReponse(
+        matchId: matchId,
+        questionId: question.id,
+        answer: answer,
+        responseTimeMs: responseTimeMs,
+        isTimeout: isTimeout,
+        workSlug: question.workSlug,
+        difficultyLevel: question.difficultyLevel,
       );
 
-      // Mettre a jour l'etat avec les valeurs du serveur
-      etat.comboJoueur = validation.nouveauComboJoueur;
-      etat.comboBot = validation.nouveauComboBot;
-      etat.pvBot = (etat.pvBot - validation.degatsInfliges).clamp(0, CombatState.pvDepart);
-      etat.pvJoueur = (etat.pvJoueur - validation.degatsSubis).clamp(0, CombatState.pvDepart);
+      etat.pvJoueur = (data['player1_hp'] as num?)?.toInt() ?? etat.pvJoueur;
+      etat.pvBot = (data['player2_hp'] as num?)?.toInt() ?? etat.pvBot;
+      etat.comboJoueur = (data['player1_combo'] as num?)?.toInt() ?? 0;
+      etat.comboBot = (data['player2_combo'] as num?)?.toInt() ?? 0;
 
       return ResultatTour(
-        joueurCorrect: validation.joueurCorrect,
-        botCorrect: validation.botCorrect,
-        degatsInfliges: validation.degatsInfliges,
-        degatsSubis: validation.degatsSubis,
-        comboJoueurDeclenche: validation.comboJoueurDeclenche,
-        comboBotDeclenche: validation.comboBotDeclenche,
+        joueurCorrect: data['joueur_correct'] == true,
+        botCorrect: data['bot_correct'] == true,
+        degatsInfliges: (data['degats_infliges'] as num?)?.toInt() ?? 0,
+        degatsSubis: (data['degats_subis'] as num?)?.toInt() ?? 0,
+        comboJoueurDeclenche: data['combo_joueur_declenche'] == true,
+        comboBotDeclenche: data['combo_bot_declenche'] == true,
+        bonneReponse: data['bonne_reponse']?.toString() ?? '',
+        explication: data['explication']?.toString(),
+        hayaTriggered: data['haya_triggered'] == true,
+        clashWinner: data['clash_winner']?.toString(),
+        suddenDeathTriggered: data['sudden_death_triggered'] == true,
+        canSecondChance: data['can_second_chance'] == true,
+        matchFinished: data['match_finished'] == true,
+        remainingGlobalMs: (data['remaining_global_ms'] as num?)?.toInt(),
+        summary: data['summary'] is Map ? Map<String, dynamic>.from(data['summary']) : null,
       );
-    } catch (_) {
-      // Fallback local si le serveur est injoignable
-      return _jouerTourLocal(
-        etat: etat,
-        reponseJoueur: reponseJoueur,
-        questionId: questionId,
-        difficulte: difficulte,
-      );
-    }
-  }
-
-  /// Fallback : validation locale (utilisee si pas de reseau)
-  ResultatTour _jouerTourLocal({
-    required CombatState etat,
-    required String? reponseJoueur,
-    required String questionId,
-    required String difficulte,
-  }) {
-    // En local, on ne peut pas valider sans la bonne reponse
-    // Ce fallback ne sera utilise qu'en cas d'erreur reseau
-    // Le joueur est considere comme ayant rate (securite)
-    final joueurCorrect = false;
-    final botCorrect = botRepond(difficulte: difficulte);
-
-    return _calculerTour(etat: etat, joueurCorrect: joueurCorrect, botCorrect: botCorrect);
-  }
-
-  /// Simule la reponse du bot pour ce tour (utilise en fallback local).
-  bool botRepond({required String difficulte}) {
-    final double probaReussite;
-    switch (difficulte) {
-      case 'facile':
-        probaReussite = 0.3;
-      case 'moyen':
-        probaReussite = 0.5;
-      case 'difficile':
-        probaReussite = 0.7;
-      case 'expert':
-        probaReussite = 0.85;
-      default:
-        probaReussite = 0.5;
-    }
-    return _random.nextDouble() < probaReussite;
-  }
-
-  /// Calcule les degats et met a jour l'etat (logique commune)
-  ResultatTour _calculerTour({
-    required CombatState etat,
-    required bool joueurCorrect,
-    required bool botCorrect,
-  }) {
-    bool comboJoueurDeclenche = false;
-    int degatsInfliges = 0;
-
-    if (joueurCorrect) {
-      etat.comboJoueur++;
-      if (etat.comboJoueur >= CombatState.seuilCombo) {
-        comboJoueurDeclenche = true;
-        degatsInfliges = CombatState.degatsSpeciaux;
-        etat.comboJoueur = 0;
-      } else {
-        degatsInfliges = CombatState.degatsNormaux;
-      }
-    } else {
-      etat.comboJoueur = 0;
     }
 
-    bool comboBotDeclenche = false;
-    int degatsSubis = 0;
+    // Repli securise sur l'ancienne Edge Function si aucun matchId serveur
+    final validation = await _quizService.validerReponse(
+      questionId: question.id,
+      reponse: answer,
+      comboJoueur: etat.comboJoueur,
+      comboBot: etat.comboBot,
+      difficulte: difficulte,
+    );
 
-    if (botCorrect) {
-      etat.comboBot++;
-      if (etat.comboBot >= CombatState.seuilCombo) {
-        comboBotDeclenche = true;
-        degatsSubis = CombatState.degatsSpeciaux;
-        etat.comboBot = 0;
-      } else {
-        degatsSubis = CombatState.degatsNormaux;
-      }
-    } else {
-      etat.comboBot = 0;
-    }
-
-    etat.pvBot = (etat.pvBot - degatsInfliges).clamp(0, CombatState.pvDepart);
-    etat.pvJoueur = (etat.pvJoueur - degatsSubis).clamp(0, CombatState.pvDepart);
+    etat.comboJoueur = validation.nouveauComboJoueur;
+    etat.comboBot = validation.nouveauComboBot;
+    etat.pvBot = (etat.pvBot - validation.degatsInfliges).clamp(0, CombatState.pvDepart);
+    etat.pvJoueur = (etat.pvJoueur - validation.degatsSubis).clamp(0, CombatState.pvDepart);
 
     return ResultatTour(
-      joueurCorrect: joueurCorrect,
-      botCorrect: botCorrect,
-      degatsInfliges: degatsInfliges,
-      degatsSubis: degatsSubis,
-      comboJoueurDeclenche: comboJoueurDeclenche,
-      comboBotDeclenche: comboBotDeclenche,
+      joueurCorrect: validation.joueurCorrect,
+      botCorrect: validation.botCorrect,
+      degatsInfliges: validation.degatsInfliges,
+      degatsSubis: validation.degatsSubis,
+      comboJoueurDeclenche: validation.comboJoueurDeclenche,
+      comboBotDeclenche: validation.comboBotDeclenche,
+      bonneReponse: validation.bonneReponse,
     );
   }
 
-  /// Retourne la liste des animes disponibles dans la base de questions.
-  Future<List<String>> recupererAnimesDisponibles() async {
-    final supabase = _quizService.supabaseClient;
-    final reponse = await supabase
-        .from('questions')
-        .select('anime')
-        .eq('statut', 'actif');
+  /// Retourne la liste complete des oeuvres (21 oeuvres depuis R2, ou repli Supabase).
+  /// Chaque entree contient : slug, title, total_questions, arcs.
+  Future<List<Map<String, dynamic>>> recupererCatalogueOeuvres() async {
+    final works = await _quizService.recupererCatalogueR2();
+    if (works.isNotEmpty) return works;
 
+    // Repli sur Supabase si R2 indisponible
+    final supabase = _quizService.supabaseClient;
+    final reponse = await supabase.from('questions').select('anime').eq('statut', 'actif');
     final animes = (reponse as List)
         .map((row) => (row['anime'] as String).toLowerCase())
         .toSet()
+        .toList()
+      ..sort();
+    return animes
+        .map((a) => {
+              'slug': a.replaceAll(' ', '_'),
+              'title': a.toUpperCase(),
+              'arcs': <String>[],
+            })
         .toList();
-    animes.sort();
-    return animes;
   }
 
-  /// Retourne la liste des arcs pour un anime.
-  Future<List<String>> recupererArcsDisponibles(String anime) async {
+  /// Retourne uniquement les noms/slugs d'animes (retrocompatibilite avec les autres ecrans).
+  Future<List<String>> recupererAnimesDisponibles() async {
+    final works = await recupererCatalogueOeuvres();
+    return works.map((w) => (w['title'] ?? w['slug']).toString()).toList();
+  }
+
+  /// Retourne les arcs d'une oeuvre (depuis le catalogue R2 ou Supabase).
+  Future<List<String>> recupererArcsDisponibles(String animeOrSlug) async {
+    final works = await _quizService.recupererCatalogueR2();
+    final needle = animeOrSlug.toLowerCase();
+    for (final w in works) {
+      if (w['slug'].toString().toLowerCase() == needle ||
+          w['title'].toString().toLowerCase() == needle) {
+        final arcs = (w['arcs'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        if (arcs.isNotEmpty) return arcs;
+      }
+    }
+
     final supabase = _quizService.supabaseClient;
     final reponse = await supabase
         .from('questions')
         .select('arc')
-        .ilike('anime', anime)
+        .ilike('anime', animeOrSlug.replaceAll('_', ' '))
         .eq('statut', 'actif');
 
     final arcs = (reponse as List)
@@ -182,8 +146,8 @@ class CombatService {
         .where((arc) => arc != null && arc.isNotEmpty)
         .map((arc) => arc!)
         .toSet()
-        .toList();
-    arcs.sort();
+        .toList()
+      ..sort();
     return arcs;
   }
 }

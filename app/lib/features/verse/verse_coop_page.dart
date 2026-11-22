@@ -147,7 +147,13 @@ class _VerseCoopPageState extends State<VerseCoopPage> {
               children: [
                 const Icon(Icons.group_work_rounded, size: 64, color: OtakuColors.modeCoop),
                 const SizedBox(height: 12),
-                Text("FAITES ÉQUIPE CONTRE LE BOSS", style: OtakuTypo.headlineLarge, textAlign: TextAlign.center),
+                Text("FAITES EQUIPE CONTRE LE BOSS (525 PV · 40 Q)", style: OtakuTypo.headlineLarge, textAlign: TextAlign.center),
+                const SizedBox(height: 6),
+                Text(
+                  "Mode Coop 2v2 rapide : 0 VC (gratuit en Verse Coins, frais d'arene OC standards).",
+                  style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.pvHaut),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 6),
                 Text(
                   "Unissez vos réponses pour tomber les 200 PV du Gardien du Verse.",

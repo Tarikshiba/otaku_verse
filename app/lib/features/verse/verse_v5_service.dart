@@ -2,11 +2,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../quiz/quiz_service.dart';
-import '../skins/monetisation_v4_service.dart';
 
 /// Service de la V5 (Expansion) :
-/// 1. Battle Royale Quiz (10 joueurs, élimination progressive jusqu'au dernier survivant)
-/// 2. Système de Guildes / Clans (création, adhésion, mur de clan et Classement Mondial)
+/// 1. Battle Royale Quiz (10 joueurs, elimination progressive jusqu'au dernier survivant)
+/// 2. Systeme de Guildes / Clans (creation, adhesion, mur de clan et Classement Mondial)
 class VerseV5Service {
   final FirebaseDatabase _db = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
@@ -14,7 +13,6 @@ class VerseV5Service {
   );
   final SupabaseClient _supabase = Supabase.instance.client;
   final QuizService _quizService = QuizService();
-  final MonetisationV4Service _v4Service = MonetisationV4Service();
 
   Future<String> recupererPseudo() async {
     final user = _supabase.auth.currentUser!;
@@ -47,7 +45,7 @@ class VerseV5Service {
       await ref.child('joueurs/$userId').set({
         'id': userId,
         'pseudo': pseudo,
-        'pv': 100,
+        'pv': 350,
         'elimine': false,
         'score': 0,
         'isBot': false,
@@ -55,10 +53,13 @@ class VerseV5Service {
       return {'lobbyId': lobbyId, 'code': codeSalon.trim()};
     }
 
-    // Sinon on crée un nouveau salon Battle Royale de 10 joueurs
+    // Sinon on cree un nouveau salon Battle Royale de 10 joueurs (V9.2 : 350 PV / 40 Q / Chrono 2 min)
     final String code = (100000 + DateTime.now().millisecondsSinceEpoch % 900000).toString();
     final String lobbyId = 'br_$code';
-    final questionsList = await _quizService.recupererQuestions(nombre: 10);
+    final r2Questions = await _quizService.tirerLotR2(mode: 'division', count: 40);
+    final questionsList = r2Questions.isNotEmpty
+        ? r2Questions
+        : await _quizService.recupererQuestions(nombre: 40);
     final questionsMap = questionsList.map((q) => {
       'id': q.id,
       'question': q.question,
@@ -73,7 +74,7 @@ class VerseV5Service {
       userId: {
         'id': userId,
         'pseudo': pseudo,
-        'pv': 100,
+        'pv': 350,
         'elimine': false,
         'score': 0,
         'isBot': false,
@@ -97,7 +98,7 @@ class VerseV5Service {
       joueurs[botId] = {
         'id': botId,
         'pseudo': botsNoms[i],
-        'pv': 100,
+        'pv': 350,
         'elimine': false,
         'score': 0,
         'isBot': true,
@@ -131,7 +132,6 @@ class VerseV5Service {
     }
 
     try {
-      await _v4Service.acheterPackCoins(coinsGagnes);
       final prof = await _supabase.from('profiles').select('xp_totale').eq('id', userId).maybeSingle();
       if (prof != null) {
         final int xp = (prof['xp_totale'] ?? 0) + xpGagne;

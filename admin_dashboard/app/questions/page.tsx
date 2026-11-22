@@ -20,6 +20,8 @@ interface Question {
   statut: string;
 }
 
+const ADMINS = ["drx@otaku.admin", "heat@otaku.admin"];
+
 export default function QuestionsPage() {
   const [user, setUser] = useState<any>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -32,6 +34,16 @@ export default function QuestionsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Recupere le token JWT de la session admin pour authentifier les appels API serveur
+  const getAuthHeaders = async (withJson = false): Promise<HeadersInit> => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (withJson) headers["Content-Type"] = "application/json";
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return headers;
+  };
 
   // Formulaire
   const [form, setForm] = useState({
@@ -50,7 +62,8 @@ export default function QuestionsPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) {
+      const email = data.user?.email?.toLowerCase() || "";
+      if (!data.user || !ADMINS.includes(email)) {
         window.location.href = "/";
       } else {
         setUser(data.user);
@@ -71,6 +84,7 @@ export default function QuestionsPage() {
     try {
       const res = await fetch("/api/questions/import", {
         method: "POST",
+        headers: await getAuthHeaders(),
         body: formData,
       });
       const data = await res.json();
@@ -91,7 +105,7 @@ export default function QuestionsPage() {
   const chargerQuestions = async () => {
     const { data } = await supabase
       .from("questions")
-      .select("*")
+      .select("id, anime, arc, difficulte, question, choix_a, choix_b, choix_c, choix_d, bonne_reponse, explication, image_url, statut")
       .order("created_at", { ascending: false });
     setQuestions(data || []);
     setChargement(false);
@@ -109,6 +123,7 @@ export default function QuestionsPage() {
     try {
       const res = await fetch("/api/questions/upload-image", {
         method: "POST",
+        headers: await getAuthHeaders(),
         body: formData,
       });
       const data = await res.json();
@@ -146,7 +161,7 @@ export default function QuestionsPage() {
 
     const res = await fetch("/api/questions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(true),
       body: JSON.stringify(payload),
     });
 
@@ -168,11 +183,15 @@ export default function QuestionsPage() {
 
   const toggleStatut = async (q: Question) => {
     const nouveauStatut = q.statut === "actif" ? "inactif" : "actif";
-    await fetch("/api/questions", {
+    const res = await fetch("/api/questions", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(true),
       body: JSON.stringify({ id: q.id, statut: nouveauStatut }),
     });
+    if (!res.ok) {
+      alert("Impossible de modifier le statut de la question.");
+      return;
+    }
     chargerQuestions();
   };
 
@@ -260,6 +279,7 @@ export default function QuestionsPage() {
                 <option value="moyen">Moyen</option>
                 <option value="difficile">Difficile</option>
                 <option value="expert">Expert</option>
+                <option value="maitre">Maitre</option>
               </select>
             </div>
             <input placeholder="Question" value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} className="w-full mb-3 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" required />

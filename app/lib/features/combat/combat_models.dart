@@ -1,55 +1,61 @@
-// Modeles de donnees pour le mode combat.
-// Contient les classes qui representent l'etat d'un combat en cours.
+// Modeles de donnees pour le moteur de combat V9.2 (350 PV / 40 Q / Double Timer 2 min).
 
 /// Les parametres choisis par le joueur avant de lancer un combat.
 class CombatParams {
-  /// Anime sur lequel porteront les questions (null = toutes categories)
+  /// Mode de jeu : 'solo' ou 'division'
+  final String mode;
+
+  /// Slug de l'oeuvre sur R2 (null = multi-oeuvres)
   final String? anime;
   final String? arc;
 
-  /// Difficulte choisie : facile, moyen, difficile, expert, adaptatif
+  /// Difficulte choisie : facile, moyen, difficile, expert, maitre, adaptatif
   final String difficulte;
 
+  /// Contrat de Malus (§7.5) : 'zen', 'normal', 'malicieux'
+  final String malusMode;
+
+  /// Options avant-match (§1.4)
+  final bool xpInsurance;
+  final int confidencePotOc;
+
+  /// Identifiant du match cree cote serveur par `match-engine`
+  final String? matchId;
+
+  /// Infos de l'adversaire (Bot calibre ou adversaire de Division AI_ONLY)
+  final String opponentPseudo;
+  final int? opponentDivisionId;
+
   CombatParams({
+    this.mode = 'solo',
     this.anime,
     this.arc,
     required this.difficulte,
+    this.malusMode = 'normal',
+    this.xpInsurance = false,
+    this.confidencePotOc = 0,
+    this.matchId,
+    this.opponentPseudo = 'A.K.I.N.A',
+    this.opponentDivisionId,
   });
 }
 
-/// L'etat complet d'un combat en cours (PV, combos, historique).
+/// L'etat complet d'un combat en cours (350 PV, 40 questions max, chrono global 120s).
 class CombatState {
-  /// Points de vie du joueur (demarre a 100)
   int pvJoueur;
-
-  /// Points de vie du bot (demarre a 100)
   int pvBot;
-
-  /// Compteur de combo du joueur (bonnes reponses d'affilee)
   int comboJoueur;
-
-  /// Compteur de combo du bot
   int comboBot;
-
-  /// Numero de la question en cours (1 a 10)
   int questionActuelle;
-
-  /// Nombre reel de questions dans ce combat (peut etre < 10 si la base en a moins)
   final int nbQuestions;
 
-  /// PV de depart pour les deux combattants
-  static const int pvDepart = 100;
-
-  /// Nombre max de questions par combat (ideal, si la base en a assez)
-  static const int questionsMax = 10;
-
-  /// Degats d'une attaque normale (bonne reponse)
+  /// Constantes officielles V9.2 (§7.2 & §7.4)
+  static const int pvDepart = 350;
+  static const int questionsMax = 40;
+  static const int chronoGlobalSec = 120;
   static const int degatsNormaux = 15;
-
-  /// Degats d'une attaque speciale (combo atteint = 3 bonnes d'affilee)
   static const int degatsSpeciaux = 30;
-
-  /// Nombre de bonnes reponses d'affilee pour declencher un combo
+  static const int autoFaute = 5;
   static const int seuilCombo = 3;
 
   CombatState({required this.nbQuestions})
@@ -59,39 +65,34 @@ class CombatState {
         comboBot = 0,
         questionActuelle = 1;
 
-  /// Le combat est-il termine ? (K.O. ou toutes les questions epuisees)
   bool get estTermine => pvJoueur <= 0 || pvBot <= 0 || questionActuelle > nbQuestions;
 
-  /// Qui a gagne ? Compare les PV.
-  /// 'joueur', 'bot', ou 'egalite'
   String get vainqueur {
-    if (pvBot <= 0) return 'joueur';
-    if (pvJoueur <= 0) return 'bot';
+    if (pvBot <= 0 && pvJoueur > 0) return 'joueur';
+    if (pvJoueur <= 0 && pvBot > 0) return 'bot';
     if (pvJoueur > pvBot) return 'joueur';
     if (pvBot > pvJoueur) return 'bot';
     return 'egalite';
   }
 }
 
-/// Resultat d'un tour (apres que joueur et bot ont "repondu")
+/// Resultat d'un tour retourne par le serveur (`match-engine`).
 class ResultatTour {
-  /// Le joueur a-t-il bien repondu ?
   final bool joueurCorrect;
-
-  /// Le bot a-t-il bien repondu ?
   final bool botCorrect;
-
-  /// Degats infliges au bot ce tour (0 si joueur a mal repondu)
   final int degatsInfliges;
-
-  /// Degats subis par le joueur ce tour (0 si bot a mal repondu)
   final int degatsSubis;
-
-  /// Le joueur a-t-il declenche un combo (attaque speciale) ?
   final bool comboJoueurDeclenche;
-
-  /// Le bot a-t-il declenche un combo ?
   final bool comboBotDeclenche;
+  final String bonneReponse;
+  final String? explication;
+  final bool hayaTriggered;
+  final String? clashWinner; // 'p1', 'p2', 'tie', null
+  final bool suddenDeathTriggered;
+  final bool canSecondChance;
+  final bool matchFinished;
+  final int? remainingGlobalMs;
+  final Map<String, dynamic>? summary;
 
   ResultatTour({
     required this.joueurCorrect,
@@ -100,5 +101,14 @@ class ResultatTour {
     required this.degatsSubis,
     required this.comboJoueurDeclenche,
     required this.comboBotDeclenche,
+    this.bonneReponse = '',
+    this.explication,
+    this.hayaTriggered = false,
+    this.clashWinner,
+    this.suddenDeathTriggered = false,
+    this.canSecondChance = false,
+    this.matchFinished = false,
+    this.remainingGlobalMs,
+    this.summary,
   });
 }

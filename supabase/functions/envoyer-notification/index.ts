@@ -1,18 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Edge Function : envoyer-notification
-// Utilise l'API FCM V1 (OAuth2 avec compte de service Google)
-// Declenchee via webhook quand un INSERT se fait dans la table `friends`
+// Edge Function : envoyer-notification (FCM V1)
+// Supporte :
+// 1. Webhook INSERT sur `friends` (demande d'ami)
+// 2. Appel interne securise depuis `match-engine` pour `friend_overtake` (RANK-02)
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Le JSON du compte de service Firebase (stocke en secret base64)
-const FCM_SERVICE_ACCOUNT_B64 = Deno.env.get("FCM_SERVICE_ACCOUNT")!;
-const FCM_SERVICE_ACCOUNT = JSON.parse(atob(FCM_SERVICE_ACCOUNT_B64));
+const FCM_SERVICE_ACCOUNT_B64 = Deno.env.get("FCM_SERVICE_ACCOUNT") ?? "";
+const FCM_SERVICE_ACCOUNT = FCM_SERVICE_ACCOUNT_B64 ? JSON.parse(atob(FCM_SERVICE_ACCOUNT_B64)) : null;
 
-// Generer un token OAuth2 pour l'API FCM V1
 async function getAccessToken(): Promise<string> {
+  if (!FCM_SERVICE_ACCOUNT) {
+    throw new Error("FCM_SERVICE_ACCOUNT non configure");
+  }
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: "RS256", typ: "JWT" };
   const payload = {
@@ -23,7 +25,6 @@ async function getAccessToken(): Promise<string> {
     exp: now + 3600,
   };
 
-  // Encoder en base64url
   const encode = (obj: object) =>
     btoa(JSON.stringify(obj))
       .replace(/\+/g, "-")
@@ -32,7 +33,6 @@ async function getAccessToken(): Promise<string> {
 
   const unsignedToken = `${encode(header)}.${encode(payload)}`;
 
-  // Signer avec la cle privee RSA
   const privateKey = FCM_SERVICE_ACCOUNT.private_key;
   const keyData = privateKey
     .replace("-----BEGIN PRIVATE KEY-----", "")
@@ -46,13 +46,13 @@ async function getAccessToken(): Promise<string> {
     binaryKey,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     cryptoKey,
-    new TextEncoder().encode(unsignedToken)
+    new TextEncoder().encode(unsignedToken),
   );
 
   const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
@@ -62,7 +62,6 @@ async function getAccessToken(): Promise<string> {
 
   const jwt = `${unsignedToken}.${signatureB64}`;
 
-  // Echanger le JWT contre un access token
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -79,19 +78,20 @@ Deno.serve(async (req: Request) => {
   }
 
   const body = await req.json();
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  let receiverId: string;
-  let title: string;
-  let notifBody: string;
+  let receiverId = "";
+  let title = "Otaku Verse";
+  let notifBody = "Tu as une notification !";
   let senderId = "";
+  let notifType = "general";
 
   if (body.type === "INSERT" && body.table === "friends") {
-    // Webhook Supabase : nouvelle demande d'ami
     const record = body.record;
     receiverId = record.receiver_id;
     senderId = record.sender_id;
+    notifType = "friend_request";
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: sender } = await supabase
       .from("profiles")
       .select("pseudo")
@@ -102,18 +102,22 @@ Deno.serve(async (req: Request) => {
     title = "Demande d'ami";
     notifBody = `@${senderPseudo} veut t'ajouter en ami !`;
   } else {
-    // Appel manuel
-    receiverId = body.receiver_id;
-    title = body.title ?? "Otaku Verse";
-    notifBody = body.body ?? "Tu as une notification !";
+    // Appel interne (ex: RANK-02 friend_overtake depuis match-engine) : exiger la cle service_role
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (authHeader !== `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`) {
+      return Response.json({ error: "Acces refuse" }, { status: 403 });
+    }
+    receiverId = String(body.receiver_id ?? "");
+    senderId = String(body.sender_id ?? "");
+    notifType = String(body.notif_type ?? "general");
+    title = String(body.title ?? "Otaku Verse");
+    notifBody = String(body.body ?? "Tu as une notification !");
   }
 
   if (!receiverId) {
     return Response.json({ error: "receiver_id manquant" }, { status: 400 });
   }
 
-  // Recuperer le fcm_token du destinataire
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("fcm_token")
@@ -121,17 +125,16 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (error || !profile?.fcm_token) {
-    return Response.json(
-      { error: "Token FCM non trouve pour ce joueur" },
-      { status: 404 }
-    );
+    return Response.json({ error: "Token FCM non trouve pour ce joueur" }, { status: 404 });
   }
 
-  // Obtenir un access token OAuth2
+  if (!FCM_SERVICE_ACCOUNT) {
+    return Response.json({ error: "Secret FCM non configure" }, { status: 500 });
+  }
+
   const accessToken = await getAccessToken();
   const projectId = FCM_SERVICE_ACCOUNT.project_id;
 
-  // Envoyer via FCM API V1
   const fcmResponse = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
     {
@@ -143,27 +146,17 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         message: {
           token: profile.fcm_token,
-          notification: {
-            title: title,
-            body: notifBody,
-          },
-          data: {
-            type: "friend_request",
-            sender_id: senderId,
-          },
+          notification: { title, body: notifBody },
+          data: { type: notifType, sender_id: senderId },
         },
       }),
-    }
+    },
   );
 
   const fcmResult = await fcmResponse.json();
 
   if (fcmResponse.ok) {
     return Response.json({ success: true, message: "Notification envoyee" });
-  } else {
-    return Response.json(
-      { success: false, error: "FCM V1 erreur", detail: fcmResult },
-      { status: 500 }
-    );
   }
+  return Response.json({ success: false, error: "FCM V1 erreur", detail: fcmResult }, { status: 500 });
 });

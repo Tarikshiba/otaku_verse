@@ -16,10 +16,32 @@ export default {
 
     // Action V2 : cloturer un match Verse et calculer l'XP / les points de division cote serveur
     if (body.action === "cloturer_match_verse") {
-      const { user_id, resultat, mode, ko, bonnes_reponses } = body;
-      if (!user_id || !resultat) {
+      // Verification stricte de l'utilisateur via le JWT Bearer (jamais confiance au user_id du body)
+      const authHeader = req.headers.get("Authorization") || "";
+      const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+      if (!tokenMatch || !tokenMatch[1]) {
         return Response.json(
-          { error: "user_id et resultat sont requis" },
+          { error: "Authentification requise" },
+          { status: 401 }
+        );
+      }
+
+      const { data: authData, error: authError } =
+        await ctx.supabaseAdmin.auth.getUser(tokenMatch[1].trim());
+
+      if (authError || !authData?.user) {
+        return Response.json(
+          { error: "Session invalide ou expiree" },
+          { status: 401 }
+        );
+      }
+
+      const user_id = authData.user.id;
+      const { resultat, mode, ko, bonnes_reponses } = body;
+      const RESULTATS_VALIDES = ["victoire", "defaite", "egalite", "abandon"];
+      if (!resultat || !RESULTATS_VALIDES.includes(resultat)) {
+        return Response.json(
+          { error: "resultat invalide" },
           { status: 400 }
         );
       }
@@ -173,6 +195,7 @@ export default {
     return Response.json({
       joueur_correct,
       bot_correct,
+      bonne_reponse: question.bonne_reponse,
       degats_infliges,
       degats_subis,
       combo_joueur_declenche,

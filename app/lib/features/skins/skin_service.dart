@@ -1,118 +1,233 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'skin_model.dart';
 
-/// Service pour la collection de skins :
-/// lister, debloquer, equiper.
+/// === SERVICE GOODIES (SKINS) V9.2 (ECO-02 & SHOP-03) ===
+/// - ZERO achat de skin en XP (regle inviolable §1.2)
+/// - 1 seul Goodies gratuit de base + 1 seul Goodies de depart Tuto a 300 OC
+/// - 100% des autres Goodies (Classiques 350-500 VC, Epiques 700-900 VC,
+///   Fondateurs Legendaires Soryn & Nyxara 1200-1500 VC) achetes via `shop-tutorial-engine`
 class SkinService {
   final _supabase = Supabase.instance.client;
   String? get _myId => _supabase.auth.currentUser?.id;
 
-  /// Recupere tous les skins + indique lesquels le joueur possede/equipe.
+  /// Catalogue officiel V9.2 des Goodies (miroir exact de shop-tutorial-engine)
+  static const List<Skin> catalogueOfficiel = [
+    Skin(
+      id: 'skin_default',
+      name: 'Guerrier du Verse',
+      description: 'Tenue d\'entree gratuite remise a tous les combattants.',
+      rarity: 'commun',
+      currency: 'free',
+      price: 0,
+      imageKey: 'skin_default',
+    ),
+    Skin(
+      id: 'starter_tuto_ninja',
+      name: 'Ninja de Konoha',
+      description: 'Premier Goodies du Tutoriel : deblocable avec les 300 OC d\'accueil.',
+      rarity: 'classique',
+      currency: 'oc',
+      price: 300,
+      imageKey: 'skin_ninja',
+      isTutorialStarter: true,
+    ),
+    Skin(
+      id: 'skin_pirate',
+      name: 'Capitaine Pirate',
+      description: 'Goodies Classique inspire des mers de Grand Line.',
+      rarity: 'classique',
+      currency: 'vc',
+      price: 350,
+      imageKey: 'skin_pirate',
+    ),
+    Skin(
+      id: 'skin_samourai',
+      name: 'Ronin de Wano',
+      description: 'Lame affutee et discipline shonen pour les duels rapides.',
+      rarity: 'classique',
+      currency: 'vc',
+      price: 400,
+      imageKey: 'skin_samourai',
+    ),
+    Skin(
+      id: 'skin_ermite',
+      name: 'Ermite des Cimes',
+      description: 'Maitrise des arts anciens et sang-froid face aux Malus.',
+      rarity: 'classique',
+      currency: 'vc',
+      price: 450,
+      imageKey: 'skin_ermite',
+    ),
+    Skin(
+      id: 'skin_titan',
+      name: 'Chasseur de Titans',
+      description: 'Equipement tridimensionnel pret pour le Money Time.',
+      rarity: 'classique',
+      currency: 'vc',
+      price: 500,
+      imageKey: 'skin_titan',
+    ),
+    Skin(
+      id: 'skin_demon',
+      name: 'Pourfendeur Demoniaque',
+      description: 'Goodies Epique forge pour briser les series adverses.',
+      rarity: 'epique',
+      currency: 'vc',
+      price: 700,
+      imageKey: 'skin_demon',
+    ),
+    Skin(
+      id: 'skin_hokage',
+      name: 'Ombre du Hokage',
+      description: 'Cape de chef de village reserves aux erudits des arcs.',
+      rarity: 'epique',
+      currency: 'vc',
+      price: 800,
+      imageKey: 'skin_hokage',
+    ),
+    Skin(
+      id: 'skin_dragon',
+      name: 'Guerrier Dragon',
+      description: 'Aura ardente declenchee sur chaque Combo x3.',
+      rarity: 'epique',
+      currency: 'vc',
+      price: 850,
+      imageKey: 'skin_dragon',
+    ),
+    Skin(
+      id: 'skin_roi',
+      name: 'Souverain des Ombres',
+      description: 'Armure sombre des maitres de donjons et d\'arenes.',
+      rarity: 'epique',
+      currency: 'vc',
+      price: 900,
+      imageKey: 'skin_roi',
+    ),
+    Skin(
+      id: 'avatar_soryn_ether_watcher',
+      name: 'Soryn, Gardien de l\'Ether',
+      description: 'Personnage Fondateur Legendaire d\'Otaku Verse (edition signature).',
+      rarity: 'legendaire',
+      currency: 'vc',
+      price: 1200,
+      imageKey: 'bot_akina',
+      isFounderLegendary: true,
+    ),
+    Skin(
+      id: 'avatar_nyxara_twin_fangs',
+      name: 'Nyxara, Crocs Jumeaux',
+      description: 'Personnage Fondateur Legendaire aux lames jumelles du Verse.',
+      rarity: 'legendaire',
+      currency: 'vc',
+      price: 1500,
+      imageKey: 'boss_gardien',
+      isFounderLegendary: true,
+    ),
+  ];
+
+  /// Recupere tous les Goodies V9.2 avec leur etat possede / equipe depuis Supabase.
   Future<List<Skin>> tousLesSkins() async {
-    // Tous les skins du jeu
-    final allSkins = await _supabase
-        .from('skins')
-        .select()
-        .order('unlock_value', ascending: true);
-
-    // Mes skins debloques
-    final mesSkins = await _supabase
-        .from('player_skins')
-        .select('skin_id, equipped')
-        .eq('player_id', _myId!);
-
-    // Creer un map rapide de mes skins
-    final mesSkinsMap = <String, bool>{};
-    for (final ps in List<Map<String, dynamic>>.from(mesSkins)) {
-      mesSkinsMap[ps['skin_id']] = ps['equipped'] ?? false;
+    final uid = _myId;
+    if (uid == null) {
+      return catalogueOfficiel
+          .map((s) => s.copyWith(owned: s.currency == 'free', equipped: s.currency == 'free'))
+          .toList();
     }
 
-    return List<Map<String, dynamic>>.from(allSkins).map((json) {
-      final skinId = json['id'];
-      final owned = mesSkinsMap.containsKey(skinId);
-      final equipped = mesSkinsMap[skinId] ?? false;
-      return Skin.fromJson(json, owned: owned, equipped: equipped);
+    final ownedMap = <String, bool>{};
+    try {
+      final rows = await _supabase
+          .from('player_cosmetics')
+          .select('item_id, equipped')
+          .eq('user_id', uid)
+          .eq('category', 'skin');
+
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final itemId = row['item_id']?.toString() ?? '';
+        if (itemId.isNotEmpty) {
+          ownedMap[itemId] = row['equipped'] == true;
+        }
+      }
+    } catch (_) {}
+
+    // Retrocompatibilite avec d'eventuels skins deja debloques en V1 (player_skins)
+    try {
+      final legacyRows = await _supabase
+          .from('player_skins')
+          .select('equipped, skins(image_key)')
+          .eq('player_id', uid);
+
+      for (final row in List<Map<String, dynamic>>.from(legacyRows)) {
+        final imageKey = (row['skins'] as Map?)?['image_key']?.toString();
+        if (imageKey == null) continue;
+        final match = catalogueOfficiel.where((s) => s.imageKey == imageKey).firstOrNull;
+        if (match != null && !ownedMap.containsKey(match.id)) {
+          ownedMap[match.id] = row['equipped'] == true;
+        }
+      }
+    } catch (_) {}
+
+    // Le skin de base gratuit est toujours possede
+    ownedMap.putIfAbsent('skin_default', () => false);
+    final hasAnyEquipped = ownedMap.values.any((e) => e);
+    if (!hasAnyEquipped) {
+      ownedMap['skin_default'] = true;
+    }
+
+    return catalogueOfficiel.map((s) {
+      final owned = ownedMap.containsKey(s.id);
+      final equipped = ownedMap[s.id] == true;
+      return s.copyWith(owned: owned, equipped: equipped);
     }).toList();
   }
 
-  /// Debloquer un skin (par niveau ou en depensant de l'XP).
-  /// Retourne null si OK, ou un message d'erreur.
-  Future<String?> debloquer(Skin skin) async {
-    if (skin.owned) return 'Tu possedes deja ce skin';
+  /// Acheter / debloquer un Goodies via le serveur (`shop-tutorial-engine`).
+  /// Retourne null si OK, sinon un message d'erreur clair.
+  Future<String?> debloquer(Skin skin, {bool autoEquip = true}) async {
+    if (skin.owned) return 'Tu possedes deja ce Goodies';
+    if (skin.currency == 'free') return null;
 
-    // Verifier les conditions
-    final profil = await _supabase
-        .from('profiles')
-        .select('niveau, xp_totale')
-        .eq('id', _myId!)
-        .single();
-
-    final niveau = profil['niveau'] as int;
-    final xp = profil['xp_totale'] as int;
-
-    if (skin.unlockType == 'level') {
-      if (niveau < skin.unlockValue) {
-        return 'Niveau ${skin.unlockValue} requis (tu es Nv.$niveau)';
+    try {
+      final res = await _supabase.functions.invoke(
+        'shop-tutorial-engine',
+        body: {
+          'action': 'purchase_goodie',
+          'item_id': skin.id,
+          'auto_equip': autoEquip,
+        },
+      );
+      final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+      if (res.status >= 400 || data['error'] != null) {
+        return data['error']?.toString() ?? 'Achat impossible';
       }
-    } else if (skin.unlockType == 'xp') {
-      if (xp < skin.unlockValue) {
-        return 'Il te faut ${skin.unlockValue} XP (tu as $xp)';
-      }
-      // Depenser l'XP
-      await _supabase.from('profiles').update({
-        'xp_totale': xp - skin.unlockValue,
-      }).eq('id', _myId!);
+      return null;
+    } catch (e) {
+      return e.toString().replaceAll('Exception: ', '');
     }
-
-    // Ajouter le skin au joueur
-    await _supabase.from('player_skins').insert({
-      'player_id': _myId,
-      'skin_id': skin.id,
-      'equipped': false,
-    });
-
-    return null;
   }
 
-  /// Equiper un skin (desequipe l'ancien automatiquement)
+  /// Equiper un Goodies possede (met a jour player_cosmetics)
   Future<void> equiper(String skinId) async {
-    // Desequiper tous mes skins
-    await _supabase
-        .from('player_skins')
-        .update({'equipped': false})
-        .eq('player_id', _myId!);
+    final uid = _myId;
+    if (uid == null) return;
 
-    // Equiper celui-ci
-    await _supabase
-        .from('player_skins')
-        .update({'equipped': true})
-        .eq('player_id', _myId!)
-        .eq('skin_id', skinId);
+    try {
+      await _supabase
+          .from('player_cosmetics')
+          .update({'equipped': false})
+          .eq('user_id', uid)
+          .eq('category', 'skin');
+
+      if (skinId != 'skin_default') {
+        await _supabase
+            .from('player_cosmetics')
+            .update({'equipped': true})
+            .eq('user_id', uid)
+            .eq('item_id', skinId);
+      }
+    } catch (_) {}
   }
 
-  /// Donne le skin gratuit au joueur s'il ne l'a pas encore
-  Future<void> donnerSkinGratuit() async {
-    final skinGratuit = await _supabase
-        .from('skins')
-        .select('id')
-        .eq('unlock_type', 'free')
-        .maybeSingle();
-
-    if (skinGratuit == null) return;
-
-    final dejaObtenu = await _supabase
-        .from('player_skins')
-        .select('id')
-        .eq('player_id', _myId!)
-        .eq('skin_id', skinGratuit['id'])
-        .maybeSingle();
-
-    if (dejaObtenu != null) return;
-
-    await _supabase.from('player_skins').insert({
-      'player_id': _myId,
-      'skin_id': skinGratuit['id'],
-      'equipped': true,
-    });
-  }
+  /// Compatibilite ascendante (le skin gratuit de base est garanti dans tousLesSkins)
+  Future<void> donnerSkinGratuit() async {}
 }

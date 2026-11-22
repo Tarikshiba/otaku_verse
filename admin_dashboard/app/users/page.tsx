@@ -4,8 +4,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
+const ADMINS = ["drx@otaku.admin", "heat@otaku.admin"];
+
 interface Profil {
   id: string;
+  pseudo?: string | null;
   xp_totale: number;
   niveau: number;
   rang: string;
@@ -19,13 +22,20 @@ export default function UsersPage() {
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
-    chargerProfils();
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email?.toLowerCase() || "";
+      if (!data.user || !ADMINS.includes(email)) {
+        window.location.href = "/";
+      } else {
+        chargerProfils();
+      }
+    });
   }, []);
 
   const chargerProfils = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, pseudo, xp_totale, niveau, rang, combats_joues, combats_gagnes, created_at")
       .order("xp_totale", { ascending: false });
     setProfils(data || []);
     setChargement(false);

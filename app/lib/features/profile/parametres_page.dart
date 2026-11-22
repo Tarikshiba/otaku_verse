@@ -3,8 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
 import '../social/friends_service.dart';
 
-/// Ecran Parametres — accessible depuis le profil.
-/// Regroupe : pseudo, pays, deconnexion, et futurs reglages.
+/// Ecran Parametres V9.2 :
+/// Pseudo, Pays, Garde-fous Vie Privee (UI-05), Notifications Depassement Ami (RANK-02), Audio et Deconnexion.
 class ParametresPage extends StatefulWidget {
   final Map<String, dynamic>? profil;
   final VoidCallback onProfilChange;
@@ -17,6 +17,8 @@ class ParametresPage extends StatefulWidget {
 
 class _ParametresPageState extends State<ParametresPage> {
   String? _message;
+  late bool _allowSharePseudoFriends;
+  late bool _notifOvertakeEnabled;
 
   static const List<String> _pays = [
     'Senegal', 'France', 'Cote d\'Ivoire', 'Cameroun', 'Mali',
@@ -26,6 +28,29 @@ class _ParametresPageState extends State<ParametresPage> {
     'Madagascar', 'Comores', 'RDC', 'Tchad', 'Centrafrique',
     'Autre',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _allowSharePseudoFriends = widget.profil?['allow_share_pseudo_friends'] == true;
+    _notifOvertakeEnabled = widget.profil?['notif_overtake_enabled'] != false;
+  }
+
+  Future<void> _sauvegarderPreferencesViePrivee() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    final tzOffset = DateTime.now().timeZoneOffset.inMinutes;
+    try {
+      await Supabase.instance.client.from('profiles').update({
+        'allow_share_pseudo_friends': _allowSharePseudoFriends,
+        'notif_overtake_enabled': _notifOvertakeEnabled,
+        'timezone_offset_minutes': tzOffset,
+      }).eq('id', uid);
+      if (!mounted) return;
+      setState(() => _message = 'Preferences vie privee et notifications enregistrees.');
+      widget.onProfilChange();
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +66,6 @@ class _ParametresPageState extends State<ParametresPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
               Row(
                 children: [
                   GestureDetector(
@@ -60,9 +84,8 @@ class _ParametresPageState extends State<ParametresPage> {
                   Text('PARAMETRES', style: OtakuTypo.headlineLarge.copyWith(fontSize: 20)),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Message feedback
               if (_message != null)
                 Container(
                   width: double.infinity,
@@ -75,14 +98,11 @@ class _ParametresPageState extends State<ParametresPage> {
                   child: Text(_message!, style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.accent)),
                 ),
 
-              // Liste des parametres
               Expanded(
                 child: ListView(
                   children: [
-                    // Section Compte & Identite
                     _buildSectionTitle('COMPTE & IDENTITE'),
                     const SizedBox(height: 8),
-
                     _buildItem(
                       icon: Icons.alternate_email_rounded,
                       label: 'Pseudo',
@@ -90,7 +110,6 @@ class _ParametresPageState extends State<ParametresPage> {
                       onTap: () => _modifierPseudo(pseudo),
                     ),
                     const SizedBox(height: 8),
-
                     _buildItem(
                       icon: Icons.flag_rounded,
                       label: 'Pays',
@@ -101,22 +120,71 @@ class _ParametresPageState extends State<ParametresPage> {
                           : null,
                     ),
                     const SizedBox(height: 8),
+                    _buildItem(icon: Icons.email_rounded, label: 'Email', value: email),
+                    const SizedBox(height: 18),
 
-                    _buildItem(
-                      icon: Icons.email_rounded,
-                      label: 'Email',
-                      value: email,
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Section Graphismes
-                    _buildSectionTitle('GRAPHISMES & PERFORMANCE'),
+                    // Section Vie Privee & Notifications V9.2 (UI-05 & RANK-02)
+                    _buildSectionTitle('VIE PRIVEE & NOTIFICATIONS (V9.2)'),
                     const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: OtakuColors.border),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        activeThumbColor: OtakuColors.accent,
+                        title: Text(
+                          'Autoriser l\'affichage de mon pseudo sur les cartes de partage d\'amis',
+                          style: OtakuTypo.headlineSmall.copyWith(fontSize: 12),
+                        ),
+                        subtitle: Text(
+                          'Desactive par defaut (anonymisation automatique sur les cartes 9:16).',
+                          style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.textMuted),
+                        ),
+                        value: _allowSharePseudoFriends,
+                        onChanged: (v) {
+                          setState(() => _allowSharePseudoFriends = v);
+                          _sauvegarderPreferencesViePrivee();
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: OtakuColors.border),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        activeThumbColor: OtakuColors.accent,
+                        title: Text(
+                          'Notification "Un ami t\'a depasse au classement"',
+                          style: OtakuTypo.headlineSmall.copyWith(fontSize: 12),
+                        ),
+                        subtitle: Text(
+                          'Plafonnee a 1x/24h par ami, max 2/jour global et silence garanti de 22h a 08h.',
+                          style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.textMuted),
+                        ),
+                        value: _notifOvertakeEnabled,
+                        onChanged: (v) {
+                          setState(() => _notifOvertakeEnabled = v);
+                          _sauvegarderPreferencesViePrivee();
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
+                    _buildSectionTitle('GRAPHISMES & AUDIO'),
+                    const SizedBox(height: 8),
                     _buildItem(
                       icon: Icons.auto_awesome_rounded,
                       label: 'Qualite Liquid Glass',
-                      value: 'Haute (actif)',
+                      value: 'Haute (60 FPS)',
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
@@ -127,44 +195,9 @@ class _ParametresPageState extends State<ParametresPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-
-                    _buildItem(
-                      icon: Icons.speed_rounded,
-                      label: 'Frequence affichage',
-                      value: '60 FPS',
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: OtakuColors.modeEvent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text('60', style: OtakuTypo.hud.copyWith(fontSize: 10, color: OtakuColors.modeEvent)),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Section Audio
-                    _buildSectionTitle('AUDIO & SON'),
-                    const SizedBox(height: 8),
-
-                    _buildItem(
-                      icon: Icons.music_note_rounded,
-                      label: 'Musique',
-                      value: 'Active',
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: OtakuColors.pvHaut.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text('ON', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.pvHaut)),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
                     _buildItem(
                       icon: Icons.volume_up_rounded,
-                      label: 'Effets sonores (SFX)',
+                      label: 'Musique & Effets sonores',
                       value: 'Actifs',
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -175,18 +208,16 @@ class _ParametresPageState extends State<ParametresPage> {
                         child: Text('ON', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.pvHaut)),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    // Section Session
                     _buildSectionTitle('SESSION'),
                     const SizedBox(height: 8),
-
                     _buildItem(
                       icon: Icons.logout_rounded,
                       label: 'Deconnexion',
                       value: 'Se deconnecter du compte',
                       couleur: OtakuColors.error,
-                      onTap: () => _deconnexion(),
+                      onTap: _deconnexion,
                     ),
                   ],
                 ),
@@ -233,9 +264,9 @@ class _ParametresPageState extends State<ParametresPage> {
                 ],
               ),
             ),
-            if (trailing != null) trailing!,
+            ?trailing,
             if (onTap != null && trailing == null)
-              Icon(Icons.chevron_right_rounded, size: 18, color: OtakuColors.textMuted),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: OtakuColors.textMuted),
           ],
         ),
       ),
@@ -248,8 +279,8 @@ class _ParametresPageState extends State<ParametresPage> {
 
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: OtakuColors.background,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text('CHANGER DE PSEUDO', style: OtakuTypo.headlineLarge.copyWith(fontSize: 16)),
@@ -267,10 +298,6 @@ class _ParametresPageState extends State<ParametresPage> {
                   filled: true,
                   fillColor: OtakuColors.surface,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: OtakuColors.accent, width: 1.5),
-                  ),
                 ),
               ),
               if (erreur != null) ...[
@@ -282,7 +309,7 @@ class _ParametresPageState extends State<ParametresPage> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text('ANNULER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted))),
+            TextButton(onPressed: () => Navigator.pop(dialogCtx), child: Text('ANNULER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted))),
             ElevatedButton(
               onPressed: () async {
                 final pseudo = controller.text.trim();
@@ -291,10 +318,11 @@ class _ParametresPageState extends State<ParametresPage> {
                   return;
                 }
                 final res = await FriendsService().changerPseudo(pseudo);
+                if (!dialogCtx.mounted) return;
                 if (res != null) {
                   setDialogState(() => erreur = res);
                 } else {
-                  Navigator.pop(context, pseudo);
+                  Navigator.pop(dialogCtx, pseudo);
                 }
               },
               child: const Text('VALIDER'),
@@ -304,7 +332,7 @@ class _ParametresPageState extends State<ParametresPage> {
       ),
     );
 
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() => _message = 'Pseudo change en @$result');
       widget.onProfilChange();
     }
@@ -313,7 +341,7 @@ class _ParametresPageState extends State<ParametresPage> {
   Future<void> _choisirPays() async {
     final choix = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: OtakuColors.background,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('CHOISIS TON PAYS', style: OtakuTypo.headlineLarge.copyWith(fontSize: 16)),
@@ -325,42 +353,44 @@ class _ParametresPageState extends State<ParametresPage> {
             itemBuilder: (_, i) => ListTile(
               dense: true,
               title: Text(_pays[i], style: const TextStyle(color: OtakuColors.textPrimary)),
-              onTap: () => Navigator.pop(context, _pays[i]),
+              onTap: () => Navigator.pop(dialogCtx, _pays[i]),
             ),
           ),
         ),
       ),
     );
 
-    if (choix == null) return;
+    if (choix == null || !mounted) return;
 
-    // Confirmer
     final confirme = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: OtakuColors.background,
         title: Text('Confirmer : $choix ?', style: OtakuTypo.headlineLarge.copyWith(fontSize: 15)),
         content: Text('Le pays ne peut pas etre change apres.', style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('ANNULER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted))),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('CONFIRMER')),
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: Text('ANNULER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted))),
+          ElevatedButton(onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('CONFIRMER')),
         ],
       ),
     );
 
-    if (confirme != true) return;
-
-    await Supabase.instance.client.from('profiles').update({
-      'country': choix,
-    }).eq('id', Supabase.instance.client.auth.currentUser!.id);
-
-    setState(() => _message = 'Pays defini : $choix');
-    widget.onProfilChange();
+    if (confirme == true) {
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid != null) {
+        await Supabase.instance.client.from('profiles').update({'country': choix}).eq('id', uid);
+        if (mounted) {
+          setState(() => _message = 'Pays enregistre : $choix');
+          widget.onProfilChange();
+        }
+      }
+    }
   }
 
   Future<void> _deconnexion() async {
     await Supabase.instance.client.auth.signOut();
-    if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    if (mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 }

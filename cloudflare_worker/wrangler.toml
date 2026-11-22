@@ -1,0 +1,7 @@
+name = "otaku-verse-quiz-api"
+main = "src/index.ts"
+compatibility_date = "2025-11-01"
+
+[[r2_buckets]]
+binding = "QUIZ_BUCKET"
+bucket_name = "otaku-verse-quiz"

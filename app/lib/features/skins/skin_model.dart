@@ -1,52 +1,65 @@
-/// Represente un skin dans la boutique.
+/// Represente un Goodies (skin de personnage) dans la Boutique V9.2.
+/// Regle ECO-02 / SHOP-03 : ZERO achat en XP.
+/// - 1 seul Goodies de depart en OC (300 OC, Tutoriel Phase A)
+/// - 100% des autres Goodies vendus exclusivement en Verse Coins (VC)
 class Skin {
   final String id;
   final String name;
   final String description;
-  final String rarity;     // commun, rare, epique, legendaire
-  final String unlockType; // free, level, xp
-  final int unlockValue;   // niveau requis ou cout XP
-  final String imageKey;   // cle pour l'asset (placeholder pour l'instant)
-  final bool owned;        // le joueur le possede ?
-  final bool equipped;     // actuellement equipe ?
+  final String rarity; // commun, classique, epique, legendaire
+  final String currency; // free, oc, vc
+  final int price; // 0 si gratuit, 300 si OC tuto, 350..1500 si VC
+  final String imageKey;
+  final bool owned;
+  final bool equipped;
+  final bool isTutorialStarter;
+  final bool isFounderLegendary;
 
-  Skin({
+  // Alias retrocompatibles avec les anciens ecrans
+  String get unlockType => currency;
+  int get unlockValue => price;
+
+  const Skin({
     required this.id,
     required this.name,
     required this.description,
     required this.rarity,
-    required this.unlockType,
-    required this.unlockValue,
+    required this.currency,
+    required this.price,
     required this.imageKey,
     this.owned = false,
     this.equipped = false,
+    this.isTutorialStarter = false,
+    this.isFounderLegendary = false,
   });
 
-  factory Skin.fromJson(Map<String, dynamic> json, {bool owned = false, bool equipped = false}) {
+  Skin copyWith({bool? owned, bool? equipped}) {
     return Skin(
-      id: json['id'],
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      rarity: json['rarity'] ?? 'commun',
-      unlockType: json['unlock_type'] ?? 'free',
-      unlockValue: json['unlock_value'] ?? 0,
-      imageKey: json['image_key'] ?? 'skin_default',
-      owned: owned,
-      equipped: equipped,
+      id: id,
+      name: name,
+      description: description,
+      rarity: rarity,
+      currency: currency,
+      price: price,
+      imageKey: imageKey,
+      owned: owned ?? this.owned,
+      equipped: equipped ?? this.equipped,
+      isTutorialStarter: isTutorialStarter,
+      isFounderLegendary: isFounderLegendary,
     );
   }
 
-  /// Condition de deblocage affichee dans la boutique
+  /// Texte de prix affiche en boutique (jamais d'XP)
   String get conditionTexte {
-    switch (unlockType) {
+    switch (currency) {
       case 'free':
         return 'Gratuit';
-      case 'level':
-        return 'Niveau $unlockValue';
-      case 'xp':
-        return '$unlockValue XP';
+      case 'oc':
+        return '$price OC';
+      case 'vc':
+        return '$price VC';
       default:
-        return '???';
+        return '$price VC';
     }
   }
 }

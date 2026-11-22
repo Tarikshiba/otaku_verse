@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/theme.dart';
+import '../economy/economy_v92_service.dart';
 import 'classement_service.dart';
 import 'profil_public_page.dart';
 
-/// Ecran classement — 3 onglets : Mondial, National, Amis.
-/// Accessible depuis l'accueil (bouton raccourci).
+/// Ecran classement V9.2 — 3 onglets : Mondial, National, Amis.
+/// Inclut le Bandeau dynamique d'affluence et de cagnotte (Ticket UI-04 / §6.5).
 class ClassementScreen extends StatefulWidget {
   const ClassementScreen({super.key});
 
@@ -14,10 +16,12 @@ class ClassementScreen extends StatefulWidget {
 
 class _ClassementScreenState extends State<ClassementScreen> {
   final _service = ClassementService();
+  final _economyService = EconomyV92Service();
 
   // 0 = Mondial, 1 = National, 2 = Amis
   int _tabActive = 0;
   List<Map<String, dynamic>> _classement = [];
+  Map<String, dynamic>? _cagnotte;
   bool _chargement = true;
   int _maPosition = 0;
 
@@ -30,6 +34,7 @@ class _ClassementScreenState extends State<ClassementScreen> {
   Future<void> _charger() async {
     setState(() => _chargement = true);
     try {
+      final potFuture = _economyService.recupererBandeauCagnotte(mode: 'division');
       List<Map<String, dynamic>> data;
       switch (_tabActive) {
         case 0:
@@ -44,9 +49,11 @@ class _ClassementScreenState extends State<ClassementScreen> {
           data = await _service.classementAmis();
           _maPosition = 0;
       }
+      final pot = await potFuture;
       if (mounted) {
         setState(() {
           _classement = data;
+          _cagnotte = pot;
           _chargement = false;
         });
       }
@@ -114,13 +121,84 @@ class _ClassementScreenState extends State<ClassementScreen> {
                   _buildTab('Amis', 2, Icons.people_rounded),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
+
+              // Bandeau dynamique d'affluence & cagnotte (Ticket UI-04 / §6.5)
+              if (_cagnotte != null) ...[
+                _buildBandeauCagnotte(_cagnotte!),
+                const SizedBox(height: 10),
+              ],
 
               // Liste
               Expanded(child: _buildListe()),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBandeauCagnotte(Map<String, dynamic> pot) {
+    final int qualif = (pot['qualified_players'] as num?)?.toInt() ?? 0;
+    final int top1 = (pot['top1_vc'] as num?)?.toInt() ?? 25;
+    final int top2 = (pot['top2_vc'] as num?)?.toInt() ?? 15;
+    final int top3 = (pot['top3_vc'] as num?)?.toInt() ?? 10;
+    final int? nextThreshold = (pot['next_threshold'] as num?)?.toInt();
+    final int? nextTop1 = (pot['next_top1_vc'] as num?)?.toInt();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: OtakuColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Participants qualifies : $qualif  |  1er = $top1 VC · 2e = $top2 VC · 3e = $top3 VC',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: OtakuTypo.headlineSmall.copyWith(fontSize: 11, color: Colors.amber),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  nextThreshold != null && nextTop1 != null
+                      ? 'La cagnotte monte a $nextTop1 VC des que vous atteignez $nextThreshold participants !'
+                      : 'Palier maximal 50+ actif : recompenses pleines debloquees !',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: OtakuTypo.bodySmall.copyWith(fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => Share.share(
+              'Rejoins-moi sur Otaku Verse pour faire monter la cagnotte du classement saisonnier !',
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber),
+              ),
+              child: Text(
+                'INVITER',
+                style: OtakuTypo.label.copyWith(fontSize: 9, color: Colors.amber),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -160,7 +238,6 @@ class _ClassementScreenState extends State<ClassementScreen> {
   /// (meme XP = meme position, le suivant saute)
   List<int> _calculerPositions() {
     final positions = <int>[];
-    int posActuelle = 1;
     for (int i = 0; i < _classement.length; i++) {
       if (i == 0) {
         positions.add(1);
@@ -194,7 +271,7 @@ class _ClassementScreenState extends State<ClassementScreen> {
 
     return ListView.separated(
       itemCount: _classement.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 6),
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
       itemBuilder: (_, index) {
         final joueur = _classement[index];
         final position = positions[index];
