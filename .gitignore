@@ -55,7 +55,10 @@ scripts/planches_sources/
 drive_sources/
 01_RÉSUMÉS*/
 r2_build/
+assets_sources_raw/
 cloudflare_worker/.wrangler/
 
 # Divers
 *.log
+__pycache__/
+*.pyc

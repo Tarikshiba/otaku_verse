@@ -586,7 +586,7 @@ class _VerseCombatPageState extends State<VerseCombatPage> {
   Widget _buildPlayerAvatar(String pseudo, int pv, {required bool isMe, bool isBot = false}) {
     final String portraitPath = isBot
         ? 'assets/images/skins/bot_akina.png'
-        : (isMe ? 'assets/images/skins/skin_default.png' : 'assets/images/skins/skin_ninja.png');
+        : (isMe ? 'assets/images/skins/skin_kio.png' : 'assets/images/skins/skin_mazu.png');
     return Column(
       children: [
         Container(

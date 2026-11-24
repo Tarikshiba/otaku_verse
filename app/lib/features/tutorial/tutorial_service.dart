@@ -1,48 +1,63 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// === SERVICE TUTORIEL 2 PHASES (TUTO-01, §4.1 & §4.2) ===
-/// Phase A (pre-compte) : suivie localement par SharedPreferences puis synchronisee
-/// automatiquement sur Supabase des l'inscription / connexion (+300 OC + 100 XP).
-/// Phase B (Hub, 6 etapes Coachmarks) : suivie dans `profiles.tutorial_phase_b_steps`
-/// et recompensee cote serveur a la 6e etape (+25 VC + 100 OC + Titre "Initie du Verse").
+/// === SERVICE TUTORIEL 2 PHASES (TUTO-01, §4.1 & §4.2, TESTS 3, 5, 6) ===
+/// Phase A (pre-compte) : suivie localement puis synchronisee sur Supabase
+/// des l'inscription / connexion (+300 OC + 100 XP + 1er Goodies 300 OC).
+/// Phase B (Hub, 6 etapes verrouillees sur actions reelles) : suivie dans
+/// `profiles.tutorial_phase_b_steps` et recompensee cote serveur a la 6e etape
+/// (+25 VC + 100 OC + Titre officiel « Initié du Verse »).
 class TutorialService {
   static const String _prefPhaseADone = 'v92_tutorial_phase_a_done';
   static const String _prefPhaseAPendingStarterBuy = 'v92_tutorial_phase_a_buy_starter';
   static const String _prefFavoriteAnime = 'v92_tutorial_favorite_anime';
+  static const String _prefHubTourDone = 'v92_hub_guided_tour_done';
+  static const String _prefVisitedPrefix = 'v92_phase_b_visited_step_';
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
   static const List<Map<String, dynamic>> phaseBSteps = [
     {
       'step': 1,
-      'titre': 'Accueil & Calendrier 21 jours',
-      'desc': 'Recupere tes OC et jusqu\'a 100 VC gratuits sur le 1er cycle du Calendrier 21 jours dans la Boutique.',
+      'titre': 'Calendrier 21 jours (Boutique)',
+      'desc': 'Réclame le Jour 1 du Calendrier 21 jours dans la Boutique (onglet Calendrier & OC).',
+      'actionLabel': 'OUVRIR BOUTIQUE',
+      'serverChecked': true,
     },
     {
       'step': 2,
-      'titre': 'Avant-Match, Frais OC & Malus',
-      'desc': 'Gratuit en OC jusqu\'au Niveau 5. Des le Niveau 6, mise tes OC en arene et tente les Malus pour plus de sensations.',
+      'titre': 'Premier Combat Solo (350 PV)',
+      'desc': 'Termine un Combat Solo (0 OC de frais jusqu\'au Niv. 5, 21 œuvres et 6 difficultés).',
+      'actionLabel': 'LANCER SOLO',
+      'serverChecked': true,
     },
     {
       'step': 3,
-      'titre': 'Classement Division & Pertes d\'XP',
-      'desc': 'Affronte l\'IA calibree en Division pour grimper de Div 10 a Div 1. Attention : des le Niveau 6, une defaite retire de l\'XP.',
+      'titre': 'Premier Duel en Division',
+      'desc': 'Termine 1 match classé en Mode Division pour entrer dans le classement des 10 Divisions.',
+      'actionLabel': 'ALLER EN DIVISION',
+      'serverChecked': true,
     },
     {
       'step': 4,
-      'titre': 'Battle Royale 10 joueurs',
-      'desc': '350 PV, 40 questions et survie a 10 joueurs : les 3 plus rapides frappent tous les autres !',
+      'titre': 'Découvrir la Boutique & Goodies',
+      'desc': 'Explore les Goodies et Cosmétiques VC (zéro pay-to-win, zéro XP en boutique).',
+      'actionLabel': 'VISITER BOUTIQUE',
+      'serverChecked': false,
     },
     {
       'step': 5,
-      'titre': 'Communaute : Salons Live & Donjons',
-      'desc': 'Cree des Soirees Quiz JKLM (150 VC ou gratuit VIP) et des Donjons Otaku Forge (100 VC ou gratuit VIP).',
+      'titre': 'Consulter les Classements & le Profil',
+      'desc': 'Ouvre la rubrique Classements (Division & 10 paliers) ou ton Profil joueur.',
+      'actionLabel': 'VOIR CLASSEMENTS',
+      'serverChecked': false,
     },
     {
       'step': 6,
-      'titre': 'Evenements & Tournois',
-      'desc': 'Chaque saison dure 8 semaines avec cagnottes dynamiques et podiums. Valide cette etape pour recevoir +25 VC, +100 OC et ton titre !',
+      'titre': 'Guide du jeu ou Alerte « M\'alerter »',
+      'desc': 'Consulte le Guide du jeu dans ton Profil ou active une alerte sur un mode futur pour débloquer +25 VC, +100 OC et le Titre « Initié du Verse » !',
+      'actionLabel': 'OUVRIR LE GUIDE',
+      'serverChecked': true,
     },
   ];
 
@@ -59,6 +74,69 @@ class TutorialService {
     await prefs.setBool(_prefPhaseADone, true);
     await prefs.setBool(_prefPhaseAPendingStarterBuy, wantsStarterGoodie);
     await prefs.setString(_prefFavoriteAnime, favoriteAnimeSlug);
+  }
+
+  /// Reinitialise l'etat local a la deconnexion pour qu'un nouveau compte cree
+  /// sur le meme telephone relance proprement Phase A + visite guidee (Test 5)
+  Future<void> resetLocalStateOnLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefPhaseADone, false);
+    await prefs.setBool(_prefPhaseAPendingStarterBuy, false);
+    await prefs.setBool(_prefHubTourDone, false);
+    for (int i = 1; i <= 6; i++) {
+      await prefs.remove('$_prefVisitedPrefix$i');
+    }
+  }
+
+  /// Enregistre qu'un ecran lie a une etape Phase B a bien ete visite
+  Future<void> marquerVisiteEtape(int step) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('$_prefVisitedPrefix$step', true);
+  }
+
+  Future<bool> aVisiteEtape(int step) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('$_prefVisitedPrefix$step') ?? false;
+  }
+
+  Future<Set<int>> recupererEtapesVisiteesLocalement() async {
+    final prefs = await SharedPreferences.getInstance();
+    final set = <int>{};
+    for (int i = 1; i <= 6; i++) {
+      if (prefs.getBool('$_prefVisitedPrefix$i') == true) {
+        set.add(i);
+      }
+    }
+    return set;
+  }
+
+  Future<bool> doitAfficherVisiteGuideeHub() async {
+    final prefs = await SharedPreferences.getInstance();
+    return !(prefs.getBool(_prefHubTourDone) ?? false);
+  }
+
+  Future<void> marquerVisiteGuideeHubTerminee() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefHubTourDone, true);
+  }
+
+  /// Verifie si le compte connecte n'a pas encore fait la Phase A en base (cas d'une inscription directe)
+  Future<bool> compteDoitFairePhaseA() async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return false;
+    try {
+      final prof = await _supabase
+          .from('profiles')
+          .select('tutorial_phase_a_done, combats_joues')
+          .eq('id', uid)
+          .maybeSingle();
+      if (prof == null) return false;
+      final alreadyDone = prof['tutorial_phase_a_done'] == true;
+      final matches = (prof['combats_joues'] as num?)?.toInt() ?? 0;
+      return !alreadyDone && matches == 0;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Synchronise la recompense Phase A (+300 OC + 100 XP + achat 1er Goodies 300 OC)
@@ -94,12 +172,12 @@ class TutorialService {
           'shop-tutorial-engine',
           body: {
             'action': 'purchase_goodie',
-            'item_id': 'starter_tuto_ninja',
+            'item_id': 'skin_mazu',
             'auto_equip': true,
           },
         );
         await prefs.setBool(_prefPhaseAPendingStarterBuy, false);
-        return 'Bienvenue ! +300 OC, +100 XP et ton 1er Goodies Ninja de Konoha equipe !';
+        return 'Bienvenue ! +300 OC, +100 XP et ton 1er Goodies équipé !';
       }
 
       return data['message']?.toString();
@@ -136,16 +214,82 @@ class TutorialService {
     }
   }
 
-  /// Valide une etape (1..6) de la Phase B cote serveur
-  Future<Map<String, dynamic>> validerEtapePhaseB(int step) async {
-    final res = await _supabase.functions.invoke(
-      'shop-tutorial-engine',
-      body: {'action': 'complete_tutorial_phase_b_step', 'step': step},
-    );
-    final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
-    if (res.status >= 400 || data['error'] != null) {
-      throw Exception(data['error']?.toString() ?? 'Validation impossible');
+  /// Valide une etape (1..6) de la Phase B cote serveur (avec preuve de visite reelle)
+  Future<Map<String, dynamic>> validerEtapePhaseB(int step, {bool verifiedVisit = false}) async {
+    try {
+      final res = await _supabase.functions.invoke(
+        'shop-tutorial-engine',
+        body: {
+          'action': 'complete_tutorial_phase_b_step',
+          'step': step,
+          'verified_visit': verifiedVisit,
+        },
+      );
+      final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+      if (res.status >= 400 || data['error'] != null) {
+        throw Exception(data['error']?.toString() ?? 'Action non encore accomplie.');
+      }
+      return data;
+    } on FunctionException catch (e) {
+      final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : <String, dynamic>{};
+      throw Exception(details['error']?.toString() ?? 'Accomplis d\'abord cette action avant de valider.');
     }
-    return data;
+  }
+
+  /// Verifie et valide automatiquement cote serveur toutes les etapes Phase B accomplies
+  /// sans que le joueur ait besoin de cliquer sur le bouton VERIFIER.
+  Future<Map<String, dynamic>> synchroniserEtapesPhaseBAutomatiquement() async {
+    final etat = await recupererEtatPhaseB();
+    List<int> steps = List<int>.from(etat['steps'] as List? ?? []);
+    bool claimed = etat['claimed'] == true;
+    if (claimed) {
+      return {
+        'steps': steps,
+        'claimed': true,
+        'newlyCompleted': <int>[],
+        'rewardMessage': null,
+      };
+    }
+
+    final visited = await recupererEtapesVisiteesLocalement();
+    final newlyCompleted = <int>[];
+    String? rewardMessage;
+
+    for (final stepNum in const [1, 2, 3, 4, 5, 6]) {
+      if (steps.contains(stepNum)) continue;
+      // Les etapes 4 et 5 reposent sur la visite d'ecran (inutile d'appeler le serveur si non visite)
+      if ((stepNum == 4 || stepNum == 5) && !visited.contains(stepNum)) {
+        continue;
+      }
+      try {
+        final res = await validerEtapePhaseB(
+          stepNum,
+          verifiedVisit: visited.contains(stepNum),
+        );
+        final updatedSteps = (res['steps'] as List?)
+            ?.map((e) => (e as num).toInt())
+            .toList();
+        if (updatedSteps != null) {
+          steps = updatedSteps;
+        } else if (!steps.contains(stepNum)) {
+          steps.add(stepNum);
+        }
+        newlyCompleted.add(stepNum);
+        if (res['reward_claimed'] == true) {
+          claimed = true;
+          rewardMessage = res['message']?.toString() ??
+              'Parcours d\'Initiation terminé ! +25 VC, +100 OC et Titre « Initié du Verse » débloqués !';
+        }
+      } catch (_) {
+        // Etape non encore accomplie cote serveur : on passe silencieusement
+      }
+    }
+
+    return {
+      'steps': steps,
+      'claimed': claimed,
+      'newlyCompleted': newlyCompleted,
+      'rewardMessage': rewardMessage,
+    };
   }
 }

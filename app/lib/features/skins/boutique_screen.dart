@@ -1,7 +1,8 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
 import '../../shared/rank_badge.dart';
+import '../../shared/skin_3d_viewer.dart';
+import '../tutorial/tutorial_service.dart';
 import 'monetisation_v4_service.dart';
 import 'skin_model.dart';
 import 'skin_service.dart';
@@ -49,6 +50,7 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
   void initState() {
     super.initState();
     _tabActive = widget.initialTab.clamp(0, 3);
+    TutorialService().marquerVisiteEtape(4);
     _charger();
   }
 
@@ -117,12 +119,34 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
 
     return Scaffold(
       backgroundColor: OtakuColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Decor showroom de la Boutique (Phase A5)
+          Image.asset(
+            'assets/images/backgrounds/boutique_showroom_bg.webp',
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => Container(color: OtakuColors.background),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.72),
+                  Colors.black.withValues(alpha: 0.56),
+                  Colors.black.withValues(alpha: 0.80),
+                ],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               // === TOP BAR ANTI-OVERFLOW (UI-02) ===
               Row(
                 children: [
@@ -215,6 +239,8 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
             ],
           ),
         ),
+      ),
+        ],
       ),
     );
   }
@@ -467,14 +493,25 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: OtakuColors.accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(it['cat'] as String, style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.accent)),
+            // Apercu visuel des vrais cadres PNG transparents quand il s'agit d'un cadre
+            if (it['cat'] == 'Cadre') ...[
+              Image.asset(
+                'assets/images/frames/$id.png',
+                width: 38,
+                height: 38,
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
+              const SizedBox(width: 8),
+            ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: OtakuColors.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(it['cat'] as String, style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.accent)),
+            ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -654,6 +691,60 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 10),
+
+          // Recharges OC officielles (§1.4, Tests 31 & 36) : Jour manque, Aura 20 OC, 3 Defis bonus 50 OC
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: OtakuColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.45)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('RECHARGES & SERVICES EN OTAKU COINS (OC)', style: OtakuTypo.headlineSmall.copyWith(fontSize: 12, color: OtakuColors.accent)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CC9F0).withValues(alpha: 0.2),
+                        foregroundColor: const Color(0xFF4CC9F0),
+                      ),
+                      onPressed: _actionEnCours ? null : () => _executerAction(_shopService.reactiverJourManqueCalendrier),
+                      icon: const Icon(Icons.restore_rounded, size: 15),
+                      label: Text(
+                        isVip ? 'Réactiver Jour manqué (40/80/160 OC · 1x VIP gratuit)' : 'Réactiver Jour manqué (40 / 80 / 160 OC)',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: OtakuColors.accent.withValues(alpha: 0.2),
+                        foregroundColor: OtakuColors.accent,
+                      ),
+                      onPressed: _actionEnCours ? null : () => _executerAction(_shopService.rechargerCompetenceAura),
+                      icon: const Icon(Icons.bolt_rounded, size: 15),
+                      label: const Text('Compétence d\'Aura (20 OC)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: OtakuColors.modeEvent.withValues(alpha: 0.2),
+                        foregroundColor: OtakuColors.modeEvent,
+                      ),
+                      onPressed: _actionEnCours ? null : () => _executerAction(_shopService.debloquerDefisBonusOc),
+                      icon: const Icon(Icons.assignment_add, size: 15),
+                      label: const Text('3 Défis Bonus du jour (50 OC)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -735,95 +826,198 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
           // Offre 1 : Pass Sans Pub 1 An (4 500 FCFA / 7,99 EUR)
           _buildOfferCard(
             titre: '1. Pass Sans Pub (No Ads 1 An)',
-            prix: '4 500 FCFA  |  7,99 EUR',
-            desc: 'Supprime 100 % des pubs interstitielles automatiques pendant 365 jours. Pubs volontaires x2 OC conservees. 0 VC et aucun avantage VIP.',
+            prix: '4 500 FCFA  |  7,99 €',
+            desc: 'Supprime 100 % des pubs interstitielles automatiques pendant 365 jours. Pubs volontaires x2 OC conservées. 0 VC et aucun avantage VIP.',
             accent: OtakuColors.pvHaut,
-            boutonLabel: noAds ? 'ACTIF' : 'ACTIVER',
+            boutonLabel: noAds ? 'ACTIF' : 'DÉTAILS / ACTIVER',
             disabled: noAds,
-            onTap: () => _executerAction(() => _shopService.acheterOffreOfficielle('no_ads_1y')),
+            onTap: () => _ouvrirDetailOffreEtConfirmer(
+              titre: 'Pass Sans Pub (1 An)',
+              prix: '4 500 FCFA (7,99 €)',
+              lignes: const [
+                'Suppression 100 % des publicités interstitielles automatiques pendant 365 jours.',
+                'Les publicités volontaires (Doubler mes OC x2, Coup de Pouce +40 OC, Seconde Chance) restent disponibles.',
+                'Aucun Verse Coin et aucun privilège VIP inclus.',
+              ],
+              actionLabel: 'ACTIVER LE PASS SANS PUB',
+              onConfirm: () => _executerAction(() => _shopService.acheterOffreOfficielle('no_ads_1y')),
+            ),
           ),
           const SizedBox(height: 8),
 
           // Offre 2 : Pack Demarrage (6 500 FCFA / 9,99 EUR, 1x/compte)
           _buildOfferCard(
-            titre: '2. Pack Demarrage (1x / compte)',
-            prix: '6 500 FCFA  |  9,99 EUR',
-            desc: 'Sans Pub automatique pendant 1 an + 400 VC + 500 OC credites immediatement. Aucun avantage VIP.',
+            titre: '2. Pack Démarrage (1x / compte)',
+            prix: '6 500 FCFA  |  9,99 €',
+            desc: 'Sans Pub automatique pendant 1 an + 400 VC + 500 OC crédités immédiatement. Aucun avantage VIP.',
             accent: OtakuColors.accent,
-            boutonLabel: starterDone ? 'DEJA OBTENU' : 'OBTENIR',
+            boutonLabel: starterDone ? 'DÉJÀ OBTENU' : 'DÉTAILS / OBTENIR',
             disabled: starterDone,
-            onTap: () => _executerAction(() => _shopService.acheterOffreOfficielle('starter_pack')),
+            onTap: () => _ouvrirDetailOffreEtConfirmer(
+              titre: 'Pack Démarrage (Offre Unique)',
+              prix: '6 500 FCFA (9,99 €)',
+              lignes: const [
+                'Pass Sans Pub automatique pendant 365 jours inclus.',
+                '+400 Verse Coins crédités immédiatement (de quoi débloquer un Goodies Classique).',
+                '+500 Otaku Coins crédités immédiatement pour tes frais d\'arène et options.',
+                'Limité à 1 seul achat par compte.',
+              ],
+              actionLabel: 'OBTENIR LE PACK DÉMARRAGE',
+              onConfirm: () => _executerAction(() => _shopService.acheterOffreOfficielle('starter_pack')),
+            ),
           ),
           const SizedBox(height: 8),
 
-          // Offre 3 : Abonnement VIP Mensuel & Annuel
+          // Offre 3 : Abonnement VIP — VIP ANNUEL FORTEMENT MIS EN AVANT (Test 37 & 39)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFFFFD700).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.65), width: 1.4),
+              border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.75), width: 1.6),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD700), size: 18),
+                    const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD700), size: 20),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '3. Abonnement VIP "Pass Premium du Verse" (8 Privileges + Sans Pub)',
+                        '3. Abonnement VIP « Pass Premium du Verse » (8 Privilèges + Sans Pub)',
                         style: OtakuTypo.headlineSmall.copyWith(fontSize: 13, color: const Color(0xFFFFD700)),
                       ),
                     ),
-                    if (isVip) _buildStatusPill('ABONNE VIP', const Color(0xFFFFD700)),
+                    if (isVip) _buildStatusPill('ABONNÉ VIP', const Color(0xFFFFD700)),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Salons Live & Donjons gratuits, 7 Stats Pro Verse Analytics, +25 OC/jour, franchise erosion XP 14 jours, Cadre VIP anime et 0 pub automatique.',
-                  style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.textSecondary),
+                const SizedBox(height: 6),
+                // Affichage explicite des 8 Privileges VIP directement visibles (Test 39)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: const [
+                    _VipPerkPill('1. Salons Live gratuits'),
+                    _VipPerkPill('2. Donjons gratuits'),
+                    _VipPerkPill('3. Générateur Hybride'),
+                    _VipPerkPill('4. Verse Analytics (7 Stats)'),
+                    _VipPerkPill('5. +25 OC/jour + 1 jour manqué/sem'),
+                    _VipPerkPill('6. Franchise érosion 14j'),
+                    _VipPerkPill('7. Cadre VIP animé'),
+                    _VipPerkPill('8. 0 pub automatique'),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Carte vedette VIP ANNUEL mise fortement en avant et en gras (Test 37)
+                GestureDetector(
+                  onTap: _actionEnCours
+                      ? null
+                      : () => _ouvrirDetailOffreEtConfirmer(
+                            titre: 'VIP ANNUEL · MEILLEURE OFFRE (-29 %)',
+                            prix: '29 900 FCFA / an (soit ~2 492 FCFA / mois)',
+                            lignes: const [
+                              'Versement échelonné officiel de 3 200 VC / an :',
+                              '  • 800 VC crédités immédiatement à l\'activation',
+                              '  • +200 VC crédités chaque mois pendant 12 mois (= 2 400 VC)',
+                              'Titre exclusif « Architecte Suprême du Verse » + Cadre VIP Or/Violet.',
+                              'Inclut les 8 Privilèges VIP complets : Salons Live & Donjons gratuits, Générateur Hybride, Verse Analytics 7 Stats Pro, +25 OC/jour + 1 récupération/semaine, franchise érosion 14 jours et 0 pub automatique.',
+                            ],
+                            actionLabel: 'ACTIVER LE VIP ANNUEL (29 900 FCFA)',
+                            onConfirm: () => _executerAction(() => _shopService.acheterOffreOfficielle('vip_yearly')),
+                          ),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFFFD700).withValues(alpha: 0.28),
+                          OtakuColors.modeEvent.withValues(alpha: 0.25),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFFD700), width: 2),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFD700),
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    child: const Text(
+                                      'RECOMMANDÉ · -29 %',
+                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.black),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'VIP ANNUEL : 29 900 FCFA',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFFFD700)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                '3 200 VC/an (800 VC immédiats + 200 VC/mois × 12) · Titre « Architecte Suprême du Verse » · 8 Privilèges VIP',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text('VOIR & ACTIVER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFD700),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                        ),
-                        onPressed: _actionEnCours
-                            ? null
-                            : () => _executerAction(() => _shopService.acheterOffreOfficielle('vip_monthly')),
-                        child: const Text(
-                          'MENSUEL : 3 500 FCFA (1er mois 2 500 FCFA) | +200/+250 VC',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-                        ),
-                      ),
+
+                // Option secondaire plus discrete : VIP Mensuel
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: OtakuColors.textSecondary,
+                      side: const BorderSide(color: OtakuColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: OtakuColors.modeEvent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                        ),
-                        onPressed: _actionEnCours
-                            ? null
-                            : () => _executerAction(() => _shopService.acheterOffreOfficielle('vip_yearly')),
-                        child: const Text(
-                          'ANNUEL (-29 %) : 29 900 FCFA | 3 200 VC/an + Titre',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-                        ),
-                      ),
+                    onPressed: _actionEnCours
+                        ? null
+                        : () => _ouvrirDetailOffreEtConfirmer(
+                              titre: 'VIP Mensuel',
+                              prix: '3 500 FCFA / mois (1er mois 2 500 FCFA)',
+                              lignes: const [
+                                '1er mois découverte : 2 500 FCFA avec +200 VC inclus.',
+                                'Renouvellements suivants : 3 500 FCFA / mois avec +250 VC / mois.',
+                                'Inclut les 8 Privilèges VIP complets (Salons Live & Donjons gratuits, Verse Analytics 7 Stats Pro, +25 OC/jour, franchise érosion 14j, Cadre VIP, 0 pub automatique).',
+                                'Astuce : le VIP Annuel (29 900 FCFA) économise 29 % et ajoute le titre exclusif « Architecte Suprême du Verse ».',
+                              ],
+                              actionLabel: 'ACTIVER LE VIP MENSUEL',
+                              onConfirm: () => _executerAction(() => _shopService.acheterOffreOfficielle('vip_monthly')),
+                            ),
+                    child: const Text(
+                      'Option Mensuelle : 3 500 FCFA / mois (1er mois 2 500 FCFA) · +200 / +250 VC · Voir détails',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -857,7 +1051,7 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                           children: [
                             Flexible(
                               child: Text(
-                                '${p['nom']} — ${p['total']}',
+                                '${p['nom']} · ${p['total']}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: OtakuTypo.headlineSmall.copyWith(fontSize: 13),
@@ -887,7 +1081,17 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
                     ),
                     onPressed: _actionEnCours
                         ? null
-                        : () => _executerAction(() => _shopService.acheterPackVcOfficiel(p['id'] as String)),
+                        : () => _ouvrirDetailOffreEtConfirmer(
+                              titre: '${p['nom']} (${p['total']})',
+                              prix: p['prix'] as String,
+                              lignes: [
+                                'Contenu exact : ${p['detail']}.',
+                                'Avantage tarifaire : ${p['badge']}.',
+                                'Utilisables pour les Goodies, Cosmétiques, Salons Live (150 VC) et Donjons (100 VC).',
+                              ],
+                              actionLabel: 'CRÉDITER ${p['total']}',
+                              onConfirm: () => _executerAction(() => _shopService.acheterPackVcOfficiel(p['id'] as String)),
+                            ),
                     child: Text(p['prix'] as String, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 10)),
                   ),
                 ],
@@ -935,6 +1139,63 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
             ),
             onPressed: (disabled || _actionEnCours) ? null : onTap,
             child: Text(boutonLabel, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Panneau explicatif clair au clic sur chaque pack ou abonnement (Test 39)
+  void _ouvrirDetailOffreEtConfirmer({
+    required String titre,
+    required String prix,
+    required List<String> lignes,
+    required String actionLabel,
+    required VoidCallback onConfirm,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: OtakuColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(titre, style: OtakuTypo.headlineSmall.copyWith(fontSize: 15, color: const Color(0xFFFFD700))),
+            const SizedBox(height: 2),
+            Text(prix, style: OtakuTypo.hud.copyWith(fontSize: 12, color: Colors.white)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: lignes
+                .map(
+                  (l) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text('• $l', style: OtakuTypo.bodySmall.copyWith(fontSize: 11, color: Colors.white, height: 1.35)),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('FERMER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700), foregroundColor: Colors.black),
+            onPressed: () {
+              Navigator.pop(ctx);
+              onConfirm();
+            },
+            child: Text(actionLabel, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
           ),
         ],
       ),
@@ -997,7 +1258,25 @@ class _BoutiqueScreenState extends State<BoutiqueScreen> {
   }
 }
 
-/// Page detail Goodies 3D avec cadrage non coupe (UI-01 : BoxFit.contain + Alignment.topCenter + padding >= 12px)
+class _VipPerkPill extends StatelessWidget {
+  final String label;
+  const _VipPerkPill(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.45)),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+/// Page detail Goodies 3D (.glb interactif 360° + streaming R2 + repli 2D)
 class _SkinDetailPage extends StatefulWidget {
   final Skin skin;
   final VoidCallback onAction;
@@ -1008,27 +1287,10 @@ class _SkinDetailPage extends StatefulWidget {
   State<_SkinDetailPage> createState() => _SkinDetailPageState();
 }
 
-class _SkinDetailPageState extends State<_SkinDetailPage> with SingleTickerProviderStateMixin {
+class _SkinDetailPageState extends State<_SkinDetailPage> {
   final _skinService = SkinService();
-  late AnimationController _rotationController;
-  double _dragRotation = 0;
   String? _erreur;
   bool _chargement = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _rotationController.dispose();
-    super.dispose();
-  }
 
   Future<void> _action() async {
     setState(() {
@@ -1075,114 +1337,148 @@ class _SkinDetailPageState extends State<_SkinDetailPage> with SingleTickerProvi
 
     return Scaffold(
       backgroundColor: OtakuColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Row(
-            children: [
-              // Gauche : apercu 3D rotatif non coupe (UI-01)
-              Expanded(
-                flex: 3,
-                child: GestureDetector(
-                  onPanUpdate: (details) => setState(() => _dragRotation += details.delta.dx * 0.01),
-                  child: AnimatedBuilder(
-                    animation: _rotationController,
-                    builder: (context, child) {
-                      final angle = sin(_dragRotation + (_rotationController.value * 2 * pi)) * 0.2;
-                      return Transform(
-                        alignment: Alignment.center,
-                        transform: Matrix4.identity()
-                          ..setEntry(3, 2, 0.001)
-                          ..rotateY(angle),
-                        child: child,
-                      );
-                    },
-                    child: SafeAvatarBox(
-                      assetPath: 'assets/images/skins/${skin.imageKey}.png',
-                      borderColor: _couleur,
-                      borderRadius: 20,
-                      topPadding: 14,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/backgrounds/boutique_showroom_bg.webp',
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => Container(color: OtakuColors.background),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.65),
+                  Colors.black.withValues(alpha: 0.45),
+                  Colors.black.withValues(alpha: 0.80),
+                ],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Row(
+                children: [
+                  // Gauche : apercu 3D .glb interactif 360° (streaming R2 + cache local + repli 2D)
+                  Expanded(
+                    flex: 4,
+                    child: OtakuSkin3DViewer(
+                      imageKey: skin.imageKey,
+                      accentColor: skin.accentColor,
+                      characterName: skin.name,
+                      characterSubtitle: skin.powerName.isNotEmpty ? 'Pouvoir : ${skin.powerName}' : skin.role,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 20),
+                  const SizedBox(width: 20),
 
-              // Droite : infos + bouton achat VC/OC
-              Expanded(
-                flex: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.arrow_back_rounded, color: OtakuColors.textPrimary, size: 22),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(skin.name, style: OtakuTypo.headlineLarge.copyWith(fontSize: 22)),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _couleur.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _couleur.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(skin.rarity.toUpperCase(), style: OtakuTypo.label.copyWith(fontSize: 10, color: _couleur)),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(skin.description, style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted)),
-                    const SizedBox(height: 16),
-                    if (!skin.owned)
-                      Text(
-                        'Tarif officiel : ${skin.conditionTexte}',
-                        style: OtakuTypo.hud.copyWith(
-                          fontSize: 14,
-                          color: skin.currency == 'oc' ? OtakuColors.pvMoyen : const Color(0xFFFFD700),
-                        ),
-                      ),
-                    if (_erreur != null) ...[
-                      const SizedBox(height: 10),
-                      Text(_erreur!, style: const TextStyle(color: OtakuColors.error, fontSize: 11)),
-                    ],
-                    const Spacer(),
-                    if (!skin.equipped)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: skin.owned ? OtakuColors.accent : _couleur,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                  // Droite : infos + lore + bouton achat VC/OC
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: LiquidGlass(
+                            padding: const EdgeInsets.all(8),
+                            borderRadius: 10,
+                            child: const Icon(Icons.arrow_back_rounded, color: OtakuColors.textPrimary, size: 20),
                           ),
-                          onPressed: _chargement ? null : _action,
-                          child: _chargement
-                              ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : Text(
-                                  skin.owned ? 'EQUIPER CE GOODIES' : 'DEBLOQUER (${skin.conditionTexte})',
-                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(skin.name, style: OtakuTypo.headlineLarge.copyWith(fontSize: 22)),
+                        if (skin.role.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(skin.role, style: OtakuTypo.label.copyWith(fontSize: 10, color: skin.accentColor)),
+                        ],
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _couleur.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: _couleur.withValues(alpha: 0.55)),
+                              ),
+                              child: Text(skin.rarity.toUpperCase(), style: OtakuTypo.label.copyWith(fontSize: 9.5, color: _couleur)),
+                            ),
+                            if (skin.powerName.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: skin.accentColor.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: skin.accentColor.withValues(alpha: 0.55)),
                                 ),
+                                child: Text(
+                                  'Pouvoir : ${skin.powerName} (100% visuel en classé)',
+                                  style: OtakuTypo.label.copyWith(fontSize: 9.5, color: skin.accentColor),
+                                ),
+                              ),
+                          ],
                         ),
-                      )
-                    else
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: OtakuColors.pvHaut.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: OtakuColors.pvHaut.withValues(alpha: 0.4)),
-                        ),
-                        child: Center(
-                          child: Text('EQUIPE ACTUELLEMENT', style: OtakuTypo.label.copyWith(color: OtakuColors.pvHaut, fontSize: 11)),
-                        ),
-                      ),
-                  ],
-                ),
+                        const SizedBox(height: 10),
+                        Text(skin.description, style: OtakuTypo.bodySmall.copyWith(color: Colors.white70, height: 1.4)),
+                        const SizedBox(height: 14),
+                        if (!skin.owned)
+                          Text(
+                            'Tarif officiel : ${skin.conditionTexte}',
+                            style: OtakuTypo.hud.copyWith(
+                              fontSize: 14,
+                              color: skin.currency == 'oc' ? OtakuColors.pvMoyen : const Color(0xFFFFD700),
+                            ),
+                          ),
+                        if (_erreur != null) ...[
+                          const SizedBox(height: 8),
+                          Text(_erreur!, style: const TextStyle(color: OtakuColors.error, fontSize: 11)),
+                        ],
+                        const Spacer(),
+                        if (!skin.equipped)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: skin.owned ? OtakuColors.accent : _couleur,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              onPressed: _chargement ? null : _action,
+                              child: _chargement
+                                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : Text(
+                                      skin.owned ? 'ÉQUIPER CE GOODIES' : 'DÉBLOQUER (${skin.conditionTexte})',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                    ),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: OtakuColors.pvHaut.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: OtakuColors.pvHaut.withValues(alpha: 0.55)),
+                            ),
+                            child: Center(
+                              child: Text('ÉQUIPÉ ACTUELLEMENT', style: OtakuTypo.label.copyWith(color: OtakuColors.pvHaut, fontSize: 11)),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

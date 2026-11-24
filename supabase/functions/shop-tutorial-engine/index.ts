@@ -27,84 +27,84 @@ interface CatalogItem {
 
 const GOODIES_CATALOG: Record<string, CatalogItem> = {
   // 1 seul Goodies en OC : depart tutoriel (300 OC, §2.4 & §4.1)
-  starter_tuto_ninja: {
-    id: "starter_tuto_ninja",
-    name: "Ninja de Konoha",
+  skin_mazu: {
+    id: "skin_mazu",
+    name: "Mazú",
     category: "skin",
     currency: "oc",
     price: 300,
-    image_key: "skin_ninja",
+    image_key: "skin_mazu",
   },
   // Goodies Classiques (350-500 VC)
-  skin_pirate: {
-    id: "skin_pirate",
-    name: "Capitaine Pirate",
+  skin_tavik: {
+    id: "skin_tavik",
+    name: "Tavik",
     category: "skin",
     currency: "vc",
     price: 350,
-    image_key: "skin_pirate",
+    image_key: "skin_tavik",
   },
-  skin_samourai: {
-    id: "skin_samourai",
-    name: "Ronin de Wano",
+  skin_ruve: {
+    id: "skin_ruve",
+    name: "Ruvé",
     category: "skin",
     currency: "vc",
     price: 400,
-    image_key: "skin_samourai",
+    image_key: "skin_ruve",
   },
-  skin_ermite: {
-    id: "skin_ermite",
-    name: "Ermite des Cimes",
+  skin_hesk: {
+    id: "skin_hesk",
+    name: "Hesk",
     category: "skin",
     currency: "vc",
     price: 450,
-    image_key: "skin_ermite",
+    image_key: "skin_hesk",
   },
-  skin_titan: {
-    id: "skin_titan",
-    name: "Chasseur de Titans",
+  skin_ilka: {
+    id: "skin_ilka",
+    name: "Ilka",
     category: "skin",
     currency: "vc",
     price: 500,
-    image_key: "skin_titan",
+    image_key: "skin_ilka",
   },
   // Goodies Epiques (700-900 VC)
-  skin_demon: {
-    id: "skin_demon",
-    name: "Pourfendeur Demoniaque",
+  skin_vael: {
+    id: "skin_vael",
+    name: "Vael",
     category: "skin",
     currency: "vc",
     price: 700,
-    image_key: "skin_demon",
+    image_key: "skin_vael",
   },
-  skin_hokage: {
-    id: "skin_hokage",
-    name: "Ombre du Hokage",
+  skin_dakore: {
+    id: "skin_dakore",
+    name: "Dakoré",
     category: "skin",
     currency: "vc",
     price: 800,
-    image_key: "skin_hokage",
+    image_key: "skin_dakore",
   },
-  skin_dragon: {
-    id: "skin_dragon",
-    name: "Guerrier Dragon",
+  skin_ysae: {
+    id: "skin_ysae",
+    name: "Ysaé",
     category: "skin",
     currency: "vc",
     price: 850,
-    image_key: "skin_dragon",
+    image_key: "skin_ysae",
   },
-  skin_roi: {
-    id: "skin_roi",
-    name: "Souverain des Ombres",
+  skin_cassio_vey: {
+    id: "skin_cassio_vey",
+    name: "Cassio Vey",
     category: "skin",
     currency: "vc",
     price: 900,
-    image_key: "skin_roi",
+    image_key: "skin_cassio_vey",
   },
   // Fondateurs Legendaires (1200-1500 VC, §2.4)
   avatar_soryn_ether_watcher: {
     id: "avatar_soryn_ether_watcher",
-    name: "Soryn, Gardien de l'Ether",
+    name: "Soryn",
     category: "skin",
     currency: "vc",
     price: 1200,
@@ -112,11 +112,11 @@ const GOODIES_CATALOG: Record<string, CatalogItem> = {
   },
   avatar_nyxara_twin_fangs: {
     id: "avatar_nyxara_twin_fangs",
-    name: "Nyxara, Crocs Jumeaux",
+    name: "Nyxara",
     category: "skin",
     currency: "vc",
     price: 1500,
-    image_key: "boss_gardien",
+    image_key: "avatar_nyxara_twin_fangs",
   },
   // Cosmetiques secondaires (100% VC, §2.4)
   cadre_neon_shonen: {
@@ -354,6 +354,12 @@ Deno.serve(async (req: Request) => {
             { onConflict: "player_id,skin_id" },
           );
         }
+        if (autoEquip) {
+          await supabaseAdmin
+            .from("profiles")
+            .update({ equipped_skin_key: item.image_key })
+            .eq("id", userId);
+        }
       }
 
       return jsonResponse({
@@ -493,7 +499,7 @@ Deno.serve(async (req: Request) => {
             vip_expires_at: exp,
             no_ads_expires_at: exp,
             active_frame: "cadre_vip_or_violet",
-            ...(isYearly ? { active_title: "Architecte Supreme du Verse" } : {}),
+            ...(isYearly ? { active_title: "Architecte Suprême du Verse" } : {}),
           })
           .eq("id", userId);
 
@@ -750,19 +756,82 @@ Deno.serve(async (req: Request) => {
     }
 
     // ------------------------------------------------------------------------
-    // 6. TUTORIEL PHASE B (6 ETAPES COACHMARKS -> +25 VC + 100 OC + TITRE — §4.2)
+    // 6. TUTORIEL PHASE B (6 ETAPES VERROUILLEES REELLEMENT -> +25 VC + 100 OC + "Initié du Verse")
     // ------------------------------------------------------------------------
     if (action === "complete_tutorial_phase_b_step") {
       const step = Number(body?.step ?? 0);
       if (!Number.isInteger(step) || step < 1 || step > 6) {
-        return jsonResponse({ error: "Etape Phase B invalide (1 a 6)" }, 400);
+        return jsonResponse({ error: "Étape Phase B invalide (1 à 6)" }, 400);
       }
 
       const { data: profile } = await supabaseAdmin
         .from("profiles")
-        .select("tutorial_phase_b_steps, tutorial_phase_b_claimed")
+        .select("tutorial_phase_b_steps, tutorial_phase_b_claimed, combats_joues, season_matches_played")
         .eq("id", userId)
         .single();
+
+      // Verification reelle cote serveur avant validation de chaque etape (Test 6)
+      if (step === 1) {
+        // Etape 1 : avoir reclame au moins 1 jour du Calendrier 21 jours
+        const { count: calCount } = await supabaseAdmin
+          .from("daily_calendar_claims")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        if ((calCount ?? 0) < 1) {
+          return jsonResponse(
+            { error: "Réclame d'abord le Jour 1 du Calendrier 21 jours dans la Boutique !" },
+            400,
+          );
+        }
+      } else if (step === 2) {
+        // Etape 2 : avoir termine au moins 1 Combat Solo
+        const { count: soloCount } = await supabaseAdmin
+          .from("matches")
+          .select("id", { count: "exact", head: true })
+          .eq("player1_id", userId)
+          .eq("mode", "solo")
+          .eq("status", "finished");
+        if ((soloCount ?? 0) < 1 && (profile?.combats_joues ?? 0) < 1) {
+          return jsonResponse(
+            { error: "Termine d'abord au moins 1 Combat Solo pour valider cette étape !" },
+            400,
+          );
+        }
+      } else if (step === 3) {
+        // Etape 3 : avoir termine au moins 1 duel en Mode Division
+        const { count: divCount } = await supabaseAdmin
+          .from("matches")
+          .select("id", { count: "exact", head: true })
+          .eq("player1_id", userId)
+          .eq("mode", "division")
+          .eq("status", "finished");
+        if ((divCount ?? 0) < 1) {
+          return jsonResponse(
+            { error: "Termine d'abord 1 match en Mode Division pour valider cette étape !" },
+            400,
+          );
+        }
+      } else if (step === 4 || step === 5) {
+        // Etapes 4 (Boutique) & 5 (Profil/Classements) : preuve de visite reelle exigee
+        if (body?.verified_visit !== true) {
+          return jsonResponse(
+            { error: step === 4 ? "Visite d'abord la Boutique avant de valider !" : "Consulte d'abord le Classement Division ou ton Profil !" },
+            400,
+          );
+        }
+      } else if (step === 6) {
+        // Etape 6 : s'etre inscrit a au moins 1 alerte (feature_waitlist) ou avoir consulte le Guide
+        const { count: waitCount } = await supabaseAdmin
+          .from("feature_waitlist")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        if ((waitCount ?? 0) < 1 && body?.verified_visit !== true) {
+          return jsonResponse(
+            { error: "Active une alerte « M'alerter » sur un mode futur ou consulte le Guide du jeu !" },
+            400,
+          );
+        }
+      }
 
       const currentSteps: number[] = Array.isArray(profile?.tutorial_phase_b_steps)
         ? profile.tutorial_phase_b_steps.map(Number)
@@ -832,7 +901,7 @@ Deno.serve(async (req: Request) => {
           .update({
             tutorial_phase_b_steps: updatedSet,
             tutorial_phase_b_claimed: true,
-            active_title: "Initie du Verse",
+            active_title: "Initié du Verse",
           })
           .eq("id", userId);
 
@@ -851,9 +920,10 @@ Deno.serve(async (req: Request) => {
         reward_claimed: rewardClaimedNow,
         vc_gained: vcGranted,
         oc_gained: rewardClaimedNow ? 100 : 0,
+        title_granted: rewardClaimedNow ? "Initié du Verse" : null,
         message: rewardClaimedNow
-          ? `Parcours d'Initiation termine ! +${vcGranted} VC, +100 OC et Titre "Initie du Verse" !`
-          : `Etape ${step}/6 validee (${updatedSet.length}/6).`,
+          ? `Parcours d'Initiation terminé ! +${vcGranted} VC, +100 OC et Titre « Initié du Verse » !`
+          : `Étape ${step}/6 validée (${updatedSet.length}/6).`,
       });
     }
 
@@ -896,23 +966,26 @@ Deno.serve(async (req: Request) => {
     }
 
     // ------------------------------------------------------------------------
-    // 8. VERSE ANALYTICS — 7 STATS PRO EXCLUSIVES VIP (§2.3 #4)
+    // 8. VERSE ANALYTICS — 7 STATS PRO EXCLUSIVES VIP (§2.3 #4, TEST 39)
     // ------------------------------------------------------------------------
     if (action === "get_vip_analytics") {
       const { data: profile } = await supabaseAdmin
         .from("profiles")
-        .select("is_vip, combats_joues, combats_gagnes, ko_wins_season")
+        .select("is_vip, vip_expires_at, combats_joues, combats_gagnes, ko_wins_season, division_id, pts_division, niveau")
         .eq("id", userId)
         .single();
 
-      if (!profile?.is_vip) {
-        return jsonResponse({ locked: true, error: "Reserve aux abonnes VIP" }, 403);
+      const vipActive =
+        profile?.is_vip === true &&
+        (!profile?.vip_expires_at || new Date(profile.vip_expires_at).getTime() > Date.now());
+      if (!vipActive) {
+        return jsonResponse({ locked: true, error: "Réservé aux abonnés VIP" }, 403);
       }
 
       const { data: recentMatches } = await supabaseAdmin
         .from("matches")
         .select(
-          "mode, difficulty, malus_mode, winner_id, player1_hp, player1_correct, player1_errors, player1_haya_count, questions_played, elapsed_play_ms, ended_by_ko, started_at",
+          "mode, difficulty, malus_mode, winner_id, player1_hp, player2_hp, player1_correct, player1_errors, player1_haya_count, questions_played, elapsed_play_ms, ended_by_ko, started_at",
         )
         .eq("player1_id", userId)
         .eq("status", "finished")
@@ -928,7 +1001,8 @@ Deno.serve(async (req: Request) => {
       let koWins = 0;
       let malusMatches = 0;
       let malusWins = 0;
-      const byDifficulty: Record<string, { played: number; correct: number; total: number }> = {};
+      const byDifficulty: Record<string, { played: number; wins: number; correct: number; total: number }> = {};
+      const byMode: Record<string, { played: number; wins: number; correct: number; total: number }> = {};
 
       const history50 = list.map((m) => {
         const c = m.player1_correct ?? 0;
@@ -946,18 +1020,71 @@ Deno.serve(async (req: Request) => {
           if (won) malusWins++;
         }
         const diff = m.difficulty ?? "moyen";
-        if (!byDifficulty[diff]) byDifficulty[diff] = { played: 0, correct: 0, total: 0 };
+        if (!byDifficulty[diff]) byDifficulty[diff] = { played: 0, wins: 0, correct: 0, total: 0 };
         byDifficulty[diff].played++;
+        if (won) byDifficulty[diff].wins++;
         byDifficulty[diff].correct += c;
         byDifficulty[diff].total += q;
+
+        const md = m.mode ?? "solo";
+        if (!byMode[md]) byMode[md] = { played: 0, wins: 0, correct: 0, total: 0 };
+        byMode[md].played++;
+        if (won) byMode[md].wins++;
+        byMode[md].correct += c;
+        byMode[md].total += q;
+
         return {
-          mode: m.mode,
+          mode: md,
           difficulty: diff,
           won,
+          ko: won && m.ended_by_ko === true,
           hp: m.player1_hp ?? 0,
           accuracy: Math.round((c / q) * 100),
+          started_at: m.started_at,
         };
       });
+
+      // Carnet d'erreurs revisable (table player_question_errors si migree)
+      let errorNotebook: any[] = [];
+      try {
+        const { data: errRows } = await supabaseAdmin
+          .from("player_question_errors")
+          .select("id, question_id, work_slug, arc_name, difficulty_level, question_text, chosen_answer, correct_answer, explanation, reviewed, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(60);
+        if (Array.isArray(errRows)) {
+          errorNotebook = errRows;
+        }
+      } catch (_) {}
+
+      // Comparateur Head-to-Head vs moyenne de la Division
+      let divAvgWinRate = 52;
+      let divAvgAccuracy = 64;
+      try {
+        const { data: peers } = await supabaseAdmin
+          .from("profiles")
+          .select("combats_joues, combats_gagnes, season_correct_answers, season_total_answers")
+          .eq("division_id", profile?.division_id ?? 10)
+          .gt("combats_joues", 0)
+          .limit(100);
+        if (peers && peers.length > 0) {
+          let sumWr = 0;
+          let sumAcc = 0;
+          let accCount = 0;
+          for (const p of peers) {
+            const played = Math.max(1, Number(p.combats_joues || 1));
+            sumWr += (Number(p.combats_gagnes || 0) / played) * 100;
+            const totA = Number(p.season_total_answers || 0);
+            if (totA > 0) {
+              sumAcc += (Number(p.season_correct_answers || 0) / totA) * 100;
+              accCount++;
+            }
+          }
+          divAvgWinRate = Math.round(sumWr / peers.length);
+          if (accCount > 0) divAvgAccuracy = Math.round(sumAcc / accCount);
+        }
+      } catch (_) {}
 
       const accuracyPct = totalAnswers > 0 ? Math.round((totalCorrect / totalAnswers) * 100) : 0;
       const avgTimeSec = totalAnswers > 0 ? Number((totalMs / totalAnswers / 1000).toFixed(2)) : 0;
@@ -977,17 +1104,325 @@ Deno.serve(async (req: Request) => {
           combativite: winRatePct,
         },
         by_difficulty: byDifficulty,
+        by_mode: byMode,
         avg_reaction_sec: avgTimeSec,
         haya_ratio_pct: hayaRatioPct,
         malus_resistance_pct: malusResPct,
         history_50: history50.reverse(),
         total_errors_recent: Math.max(0, totalAnswers - totalCorrect),
+        error_notebook: errorNotebook,
         head_to_head_summary: {
           matches: list.length,
           wins,
           losses: list.length - wins,
+          win_rate_pct: winRatePct,
           ko_rate_pct: koRatePct,
+          division_id: profile?.division_id ?? 10,
+          division_avg_win_rate: divAvgWinRate,
+          division_avg_accuracy: divAvgAccuracy,
         },
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // 9. RECHARGES OC MANQUANTES (§1.4, TEST 31, CALCUL #12)
+    //    - recharge_aura_skill : 20 OC
+    //    - recover_calendar_day : 40 / 80 / 160 OC (ou 0 OC VIP 1x/semaine)
+    //    - buy_bonus_challenges : 50 OC (3 defis bonus)
+    // ------------------------------------------------------------------------
+    if (action === "recharge_aura_skill") {
+      const cost = 20;
+      const { data: wallet } = await supabaseAdmin
+        .from("economy_wallets")
+        .select("oc_balance, aura_charges")
+        .eq("user_id", userId)
+        .single();
+
+      const currentOc = wallet?.oc_balance ?? 0;
+      if (currentOc < cost) {
+        return jsonResponse({ error: `Solde OC insuffisant (${currentOc} / ${cost} OC requis)` }, 400);
+      }
+
+      const newOc = currentOc - cost;
+      const newCharges = (wallet?.aura_charges ?? 0) + 1;
+
+      await supabaseAdmin
+        .from("economy_wallets")
+        .update({ oc_balance: newOc, aura_charges: newCharges, updated_at: new Date().toISOString() })
+        .eq("user_id", userId);
+
+      await supabaseAdmin.from("economy_ledger").insert({
+        user_id: userId,
+        currency: "OC",
+        delta: -cost,
+        balance_after: newOc,
+        reason: "recharge_aura_skill",
+      });
+
+      return jsonResponse({
+        ok: true,
+        oc_balance: newOc,
+        aura_charges: newCharges,
+        message: "Compétence d'Aura rechargée (-20 OC) !",
+      });
+    }
+
+    if (action === "recover_calendar_day") {
+      const { data: wallet } = await supabaseAdmin
+        .from("economy_wallets")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("is_vip, vip_expires_at, vip_free_recovery_week")
+        .eq("id", userId)
+        .single();
+
+      const seasonId = wallet?.season_id ?? "saison_1";
+      const { data: lastClaim } = await supabaseAdmin
+        .from("daily_calendar_claims")
+        .select("cycle_number, day_number")
+        .eq("user_id", userId)
+        .eq("season_id", seasonId)
+        .order("cycle_number", { ascending: false })
+        .order("day_number", { ascending: false })
+        .limit(1);
+
+      let nextCycle = 1;
+      let nextDay = 1;
+      if (lastClaim && lastClaim.length > 0) {
+        const last = lastClaim[0];
+        if (last.day_number >= 21) {
+          nextCycle = last.cycle_number + 1;
+          nextDay = 1;
+        } else {
+          nextCycle = last.cycle_number;
+          nextDay = last.day_number + 1;
+        }
+      }
+
+      // Nombre de jours deja reactives dans ce cycle (cout progressif : 40 / 80 / 160 OC)
+      const { count: recoveredCount } = await supabaseAdmin
+        .from("daily_calendar_claims")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("season_id", seasonId)
+        .eq("cycle_number", nextCycle)
+        .eq("is_recovery", true);
+
+      const recIdx = recoveredCount ?? 0;
+      const baseCost = recIdx === 0 ? 40 : recIdx === 1 ? 80 : 160;
+
+      // Privilege VIP #5 : 1 recharge gratuite par semaine
+      const now = new Date();
+      const weekKey = `${now.getUTCFullYear()}-W${Math.ceil(((now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7)}`;
+      const vipActive =
+        profile?.is_vip === true &&
+        (!profile?.vip_expires_at || new Date(profile.vip_expires_at).getTime() > now.getTime());
+      const useVipFree = vipActive && profile?.vip_free_recovery_week !== weekKey;
+      const finalCost = useVipFree ? 0 : baseCost;
+
+      const currentOc = wallet?.oc_balance ?? 0;
+      if (currentOc < finalCost) {
+        return jsonResponse({ error: `Solde OC insuffisant (${currentOc} / ${finalCost} OC requis)` }, 400);
+      }
+
+      const baseReward = getCalendarDayReward(nextDay, nextCycle);
+      let vcGrant = baseReward.vc;
+      let ocGrant = baseReward.oc + (vipActive ? 25 : 0);
+      const currentFreeVc = wallet?.season_free_vc_earned ?? 0;
+      if (vcGrant > 0 && currentFreeVc + vcGrant > 150) {
+        vcGrant = Math.max(0, 150 - currentFreeVc);
+        if (vcGrant === 0) ocGrant += 250;
+      }
+
+      const newOc = currentOc - finalCost + ocGrant;
+      const newVcBonus = (wallet?.vc_bonus ?? 0) + vcGrant;
+      const todayIso = now.toISOString().slice(0, 10);
+
+      await supabaseAdmin.from("daily_calendar_claims").insert({
+        user_id: userId,
+        season_id: seasonId,
+        cycle_number: nextCycle,
+        day_number: nextDay,
+        claimed_date: todayIso,
+        is_recovery: true,
+      });
+
+      await supabaseAdmin
+        .from("economy_wallets")
+        .update({
+          oc_balance: newOc,
+          vc_bonus: newVcBonus,
+          season_free_vc_earned: currentFreeVc + vcGrant,
+          updated_at: now.toISOString(),
+        })
+        .eq("user_id", userId);
+
+      if (useVipFree) {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ vip_free_recovery_week: weekKey })
+          .eq("id", userId);
+      }
+
+      if (finalCost > 0) {
+        await supabaseAdmin.from("economy_ledger").insert({
+          user_id: userId,
+          currency: "OC",
+          delta: -finalCost,
+          balance_after: currentOc - finalCost,
+          reason: `calendar_recovery_c${nextCycle}_d${nextDay}`,
+        });
+      }
+      if (ocGrant > 0) {
+        await supabaseAdmin.from("economy_ledger").insert({
+          user_id: userId,
+          currency: "OC",
+          delta: ocGrant,
+          balance_after: newOc,
+          reason: `calendar_c${nextCycle}_d${nextDay}`,
+        });
+      }
+      if (vcGrant > 0) {
+        await supabaseAdmin.from("economy_ledger").insert({
+          user_id: userId,
+          currency: "VC_BONUS",
+          delta: vcGrant,
+          balance_after: newVcBonus,
+          reason: `calendar_c${nextCycle}_d${nextDay}`,
+        });
+      }
+
+      return jsonResponse({
+        ok: true,
+        cost_oc: finalCost,
+        vip_free_used: useVipFree,
+        day_number: nextDay,
+        cycle_number: nextCycle,
+        oc_gained: ocGrant,
+        vc_gained: vcGrant,
+        message: useVipFree
+          ? `Jour ${nextDay}/21 réactivé gratuitement (Privilège VIP) !`
+          : `Jour ${nextDay}/21 réactivé (-${finalCost} OC) !`,
+      });
+    }
+
+    if (action === "buy_bonus_challenges") {
+      const cost = 50;
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const { data: wallet } = await supabaseAdmin
+        .from("economy_wallets")
+        .select("oc_balance, bonus_challenges_date")
+        .eq("user_id", userId)
+        .single();
+
+      if (wallet?.bonus_challenges_date === todayIso) {
+        return jsonResponse({ error: "Tu as déjà débloqué les 3 défis bonus aujourd'hui." }, 409);
+      }
+      const currentOc = wallet?.oc_balance ?? 0;
+      if (currentOc < cost) {
+        return jsonResponse({ error: `Solde OC insuffisant (${currentOc} / ${cost} OC requis)` }, 400);
+      }
+
+      const newOc = currentOc - cost;
+      await supabaseAdmin
+        .from("economy_wallets")
+        .update({
+          oc_balance: newOc,
+          bonus_challenges_date: todayIso,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+
+      await supabaseAdmin.from("economy_ledger").insert({
+        user_id: userId,
+        currency: "OC",
+        delta: -cost,
+        balance_after: newOc,
+        reason: "buy_3_bonus_challenges",
+      });
+
+      // Ajouter 3 defis bonus du jour dans daily_challenges
+      const bonusDefs = [
+        { defi_id: "bonus_ko_1", description: "Défi Bonus : Gagner 1 combat par K.O.", objectif: 1, type: "ko" },
+        { defi_id: "bonus_rep_20", description: "Défi Bonus : Réussir 20 bonnes réponses", objectif: 20, type: "bonnes_reponses" },
+        { defi_id: "bonus_win_2", description: "Défi Bonus : Remporter 2 victoires", objectif: 2, type: "victoires" },
+      ];
+      try {
+        await supabaseAdmin.from("daily_challenges").insert(
+          bonusDefs.map((d) => ({
+            user_id: userId,
+            date: todayIso,
+            defi_id: d.defi_id,
+            description: d.description,
+            objectif: d.objectif,
+            type: d.type,
+            progres: 0,
+            complete: false,
+          })),
+        );
+      } catch (_) {}
+
+      return jsonResponse({
+        ok: true,
+        oc_balance: newOc,
+        message: "3 Défis Bonus débloqués pour aujourd'hui (-50 OC) !",
+      });
+    }
+
+    // =========================================================================
+    // PHASE C1 : SUPPRESSION DEFINITIVE DE COMPTE IN-APP (GOOGLE PLAY & APPLE)
+    // =========================================================================
+    if (action === "delete_account") {
+      if (body.confirm !== "SUPPRIMER") {
+        return jsonResponse({ error: "Confirmation explicite requise." }, 400);
+      }
+
+      // Nettoyer les tables liees avant suppression de auth.users (cascade securisee)
+      const userTables = [
+        { table: "question_reports", col: "user_id" },
+        { table: "player_question_errors", col: "user_id" },
+        { table: "daily_calendar_claims", col: "user_id" },
+        { table: "daily_challenges", col: "user_id" },
+        { table: "player_cosmetics", col: "user_id" },
+        { table: "economy_ledger", col: "user_id" },
+        { table: "economy_wallets", col: "user_id" },
+        { table: "feature_waitlist", col: "user_id" },
+        { table: "mailbox", col: "user_id" },
+        { table: "notification_throttles", col: "user_id" },
+        { table: "player_skins", col: "player_id" },
+        { table: "profiles", col: "id" },
+      ];
+
+      for (const entry of userTables) {
+        try {
+          await supabaseAdmin.from(entry.table).delete().eq(entry.col, userId);
+        } catch (_) {
+          // Certaines tables historiques peuvent etre absentes selon l'environnement
+        }
+      }
+
+      // Supprimer aussi les relations d'amitie dans les deux sens
+      try {
+        await supabaseAdmin
+          .from("friendships")
+          .delete()
+          .or(`user_id.eq.${userId},friend_id.eq.${userId}`);
+      } catch (_) {}
+
+      const { error: authDelError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (authDelError) {
+        return jsonResponse(
+          { error: `Suppression auth impossible : ${authDelError.message}` },
+          500,
+        );
+      }
+
+      return jsonResponse({
+        ok: true,
+        message: "Ton compte et toutes tes données ont été supprimés définitivement.",
       });
     }
 

@@ -13,12 +13,17 @@ class MonetisationV4Service {
   final EconomyV92Service _economy = EconomyV92Service();
 
   Future<Map<String, dynamic>> _invokeShop(Map<String, dynamic> body) async {
-    final res = await _supabase.functions.invoke('shop-tutorial-engine', body: body);
-    final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
-    if (res.status >= 400 || data['error'] != null) {
-      throw Exception(data['error']?.toString() ?? 'Erreur serveur boutique (${res.status})');
+    try {
+      final res = await _supabase.functions.invoke('shop-tutorial-engine', body: body);
+      final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+      if (res.status >= 400 || data['error'] != null) {
+        throw Exception(data['error']?.toString() ?? 'Erreur serveur boutique (${res.status})');
+      }
+      return data;
+    } on FunctionException catch (e) {
+      final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : <String, dynamic>{};
+      throw Exception(details['error']?.toString() ?? 'Action boutique indisponible (${e.status}).');
     }
-    return data;
   }
 
   /// Recupere l'etat complet du portefeuille, des abonnements et des cosmetiques depuis Supabase
@@ -161,5 +166,23 @@ class MonetisationV4Service {
   /// Recuperer les 7 Stats Pro VIP ("Verse Analytics") depuis le serveur (§2.3 #4)
   Future<Map<String, dynamic>> recupererVerseAnalyticsVip() async {
     return _invokeShop({'action': 'get_vip_analytics'});
+  }
+
+  /// Recharge OC : Competences d'Aura (20 OC — §1.4 / Test 31)
+  Future<String> rechargerCompetenceAura() async {
+    final res = await _invokeShop({'action': 'recharge_aura_skill'});
+    return res['message']?.toString() ?? 'Compétence d\'Aura rechargée (-20 OC) !';
+  }
+
+  /// Recharge OC : Reactiver un jour manque du Calendrier 21 jours (40 / 80 / 160 OC ou gratuit VIP 1x/sem)
+  Future<String> reactiverJourManqueCalendrier() async {
+    final res = await _invokeShop({'action': 'recover_calendar_day'});
+    return res['message']?.toString() ?? 'Jour manqué réactivé !';
+  }
+
+  /// Recharge OC : Debloquer 3 Defis bonus du jour (50 OC — §1.4 / Test 31)
+  Future<String> debloquerDefisBonusOc() async {
+    final res = await _invokeShop({'action': 'buy_bonus_challenges'});
+    return res['message']?.toString() ?? '3 Défis Bonus débloqués (-50 OC) !';
   }
 }

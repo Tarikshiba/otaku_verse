@@ -42,6 +42,8 @@ class CombatService {
         isTimeout: isTimeout,
         workSlug: question.workSlug,
         difficultyLevel: question.difficultyLevel,
+        questionText: question.question,
+        arcName: question.arc,
       );
 
       etat.pvJoueur = (data['player1_hp'] as num?)?.toInt() ?? etat.pvJoueur;
@@ -54,6 +56,8 @@ class CombatService {
         botCorrect: data['bot_correct'] == true,
         degatsInfliges: (data['degats_infliges'] as num?)?.toInt() ?? 0,
         degatsSubis: (data['degats_subis'] as num?)?.toInt() ?? 0,
+        autoFauteP1: (data['auto_faute_p1'] as num?)?.toInt() ?? 0,
+        autoFauteP2: (data['auto_faute_p2'] as num?)?.toInt() ?? 0,
         comboJoueurDeclenche: data['combo_joueur_declenche'] == true,
         comboBotDeclenche: data['combo_bot_declenche'] == true,
         bonneReponse: data['bonne_reponse']?.toString() ?? '',
@@ -63,6 +67,8 @@ class CombatService {
         suddenDeathTriggered: data['sudden_death_triggered'] == true,
         canSecondChance: data['can_second_chance'] == true,
         matchFinished: data['match_finished'] == true,
+        afkWarning: data['afk_warning'] == true,
+        consecutiveTimeouts: (data['consecutive_timeouts'] as num?)?.toInt() ?? 0,
         remainingGlobalMs: (data['remaining_global_ms'] as num?)?.toInt(),
         summary: data['summary'] is Map ? Map<String, dynamic>.from(data['summary']) : null,
       );

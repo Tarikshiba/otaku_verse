@@ -5,14 +5,16 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/theme.dart';
+import '../features/economy/economy_v92_service.dart';
 import 'rank_badge.dart';
 
-/// === CARTE VERTICALE 9:16 DE PARTAGE DE VICTOIRE EN 1 CLIC (UI-05, §3.3 & §7.6) ===
-/// - Format exporte : 1080 x 1920 px (360 x 640 logique * pixelRatio 3.0) en < 400 ms
-/// - Privacy by Design obligatoire :
-///   * Adversaire vaincu ANONYMISE par defaut ("adversaire de Division X")
-///   * Option d'afficher le pseudo adverse UNIQUEMENT en duel d'amis mutuels si l'ami a active opt-in
-///   * ZERO email, telephone, UUID, geolocalisation ou solde total OC/VC
+/// === CARTE VERTICALE 9:16 DE PARTAGE DE VICTOIRE EN 1 CLIC (UI-05, §3.3, §7.6 & TEST 40) ===
+/// Corrections terrain Heat :
+/// 1. Logo complet non coupe (logo_icone.jpg en BoxFit.contain)
+/// 2. Nom propre de l'oeuvre (jamais de slug technique type demon_slayer)
+/// 3. Mention adversaire complete sur 2 lignes max sans troncature
+/// 4. Tous les accents francais restaures
+/// 5. Texte vie privee en langage naturel de jeu (sans jargon UUID/email)
 class VictoryShareData {
   final String modeLabel;
   final String workAndArc;
@@ -74,7 +76,7 @@ class VictoryShareCardDialog extends StatefulWidget {
 
 class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
   final GlobalKey _cardBoundaryKey = GlobalKey();
-  bool _showFriendPseudo = false; // Desactive par defaut (Privacy by Design)
+  bool _showFriendPseudo = false;
   bool _exporting = false;
 
   bool get _canShowFriendToggle =>
@@ -84,12 +86,24 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
 
   String get _opponentMention {
     if (_canShowFriendToggle && _showFriendPseudo) {
-      return 'Victoire face a @${widget.data.opponentPseudoIfOptedIn}';
+      return 'Victoire face à @${widget.data.opponentPseudoIfOptedIn}';
     }
     final rankPart = widget.data.opponentRankTitle != null
         ? ' (${widget.data.opponentRankTitle})'
         : '';
-    return 'Victoire face a un adversaire de Division ${widget.data.opponentDivisionId}$rankPart';
+    return 'Victoire face à un adversaire de Division ${widget.data.opponentDivisionId}$rankPart';
+  }
+
+  /// Nettoie tout slug technique eventuel dans workAndArc (ex. demon_slayer -> Demon Slayer)
+  String get _cleanWorkAndArc {
+    final raw = widget.data.workAndArc.trim();
+    if (raw.contains('(')) {
+      final idx = raw.indexOf('(');
+      final workPart = EconomyV92Service.nomPropreOeuvre(raw.substring(0, idx).trim());
+      final arcPart = raw.substring(idx);
+      return '$workPart $arcPart';
+    }
+    return EconomyV92Service.nomPropreOeuvre(raw);
   }
 
   Future<void> _exporterEtPartager() async {
@@ -113,7 +127,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
       await file.writeAsBytes(byteData.buffer.asUint8List());
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Viens me defier sur Otaku Verse !',
+        text: 'Viens me défier sur Otaku Verse !',
       );
     } catch (_) {}
     if (mounted) setState(() => _exporting = false);
@@ -159,17 +173,25 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // 1. En-tete officiel : Logo sombre + Mode + Oeuvre/Arc
+                          // 1. En-tete officiel : Logo icone complet non coupe + Mode + Oeuvre propre
                           Row(
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.asset(
-                                  'assets/images/logos/logo_sombre.jpg',
-                                  width: 48,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => const Icon(Icons.flash_on_rounded, color: Color(0xFFFFD700), size: 36),
+                              Container(
+                                width: 46,
+                                height: 46,
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0A0F1D),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.6)),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(7),
+                                  child: Image.asset(
+                                    'assets/images/logos/logo_icone.png',
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, _, _) => const Icon(Icons.flash_on_rounded, color: Color(0xFFFFD700), size: 32),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -177,9 +199,13 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('OTAKU VERSE', style: OtakuTypo.headlineLarge.copyWith(fontSize: 18, color: const Color(0xFFFFD700))),
                                     Text(
-                                      '${d.modeLabel}  |  ${d.workAndArc}',
+                                      'OTAKU VERSE',
+                                      maxLines: 1,
+                                      style: OtakuTypo.headlineLarge.copyWith(fontSize: 18, color: const Color(0xFFFFD700), letterSpacing: 1.2),
+                                    ),
+                                    Text(
+                                      '${d.modeLabel}  |  $_cleanWorkAndArc',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: OtakuTypo.bodySmall.copyWith(fontSize: 11, color: Colors.white70),
@@ -218,7 +244,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                           ),
                           const SizedBox(height: 10),
 
-                          // 3. Bandeau de Verdict + PV restants
+                          // 3. Bandeau de Verdict + PV restants (mention adversaire non tronquee)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
@@ -229,7 +255,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                             child: Column(
                               children: [
                                 Text(
-                                  d.isKo ? 'VICTOIRE PAR K.O. : KECCHAKU!' : 'VICTOIRE AUX POINTS !',
+                                  d.isKo ? 'VICTOIRE PAR K.O. · KECCHAKU!' : 'VICTOIRE AUX POINTS !',
                                   textAlign: TextAlign.center,
                                   style: OtakuTypo.headlineSmall.copyWith(fontSize: 15, color: const Color(0xFFFFD700)),
                                 ),
@@ -237,9 +263,8 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                                 Text(
                                   _opponentMention,
                                   textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: Colors.white70),
+                                  maxLines: 2,
+                                  style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: Colors.white70, height: 1.25),
                                 ),
                                 const SizedBox(height: 6),
                                 ClipRRect(
@@ -274,7 +299,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    _miniStat('PRECISION', '${d.correctAnswers}/${d.totalQuestionsPlayed} ($accuracyPct%)'),
+                                    _miniStat('PRÉCISION', '${d.correctAnswers}/${d.totalQuestionsPlayed} ($accuracyPct %)'),
                                     _miniStat('CHRONO MOY.', '${d.avgResponseSec.toStringAsFixed(2)} s'),
                                   ],
                                 ),
@@ -283,7 +308,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     _miniStat('HAYA!! (<2s)', '${d.hayaCount} coups'),
-                                    _miniStat('SERIE MAX', 'Combo x${d.maxCombo}'),
+                                    _miniStat('SÉRIE MAX', 'Combo ×${d.maxCombo}'),
                                   ],
                                 ),
                                 if (d.matchOcGained > 0) ...[
@@ -298,7 +323,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                           ),
                           const SizedBox(height: 10),
 
-                          // 5. Pied de carte viral
+                          // 5. Pied de carte viral avec accents francais
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
@@ -314,9 +339,9 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Viens me defier sur Otaku Verse !', style: OtakuTypo.headlineSmall.copyWith(fontSize: 11, color: Colors.white)),
+                                      Text('Viens me défier sur Otaku Verse !', style: OtakuTypo.headlineSmall.copyWith(fontSize: 11, color: Colors.white)),
                                       Text(
-                                        d.inviteCode != null ? 'Code : ${d.inviteCode}' : 'Telecharge l\'app & rejoins l\'arene',
+                                        d.inviteCode != null ? 'Code : ${d.inviteCode}' : 'Télécharge l\'app & rejoins l\'arène',
                                         style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.accent),
                                       ),
                                     ],
@@ -333,7 +358,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
               ),
               const SizedBox(width: 16),
 
-              // Colonne droite : controles Privacy & bouton partage 1 clic
+              // Colonne droite : confidentialite en langage naturel de jeu + bouton partage 1 clic
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,7 +375,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                       ],
                     ),
                     Text(
-                      'Format Story HD 1080x1920 pret pour WhatsApp, TikTok et Instagram.',
+                      'Format Story HD 1080×1920 prêt pour WhatsApp, TikTok et Instagram.',
                       style: OtakuTypo.bodySmall.copyWith(fontSize: 11, color: OtakuColors.textMuted),
                     ),
                     const SizedBox(height: 10),
@@ -364,10 +389,10 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('GARDE-FOUS VIE PRIVEE ACTIFS', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.pvHaut)),
+                          Text('PARTAGE RESPECTUEUX & PRIVÉ', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.pvHaut)),
                           const SizedBox(height: 4),
                           Text(
-                            'Adversaire anonymise par defaut. Aucun email, UUID ou solde total OC/VC n\'apparait sur l\'image.',
+                            'Ton adversaire reste anonymisé par défaut et ton solde personnel OC/VC n\'apparaît jamais sur l\'image partagée.',
                             style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: Colors.white70),
                           ),
                           if (_canShowFriendToggle) ...[
@@ -400,7 +425,7 @@ class _VictoryShareCardDialogState extends State<VictoryShareCardDialog> {
                             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.share_rounded, size: 18),
                         label: Text(
-                          _exporting ? 'GENERATION HD...' : 'PARTAGER EN 1 CLIC (1080x1920)',
+                          _exporting ? 'GÉNÉRATION HD...' : 'PARTAGER EN 1 CLIC (1080×1920)',
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
                         ),
                       ),

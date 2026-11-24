@@ -7,23 +7,27 @@ import 'core/theme.dart';
 import 'features/auth/auth_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
+import 'features/core/analytics_service.dart';
 import 'features/notifications/notification_service.dart';
 import 'features/tutorial/tutorial_phase_a_page.dart';
 import 'features/tutorial/tutorial_service.dart';
 import 'shared/app_shell.dart';
+import 'shared/splash_intro_overlay.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
 
-  // Initialiser Firebase (pour les notifications push)
+  // Initialiser Firebase + Crashlytics + Analytics (Phase B1 & B2)
   await Firebase.initializeApp();
+  await AnalyticsService.instance.initialiser();
 
-  // Orientation horizontale forcee sur toute l'app
+  // Orientation horizontale forcee + Plein Ecran Immersif (Phase A1)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
@@ -45,7 +49,7 @@ class OtakuVerseApp extends StatelessWidget {
       title: 'Otaku Verse',
       debugShowCheckedModeBanner: false,
       theme: otakuTheme,
-      home: const AuthGate(),
+      home: const SplashIntroOverlay(child: AuthGate()),
     );
   }
 }
@@ -87,8 +91,22 @@ class _AuthGateState extends State<AuthGate> {
     return StreamBuilder<AuthState>(
       stream: _authService.onAuthStateChange,
       builder: (context, snapshot) {
+        // Si deconnexion detectee, recharger l'etat Phase A pour un eventuel nouveau compte (Test 5)
+        if (snapshot.data?.event == AuthChangeEvent.signedOut && _phaseADone) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _phaseADone = false;
+                _afficherInscription = false;
+              });
+            }
+          });
+        }
+
         // Utilisateur connecte -> Hub principal AppShell
-        if (_authService.utilisateurActuel != null) {
+        final user = _authService.utilisateurActuel;
+        if (user != null) {
+          AnalyticsService.instance.definirUtilisateur(user.id);
           return const AppShell();
         }
 

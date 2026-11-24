@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 import zipfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -22,7 +23,37 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 ID_LINE_RE = re.compile(r"^[A-Z0-9]{2,8}-[A-Z0-9_]+-N[1-5]-V\d+_\d+-Q\d+-[A-Z0-9_]+$")
 FALLBACK_ID_RE = re.compile(r"^[A-Z0-9]{2,8}-[A-Z0-9_]+-.*-(BASE|VAR\d+|V\d+)$")
-KEY_VAL_RE = re.compile(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.*)$")
+KEY_VAL_RE = re.compile(r"^(?:-\s+)?([a-zA-Z_][a-zA-Z0-9_\\]*)\s*:\s*(.*)$")
+ARC_STORY_RE = re.compile(r"^Arc\s+(.+?)\s*/\s*(Manga|Anime)\s*$", re.IGNORECASE)
+
+
+def _norm_ascii(text):
+    return "".join(
+        c for c in unicodedata.normalize("NFD", str(text).strip().lower())
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def classify_arc_name_v4(arc_name):
+    """Classificateur officiel Standard V4.0 : 5 formats normalises, ZERO limite d'arcs par oeuvre."""
+    raw = str(arc_name or "").strip()
+    m = ARC_STORY_RE.match(raw)
+    if m:
+        official_name = m.group(1).strip()
+        media_raw = m.group(2).strip().upper()
+        return {
+            "category": f"ARC_{media_raw}",
+            "arc_display_name": official_name,
+            "media": media_raw,
+        }
+    norm = _norm_ascii(raw)
+    if norm == "personnages":
+        return {"category": "PERSONNAGES", "arc_display_name": "Personnages", "media": "PERSONNAGES"}
+    if norm in ("general", "global", ""):
+        return {"category": "GLOBAL", "arc_display_name": "Général", "media": "GLOBAL"}
+    if norm in ("films & oav", "films et oav", "films/oav"):
+        return {"category": "FILMS_OAV", "arc_display_name": "Films & OAV", "media": "ANIME"}
+    return {"category": "UNKNOWN", "arc_display_name": raw or "Général", "media": None}
 
 DIFF_MAP = {
     1: "facile",
@@ -111,7 +142,10 @@ def parse_list(val):
                 return [str(x).strip() for x in arr if str(x).strip()]
         except Exception:
             s = s[1:-1]
-    parts = [p.strip().strip('"').strip("'") for p in s.split(",")]
+    if "|" in s:
+        parts = [p.strip().strip('"').strip("'") for p in s.split("|")]
+    else:
+        parts = [p.strip().strip('"').strip("'") for p in s.split(",")]
     out = [p for p in parts if p]
     return out if out else None
 
@@ -137,11 +171,13 @@ def normalize_record(raw_id, fields, default_slug, default_title):
     exact_value = parse_float(fields.get("exact_value") or fields.get("numeric_answer"))
 
     # Compact schema pour limiter la taille des shards R2
+    arc_meta = classify_arc_name_v4(arc_name)
     rec = {
         "id": raw_id,
         "w": default_slug,
         "d": domain,
-        "a": arc_name,
+        "a": arc_meta["arc_display_name"],
+        "ac": arc_meta["category"],
         "n": diff_lvl,
         "v": variant_code,
         "q": q_text,
@@ -202,17 +238,22 @@ def normalize_record(raw_id, fields, default_slug, default_title):
 
 
 def parse_single_docx(args):
+    """Supporte a la fois les fichiers .md (Standard V4.0 ### <ID>) et les .docx historiques."""
     filepath, default_slug, default_title = args
     records = []
     try:
-        with zipfile.ZipFile(filepath, "r") as z:
-            xml_bytes = z.read("word/document.xml")
-        tree = ET.fromstring(xml_bytes)
-        lines = []
-        for p in tree.findall(".//w:p", NS):
-            txt = "".join(t.text or "" for t in p.findall(".//w:t", NS)).strip()
-            if txt:
-                lines.append(txt)
+        if filepath.lower().endswith(".md"):
+            with open(filepath, "r", encoding="utf-8") as f:
+                lines = [ln.strip() for ln in f.readlines() if ln.strip()]
+        else:
+            with zipfile.ZipFile(filepath, "r") as z:
+                xml_bytes = z.read("word/document.xml")
+            tree = ET.fromstring(xml_bytes)
+            lines = []
+            for p in tree.findall(".//w:p", NS):
+                txt = "".join(t.text or "" for t in p.findall(".//w:t", NS)).strip()
+                if txt:
+                    lines.append(txt)
     except Exception:
         return records, 1
 
@@ -226,12 +267,17 @@ def parse_single_docx(args):
                 records.append(rec)
 
     for line in lines:
-        # Ignore les separateurs ou titres markdown
+        # Format V4.0 : ### <ID>
+        if line.startswith("### "):
+            flush()
+            cur_id = line[4:].strip()
+            cur_fields = {}
+            continue
         if line.startswith("#") or line.startswith("---") or line.startswith("```"):
             continue
         m = KEY_VAL_RE.match(line)
         if m and not ID_LINE_RE.match(line):
-            k = m.group(1).strip().lower()
+            k = m.group(1).strip().replace("\\_", "_").lower()
             v = m.group(2).strip()
             cur_fields[k] = v
         elif ID_LINE_RE.match(line) or (FALLBACK_ID_RE.match(line) and " " not in line):
@@ -253,7 +299,7 @@ def build_work(quiz_root, folder_name, out_shards_dir, workers):
     for root, dirs, filenames in os.walk(folder_path):
         dirs[:] = [d for d in dirs if d != "_ARCHIVES_DOUBLONS_A_SUPPRIMER"]
         for fn in sorted(filenames):
-            if not fn.endswith(".docx"):
+            if not (fn.endswith(".docx") or fn.endswith(".md")):
                 continue
             if fn.startswith("_BILAN_FINAL") or fn.startswith("~$"):
                 continue
@@ -306,7 +352,7 @@ def build_work(quiz_root, folder_name, out_shards_dir, workers):
         "levels": level_counts,
         "domains": dict(domains),
         "variants": dict(variants),
-        "arcs": sorted(arcs)[:120],
+        "arcs": sorted(arcs),
         "shards_gz_bytes": total_gz_bytes,
     }
 

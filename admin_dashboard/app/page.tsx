@@ -140,6 +140,27 @@ export default function AdminHome() {
               Voir les joueurs, niveaux, stats de combat.
             </p>
           </Link>
+
+          <Link
+            href="/reports"
+            className="bg-gray-900 border border-gray-800 hover:border-amber-500 rounded p-6 transition col-span-2"
+          >
+            <h2 className="text-lg font-bold text-amber-400 mb-2">
+              SIGNALEMENTS QUESTIONS
+            </h2>
+            <p className="text-sm text-gray-400">
+              Consulter et resoudre les erreurs signalees par les joueurs en combat.
+            </p>
+          </Link>
+        </div>
+
+        <div className="mt-8 flex justify-center gap-6 text-xs text-gray-500">
+          <Link href="/privacy" className="hover:text-purple-400">
+            Politique de Confidentialite
+          </Link>
+          <Link href="/terms" className="hover:text-purple-400">
+            Conditions Generales d&apos;Utilisation (CGU)
+          </Link>
         </div>
       </div>
     </div>

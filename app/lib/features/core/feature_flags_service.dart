@@ -34,6 +34,13 @@ class FeatureFlagsService {
   FeatureFlagsService._internal();
 
   final _supabase = Supabase.instance.client;
+  bool _lastFetchFailed = false;
+
+  /// Indique si le dernier appel reseau vers Supabase a echoue (Phase B3 : bandeau hors-ligne)
+  bool get lastFetchFailed => _lastFetchFailed;
+
+  /// Version actuelle de l'application (alignee avec pubspec.yaml)
+  static const String currentAppVersion = '1.0.0';
 
   // Valeurs par defaut Palier 1 (utilisees tant que le serveur n'a pas repondu)
   final Map<String, FeatureFlag> _flags = {
@@ -94,7 +101,7 @@ class FeatureFlagsService {
   };
 
   /// Charge tous les flags depuis Supabase et met a jour le cache local.
-  Future<void> chargerFlags() async {
+  Future<bool> chargerFlags() async {
     try {
       final rows = await _supabase.from('app_feature_flags').select();
       for (final row in (rows as List)) {
@@ -103,10 +110,47 @@ class FeatureFlagsService {
           _flags[flag.key] = flag;
         }
       }
+      _lastFetchFailed = false;
+      return true;
     } catch (_) {
-      // En cas de perte reseau, on garde les valeurs de repli Palier 1
+      // En cas de perte reseau, on garde les valeurs de repli Palier 1 et on signale le hors-ligne
+      _lastFetchFailed = true;
+      return false;
     }
   }
+
+  /// Version minimale requise pilotee depuis Supabase `app_feature_flags` (Phase B3)
+  String get minAppVersion =>
+      configMode('app_min_version')['min_app_version']?.toString() ?? '1.0.0';
+
+  bool get forceUpdate => configMode('app_min_version')['force_update'] == true;
+
+  String get updateMessage =>
+      configMode('app_min_version')['update_message']?.toString() ??
+      'Une nouvelle version d\'Otaku Verse est disponible. Mets à jour l\'application pour continuer.';
+
+  /// Compare deux versions semver (ex: 1.0.0 < 1.1.0 -> true)
+  static bool estVersionInferieure(String current, String minimum) {
+    List<int> parse(String v) => v
+        .split('+')[0]
+        .split('.')
+        .map((p) => int.tryParse(p.trim()) ?? 0)
+        .toList();
+    final c = parse(current);
+    final m = parse(minimum);
+    final maxLen = c.length > m.length ? c.length : m.length;
+    for (int i = 0; i < maxLen; i++) {
+      final cv = i < c.length ? c[i] : 0;
+      final mv = i < m.length ? m[i] : 0;
+      if (cv < mv) return true;
+      if (cv > mv) return false;
+    }
+    return false;
+  }
+
+  /// Indique si l'application installee est inferieure a `min_app_version`
+  bool get miseAJourRequise =>
+      estVersionInferieure(currentAppVersion, minAppVersion);
 
   /// Indique si un mode est ouvert aux joueurs.
   bool estOuvert(String flagKey) => _flags[flagKey]?.isEnabled ?? false;

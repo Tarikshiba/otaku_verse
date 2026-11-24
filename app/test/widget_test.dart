@@ -7,7 +7,7 @@ void main() {
     expect(EconomyV92Service.calculerNiveau(100), 2);
     expect(EconomyV92Service.titreRangOfficiel(1), 'Novice du Verse');
     expect(EconomyV92Service.titreRangOfficiel(10), 'Apprenti Otaku');
-    expect(EconomyV92Service.titreRangOfficiel(76), 'Legende Eternelle ★1');
+    expect(EconomyV92Service.titreRangOfficiel(76), 'Légende Éternelle ★1');
   });
 
   test('Frais entree OC et divisions V9.2', () {

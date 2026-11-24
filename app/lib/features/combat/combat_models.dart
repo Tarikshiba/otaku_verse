@@ -24,6 +24,7 @@ class CombatParams {
 
   /// Infos de l'adversaire (Bot calibre ou adversaire de Division AI_ONLY)
   final String opponentPseudo;
+  final int? opponentLevel;
   final int? opponentDivisionId;
 
   CombatParams({
@@ -36,6 +37,7 @@ class CombatParams {
     this.confidencePotOc = 0,
     this.matchId,
     this.opponentPseudo = 'A.K.I.N.A',
+    this.opponentLevel,
     this.opponentDivisionId,
   });
 }
@@ -82,6 +84,8 @@ class ResultatTour {
   final bool botCorrect;
   final int degatsInfliges;
   final int degatsSubis;
+  final int autoFauteP1;
+  final int autoFauteP2;
   final bool comboJoueurDeclenche;
   final bool comboBotDeclenche;
   final String bonneReponse;
@@ -91,6 +95,8 @@ class ResultatTour {
   final bool suddenDeathTriggered;
   final bool canSecondChance;
   final bool matchFinished;
+  final bool afkWarning;
+  final int consecutiveTimeouts;
   final int? remainingGlobalMs;
   final Map<String, dynamic>? summary;
 
@@ -99,6 +105,8 @@ class ResultatTour {
     required this.botCorrect,
     required this.degatsInfliges,
     required this.degatsSubis,
+    this.autoFauteP1 = 0,
+    this.autoFauteP2 = 0,
     required this.comboJoueurDeclenche,
     required this.comboBotDeclenche,
     this.bonneReponse = '',
@@ -108,6 +116,8 @@ class ResultatTour {
     this.suddenDeathTriggered = false,
     this.canSecondChance = false,
     this.matchFinished = false,
+    this.afkWarning = false,
+    this.consecutiveTimeouts = 0,
     this.remainingGlobalMs,
     this.summary,
   });

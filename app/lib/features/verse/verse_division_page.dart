@@ -7,6 +7,7 @@ import '../combat/combat_service.dart';
 import '../core/feature_flags_service.dart';
 import '../economy/economy_v92_service.dart';
 import '../progression/progression_service.dart';
+import '../social/classement_screen.dart';
 import 'matchmaking_service.dart';
 import 'verse_combat_page.dart';
 
@@ -101,6 +102,7 @@ class _VerseDivisionPageState extends State<VerseDivisionPage> {
         final matchId = startData['match_id']?.toString();
         final opp = startData['opponent'] is Map ? startData['opponent'] as Map : const {};
         final oppPseudo = opp['pseudo']?.toString() ?? 'A.K.I.N.A';
+        final oppLevel = (opp['level'] as num?)?.toInt() ?? _niveau;
 
         final params = CombatParams(
           mode: 'division',
@@ -108,18 +110,19 @@ class _VerseDivisionPageState extends State<VerseDivisionPage> {
           malusMode: 'normal',
           matchId: matchId,
           opponentPseudo: oppPseudo,
+          opponentLevel: oppLevel,
           opponentDivisionId: _divisionId,
         );
 
         // Tirage officiel 40 questions (mix 10/25/30/25/10 %) depuis Cloudflare R2
         final questions = await _combatService.preparerCombat(params);
-        await Future.delayed(const Duration(milliseconds: 1400));
+        await Future.delayed(const Duration(milliseconds: 350));
 
         if (!mounted) return;
         if (questions.isEmpty) {
           setState(() {
             _rechercheEnCours = false;
-            _status = 'Impossible de charger les questions. Reessaie.';
+            _status = 'Impossible de charger les questions. Réessaie.';
           });
           return;
         }
@@ -133,15 +136,13 @@ class _VerseDivisionPageState extends State<VerseDivisionPage> {
         setState(() {
           _rechercheEnCours = false;
           _peutCoupDePouce = e.canRescueAd;
-          _status = e.cooldownSeconds != null
-              ? 'Penalite anti-abandon : reessaie dans ${(e.cooldownSeconds! / 60).ceil()} min.'
-              : e.message;
+          _status = e.message;
         });
       } catch (e) {
         if (!mounted) return;
         setState(() {
           _rechercheEnCours = false;
-          _status = 'Erreur de connexion : $e';
+          _status = 'Connexion impossible pour le moment. Vérifie ton réseau et réessaie.';
         });
       }
       return;
@@ -257,10 +258,23 @@ class _VerseDivisionPageState extends State<VerseDivisionPage> {
                           icon: const Icon(Icons.military_tech_rounded),
                           label: Text(
                             _fraisEntreeOc > 0
-                                ? 'LANCER UN DUEL CLASSE ($_fraisEntreeOc OC)'
-                                : 'LANCER UN DUEL CLASSE (GRATUIT)',
+                                ? 'LANCER UN DUEL CLASSÉ ($_fraisEntreeOc OC)'
+                                : 'LANCER UN DUEL CLASSÉ (GRATUIT)',
                           ),
                         ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.amber,
+                          side: BorderSide(color: Colors.amber.withValues(alpha: 0.6)),
+                        ),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ClassementScreen(initialSection: 'competitif')),
+                        ),
+                        icon: const Icon(Icons.leaderboard_rounded, size: 16),
+                        label: const Text('CLASSEMENT DIVISION & 10 PALIERS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                      ),
                     ],
                   ),
                 ),

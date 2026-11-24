@@ -2,34 +2,41 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../features/combat/combat_setup_page.dart';
+import '../features/core/analytics_service.dart';
 import '../features/core/feature_flags_service.dart';
 import '../features/economy/economy_v92_service.dart';
-import '../features/verse/verse_division_page.dart';
-import '../features/verse/verse_duel_setup_page.dart';
-import '../features/verse/verse_coop_page.dart';
-import '../features/verse/verse_v3_hub_page.dart';
-import '../features/verse/verse_battle_royale_page.dart';
-import '../features/verse/verse_communaute_page.dart';
-import '../features/verse/verse_guildes_page.dart';
+import '../features/profile/guide_jeu_page.dart';
+import '../features/profile/parametres_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/progression/progression_service.dart';
+import '../features/progression/quete_service.dart';
 import '../features/rewards/boite_lettres_page.dart';
 import '../features/rewards/mailbox_service.dart';
 import '../features/skins/boutique_screen.dart';
+import '../features/skins/monetisation_v4_service.dart';
 import '../features/skins/skin_service.dart';
 import '../features/social/amis_screen.dart';
+import '../features/social/classement_screen.dart';
 import '../features/social/friends_service.dart';
+import '../features/tutorial/tutorial_phase_a_page.dart';
 import '../features/tutorial/tutorial_service.dart';
+import '../features/verse/mode_selector_page.dart';
+import '../features/verse/verse_battle_royale_page.dart';
+import '../features/verse/verse_communaute_page.dart';
+import '../features/verse/verse_coop_page.dart';
+import '../features/verse/verse_division_page.dart';
+import '../features/verse/verse_duel_setup_page.dart';
+import '../features/verse/verse_guildes_page.dart';
+import '../features/verse/verse_v3_hub_page.dart';
 import 'rank_badge.dart';
-import 'textures.dart';
-import '../features/progression/quete_service.dart';
+import 'skin_3d_viewer.dart';
 
-/// === SHELL PRINCIPAL DE L'APP (V9.2 + DA LIQUID GLASS) ===
-/// Hub central facon Free Fire avec :
-/// - Compteurs separes OC et VC (ECO-01)
-/// - Badge de Rang officiel permanent (ECO-04)
-/// - Pilotage a distance des modes par paliers via `app_feature_flags` (LAUNCH-01/03)
-/// - Goodies central non coupe (UI-01) et anti-overflow sur petits ecrans (UI-02)
+/// === SHELL PRINCIPAL DE L'APP (V9.2 CONSOLIDE — TESTS 3, 5, 6, 7, 9, 27, 28, 31) ===
+/// - Mise en page 100 % responsive (zero Positioned fixe => FIN des 3 chevauchements Tecno Spark 20)
+/// - Top Bar : Profil + Badge de Rang + Compteurs XP, OC, VC + bouton « Pub +OC » + Boite aux lettres
+/// - Rubrique dediee « Classements » sur l'Accueil (style eFootball : Division, 10 paliers, cagnotte)
+/// - Parcours d'Initiation Phase B verrouille sur actions reelles + Titre « Initié du Verse »
+/// - Relance Phase A si nouveau compte non initialise + Visite guidee du Hub apres creation de compte
 class AppShell extends StatelessWidget {
   const AppShell({super.key});
 
@@ -49,7 +56,7 @@ class _AccueilPage extends StatefulWidget {
   State<_AccueilPage> createState() => _AccueilPageState();
 }
 
-class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderStateMixin {
+class _AccueilPageState extends State<_AccueilPage> {
   final _progressionService = ProgressionService();
   final _skinService = SkinService();
   final _economyService = EconomyV92Service();
@@ -59,61 +66,276 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
 
   Map<String, dynamic>? _profil;
   WalletV92 _wallet = const WalletV92();
-  String _skinImageKey = 'skin_default';
-  double _skinRotation = 0;
-  late AnimationController _idleRotation;
+  String _skinImageKey = 'skin_kio';
+  String? _equippedFrameId;
   bool _notifAmis = false;
   int _unreadMails = 0;
   String _modeActif = 'SOLO';
   List<int> _phaseBSteps = [];
   bool _phaseBClaimed = true;
+  bool _pubAccueilEnCours = false;
+  bool _reseauHorsLigne = false;
+  bool _updateDialogShown = false;
 
   @override
   void initState() {
     super.initState();
     _initialiserHub();
-    _idleRotation = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    )..repeat();
   }
 
-  @override
-  void dispose() {
-    _idleRotation.dispose();
-    super.dispose();
-  }
-
-  /// Charge toutes les donnees du Hub en parallele (flags, profil, portefeuille, mails, amis, tutoriel)
+  /// Charge toutes les donnees du Hub en parallele + gere Phase A & Visite guidee (Tests 3 & 5)
   Future<void> _initialiserHub() async {
+    await _progressionService.creerProfilSiAbsent();
     final msgPhaseA = await _tutorialService.synchroniserPhaseASiEnAttente();
+
+    final flagsOk = await _flagsService.chargerFlags();
     await Future.wait([
-      _flagsService.chargerFlags(),
       _chargerProfilEtPortefeuille(),
       _verifierNotifAmis(),
       _chargerMailsNonLus(),
       _chargerTutorielPhaseB(),
     ]);
-    if (mounted) {
-      setState(() {});
-      if (msgPhaseA != null && msgPhaseA.isNotEmpty) {
+
+    if (!mounted) return;
+    setState(() {
+      _reseauHorsLigne = !flagsOk && _flagsService.lastFetchFailed;
+    });
+
+    if (_flagsService.miseAJourRequise && !_updateDialogShown) {
+      _updateDialogShown = true;
+      _afficherModalMiseAJour();
+    }
+
+    if (msgPhaseA != null && msgPhaseA.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msgPhaseA), backgroundColor: OtakuColors.pvHaut),
+      );
+    }
+
+    // Bug post-deconnexion (Test 5) : si nouveau compte cree directement sans Phase A, la lancer maintenant
+    final doitPhaseA = await _tutorialService.compteDoitFairePhaseA();
+    if (mounted && doitPhaseA) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TutorialPhaseAPage(
+            dejaConnecte: true,
+            onTermineVersInscription: () => Navigator.pop(context),
+            onDejaUnCompte: () => Navigator.pop(context),
+          ),
+        ),
+      );
+      if (!mounted) return;
+      final syncMsg = await _tutorialService.synchroniserPhaseASiEnAttente();
+      await _chargerProfilEtPortefeuille();
+      await _chargerTutorielPhaseB();
+      if (mounted && syncMsg != null && syncMsg.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msgPhaseA), backgroundColor: OtakuColors.pvHaut),
+          SnackBar(content: Text(syncMsg), backgroundColor: OtakuColors.pvHaut),
         );
       }
+    }
+
+    // Visite guidee du Hub apres creation de compte (Test 3)
+    final showTour = await _tutorialService.doitAfficherVisiteGuideeHub();
+    if (mounted && showTour) {
+      await _tutorialService.marquerVisiteGuideeHubTerminee();
+      if (mounted) _afficherVisiteGuideeHub();
+    }
+  }
+
+  void _afficherModalMiseAJour() {
+    final forced = _flagsService.forceUpdate;
+    showDialog(
+      context: context,
+      barrierDismissible: !forced,
+      builder: (ctx) => PopScope(
+        canPop: !forced,
+        child: AlertDialog(
+          backgroundColor: OtakuColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: OtakuColors.accent.withValues(alpha: 0.7)),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.system_update_rounded, color: OtakuColors.accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'MISE À JOUR DISPONIBLE (v${_flagsService.minAppVersion})',
+                  style: OtakuTypo.headlineSmall.copyWith(fontSize: 13.5, color: OtakuColors.accent),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            _flagsService.updateMessage,
+            style: OtakuTypo.bodySmall.copyWith(fontSize: 11.5, color: Colors.white70, height: 1.4),
+          ),
+          actions: [
+            if (!forced)
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('PLUS TARD', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+              ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: OtakuColors.accent, foregroundColor: Colors.black),
+              onPressed: () {
+                if (!forced) Navigator.pop(ctx);
+                _initialiserHub();
+              },
+              child: const Text('VÉRIFIER', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _afficherVisiteGuideeHub() {
+    int page = 0;
+    const etapes = [
+      {
+        'titre': '1/4 · Tes 3 Compteurs + Pub +OC',
+        'desc': 'En haut à droite : ton XP (Niveau & Badge de Rang, jamais dépensée), tes Otaku Coins (OC gratuits pour l\'arène), tes Verse Coins (VC cosmétiques) et le bouton « Pub +OC ».',
+      },
+      {
+        'titre': '2/4 · Solo, Division & Bouton JOUER',
+        'desc': 'Choisis ton mode en bas à gauche (SOLO ou DIVISION ouverts dès le Palier 1), puis appuie sur JOUER en bas à droite. Les frais OC sont à 0 OC du Niveau 1 au Niveau 5 !',
+      },
+      {
+        'titre': '3/4 · Rubrique Classements & 10 Divisions',
+        'desc': 'Ouvre « Classements » à gauche pour voir ta Division actuelle, les 10 paliers officiels et la cagnotte saisonnière dynamique.',
+      },
+      {
+        'titre': '4/4 · Parcours d\'Initiation (6 étapes)',
+        'desc': 'Accomplis les 6 vraies actions dans « Init. 0/6 » (Calendrier, Solo, Division, Boutique, Classements, Guide) pour gagner +25 VC, +100 OC et le Titre « Initié du Verse » !',
+      },
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final item = etapes[page];
+          return AlertDialog(
+            backgroundColor: OtakuColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: OtakuColors.accent.withValues(alpha: 0.6)),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.explore_rounded, color: OtakuColors.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(item['titre']!, style: OtakuTypo.headlineSmall.copyWith(fontSize: 14, color: OtakuColors.accent)),
+                ),
+              ],
+            ),
+            content: Text(item['desc']!, style: OtakuTypo.bodySmall.copyWith(fontSize: 12, color: Colors.white, height: 1.4)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('PASSER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: OtakuColors.accent, foregroundColor: Colors.black),
+                onPressed: () {
+                  if (page < etapes.length - 1) {
+                    setDialogState(() => page++);
+                  } else {
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: Text(page < etapes.length - 1 ? 'SUIVANT' : 'C\'EST PARTI !', style: const TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _regarderPubAccueilOc() async {
+    if (_pubAccueilEnCours) return;
+    setState(() => _pubAccueilEnCours = true);
+    try {
+      final res = await _economyService.regarderPubAccueilOc();
+      await _chargerProfilEtPortefeuille();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res['message']?.toString() ?? '+25 Otaku Coins crédités !'),
+          backgroundColor: OtakuColors.pvHaut,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _pubAccueilEnCours = false);
     }
   }
 
   Future<void> _chargerTutorielPhaseB() async {
-    final state = await _tutorialService.recupererEtatPhaseB();
+    final res = await _tutorialService.synchroniserEtapesPhaseBAutomatiquement();
     if (!mounted) return;
+    final newSteps = List<int>.from(res['steps'] as List? ?? []);
+    final newClaimed = res['claimed'] == true;
+    final newlyCompleted = List<int>.from(res['newlyCompleted'] as List? ?? []);
+    final rewardMsg = res['rewardMessage']?.toString();
+
     setState(() {
-      _phaseBSteps = List<int>.from(state['steps'] as List? ?? []);
-      _phaseBClaimed = state['claimed'] == true;
+      _phaseBSteps = newSteps;
+      _phaseBClaimed = newClaimed;
     });
+
+    if (rewardMsg != null && rewardMsg.isNotEmpty) {
+      _chargerProfilEtPortefeuille();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(rewardMsg), backgroundColor: OtakuColors.pvHaut),
+      );
+    } else if (newlyCompleted.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newlyCompleted.length == 1
+                ? 'Initiation : étape ${newlyCompleted.first}/6 validée automatiquement (${newSteps.length}/6) !'
+                : 'Initiation : ${newlyCompleted.length} étapes validées automatiquement (${newSteps.length}/6) !',
+          ),
+          backgroundColor: OtakuColors.pvHaut,
+        ),
+      );
+    }
   }
 
-  void _ouvrirParcoursInitiationModal() {
+  Future<void> _allerVersActionPhaseB(int stepNum) async {
+    if (stepNum == 1) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 2)));
+    } else if (stepNum == 2) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const CombatSetupPage()));
+    } else if (stepNum == 3) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDivisionPage()));
+    } else if (stepNum == 4) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 0)));
+    } else if (stepNum == 5) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const ClassementScreen(initialSection: 'competitif')));
+    } else if (stepNum == 6) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const GuideJeuPage()));
+    }
+    await _chargerProfilEtPortefeuille();
+    await _chargerTutorielPhaseB();
+  }
+
+  Future<void> _ouvrirParcoursInitiationModal() async {
+    Set<int> visitedSteps = await _tutorialService.recupererEtapesVisiteesLocalement();
+    if (!mounted) return;
+    String? modalError;
+
     showDialog(
       context: context,
       builder: (dialogCtx) {
@@ -125,7 +347,7 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: SizedBox(
-                  width: 460,
+                  width: 520,
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -148,13 +370,27 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                           ],
                         ),
                         Text(
-                          'Valide les 6 etapes de decouverte pour debloquer +25 VC, +100 OC et le Titre "Initie du Verse".',
+                          'Chaque étape se valide automatiquement dès que tu accomplis l\'action (reviens sur l\'Accueil) pour débloquer +25 VC, +100 OC et le Titre « Initié du Verse ».',
                           style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.textMuted),
                         ),
+                        if (modalError != null) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: OtakuColors.error.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: OtakuColors.error),
+                            ),
+                            child: Text(modalError!, style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.error)),
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         ...TutorialService.phaseBSteps.map((s) {
                           final int stepNum = s['step'] as int;
                           final bool done = _phaseBSteps.contains(stepNum);
+                          final bool visited = visitedSteps.contains(stepNum);
                           return Container(
                             margin: const EdgeInsets.only(bottom: 7),
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -166,8 +402,8 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                             child: Row(
                               children: [
                                 Icon(
-                                  done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                                  color: done ? OtakuColors.pvHaut : OtakuColors.accent,
+                                  done ? Icons.check_circle_rounded : Icons.lock_outline_rounded,
+                                  color: done ? OtakuColors.pvHaut : OtakuColors.modeEvent,
                                   size: 18,
                                 ),
                                 const SizedBox(width: 8),
@@ -180,16 +416,33 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                                     ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                if (!done)
+                                const SizedBox(width: 6),
+                                if (!done) ...[
+                                  OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: OtakuColors.accent,
+                                      side: const BorderSide(color: OtakuColors.accent),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    ),
+                                    onPressed: () async {
+                                      Navigator.pop(dialogCtx);
+                                      await _allerVersActionPhaseB(stepNum);
+                                    },
+                                    child: Text(s['actionLabel'] as String, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+                                  ),
+                                  const SizedBox(width: 5),
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: OtakuColors.accent,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      backgroundColor: OtakuColors.pvHaut,
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     ),
                                     onPressed: () async {
                                       try {
-                                        final res = await _tutorialService.validerEtapePhaseB(stepNum);
+                                        final res = await _tutorialService.validerEtapePhaseB(
+                                          stepNum,
+                                          verifiedVisit: visited,
+                                        );
                                         final newSteps = (res['steps'] as List?)?.map((e) => (e as num).toInt()).toList() ?? [..._phaseBSteps, stepNum];
                                         final claimed = res['reward_claimed'] == true || _phaseBClaimed;
                                         if (mounted) {
@@ -197,21 +450,24 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                                             _phaseBSteps = newSteps;
                                             _phaseBClaimed = claimed;
                                           });
-                                          setModalState(() {});
+                                          setModalState(() => modalError = null);
                                           if (res['reward_claimed'] == true) {
                                             _chargerProfilEtPortefeuille();
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               SnackBar(
-                                                content: Text(res['message']?.toString() ?? 'Parcours termine !'),
+                                                content: Text(res['message']?.toString() ?? 'Parcours terminé ! Titre « Initié du Verse » obtenu !'),
                                                 backgroundColor: OtakuColors.pvHaut,
                                               ),
                                             );
                                           }
                                         }
-                                      } catch (_) {}
+                                      } catch (e) {
+                                        setModalState(() => modalError = e.toString().replaceAll('Exception: ', ''));
+                                      }
                                     },
-                                    child: const Text('COMPRIS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                                    child: const Text('VÉRIFIER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
                                   ),
+                                ],
                               ],
                             ),
                           );
@@ -241,10 +497,12 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
       final skins = results[1] as List;
       final wallet = results[2] as WalletV92;
       final equipe = skins.where((s) => s.equipped).firstOrNull;
+      final cadre = await _skinService.recupererCadreEquipe(isVip: profil?['is_vip'] == true);
       if (mounted) {
         setState(() {
           _profil = profil;
           _wallet = wallet;
+          _equippedFrameId = cadre;
           if (equipe != null && equipe.imageKey.isNotEmpty) {
             _skinImageKey = equipe.imageKey;
           }
@@ -254,9 +512,11 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
     } catch (_) {}
   }
 
-  /// FIX-02 : Charge le vrai nombre de recompenses non reclamees dans la boite a lettres
   Future<void> _chargerMailsNonLus() async {
     try {
+      // Cree la recompense de connexion quotidienne (+15 XP) des l'arrivee sur le Hub
+      // pour allumer immediatement la pastille rouge sur l'icone Boite aux lettres
+      await _mailboxService.verifierDailyLogin();
       final count = await _mailboxService.countNonReclamees();
       if (mounted) {
         setState(() => _unreadMails = count);
@@ -276,23 +536,26 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
   String _modeAssetPath(String mode) {
     switch (mode) {
       case 'SOLO':
-        return 'assets/images/modes/mode_solo.png';
+        return 'assets/images/modes/mode_solo_tall.webp';
       case 'DIVISION':
-        return 'assets/images/modes/mode_division.png';
+        return 'assets/images/modes/mode_division_tall.webp';
       case 'DUEL':
-        return 'assets/images/modes/mode_duel.png';
+        return 'assets/images/modes/mode_duel_card.webp';
       case 'COOP':
-        return 'assets/images/modes/mode_coop.png';
+        return 'assets/images/modes/mode_coop_card.webp';
       case 'EVENTS':
-        return 'assets/images/modes/mode_events.png';
+        return 'assets/images/modes/mode_events_card.webp';
       case 'BATTLE_ROYALE':
-        return 'assets/images/modes/mode_br.png';
+        return 'assets/images/modes/mode_br_card.webp';
+      case 'SALONS_LIVE':
+        return 'assets/images/modes/mode_salon_live_card.webp';
+      case 'DONJONS':
+        return 'assets/images/modes/mode_donjon_card.webp';
       default:
-        return 'assets/images/modes/mode_solo.png';
+        return 'assets/images/modes/mode_solo_tall.webp';
     }
   }
 
-  /// Fait le lien entre un mode UI et sa cle dans la table Supabase `app_feature_flags`
   String _flagKeyPourMode(String mode) {
     switch (mode) {
       case 'SOLO':
@@ -307,12 +570,45 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
         return 'mode_events_tournois';
       case 'BATTLE_ROYALE':
         return 'mode_battle_royale';
+      case 'SALONS_LIVE':
+        return 'mode_salon_live';
+      case 'DONJONS':
+        return 'mode_donjons';
       default:
         return 'mode_solo';
     }
   }
 
-  /// Popup affichee quand le joueur clique sur un mode verrouille (LAUNCH-01 / LAUNCH-03)
+  String _libelleMode(String mode) {
+    switch (mode) {
+      case 'BATTLE_ROYALE':
+        return 'BATTLE ROYALE';
+      case 'SALONS_LIVE':
+        return 'SALONS LIVE';
+      case 'DONJONS':
+        return 'DONJONS';
+      default:
+        return mode;
+    }
+  }
+
+  /// Ouvre le selecteur de modes plein ecran style Free Fire (Phase A3)
+  Future<void> _ouvrirSelecteurModesPleinEcran() async {
+    final chosen = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ModeSelectorPage(
+          modeActif: _modeActif,
+          flagsService: _flagsService,
+          onLockedTap: _afficherTeaserModeVerrouille,
+        ),
+      ),
+    );
+    if (chosen != null && mounted) {
+      setState(() => _modeActif = chosen);
+    }
+  }
+
   Future<void> _afficherTeaserModeVerrouille(String titreMode, String flagKey) async {
     final label = _flagsService.labelLancement(flagKey);
     bool dejaInscrit = await _flagsService.estInscritAlerte(flagKey);
@@ -332,12 +628,7 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
               const Icon(Icons.lock_rounded, color: OtakuColors.modeEvent, size: 22),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  titreMode,
-                  style: OtakuTypo.headlineSmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Text(titreMode, style: OtakuTypo.headlineSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ],
           ),
@@ -351,14 +642,11 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                   color: OtakuColors.modeEvent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  label,
-                  style: OtakuTypo.label.copyWith(color: OtakuColors.modeEvent),
-                ),
+                child: Text(label, style: OtakuTypo.label.copyWith(color: OtakuColors.modeEvent)),
               ),
               const SizedBox(height: 10),
               Text(
-                'Ce mode arrive progressivement par paliers pour garantir zero lag et des matchs equilibres. Active une alerte pour etre prevenu des son ouverture.',
+                'Ce mode arrive progressivement par paliers pour garantir zéro lag et des matchs équilibrés. Active une alerte pour être prévenu dès son ouverture.',
                 style: OtakuTypo.bodySmall,
               ),
             ],
@@ -378,11 +666,12 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
                   : () async {
                       final ok = await _flagsService.sInscrireAlerte(flagKey);
                       if (ok) {
+                        await _tutorialService.marquerVisiteEtape(6);
                         setDialogState(() => dejaInscrit = true);
                       }
                     },
               icon: Icon(dejaInscrit ? Icons.check_rounded : Icons.notifications_active_rounded, size: 16),
-              label: Text(dejaInscrit ? 'ALERTE ACTIVEE' : "M'ALERTER"),
+              label: Text(dejaInscrit ? 'ALERTE ACTIVÉE' : "M'ALERTER"),
             ),
           ],
         ),
@@ -390,571 +679,556 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
     );
   }
 
-  void _showModeDrawer(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.78),
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: OtakuColors.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: OtakuColors.glassBorder),
-        ),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(color: OtakuColors.border, borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 10),
-            Text('SELECTIONNER LE MODE', style: OtakuTypo.headlineLarge.copyWith(fontSize: 16)),
-            const SizedBox(height: 10),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildModeOption('SOLO : Affronte l\'IA (350 PV / 40 Q)', Icons.bolt_rounded, OtakuColors.modeSolo, 'SOLO'),
-                    const SizedBox(height: 8),
-                    _buildModeOption('DIVISION : Classement Mondial', Icons.military_tech_rounded, OtakuColors.modeDivision, 'DIVISION'),
-                    const SizedBox(height: 8),
-                    _buildModeOption('DUEL : Defie un ami (1v1)', Icons.people_alt_rounded, OtakuColors.modeDuel, 'DUEL'),
-                    const SizedBox(height: 8),
-                    _buildModeOption('COOP : Duo 2vIA & 2v2', Icons.group_work_rounded, OtakuColors.modeCoop, 'COOP'),
-                    const SizedBox(height: 8),
-                    _buildModeOption('EVENEMENT : Saisons & Tournois', Icons.local_fire_department_rounded, OtakuColors.modeEvent, 'EVENTS'),
-                    const SizedBox(height: 8),
-                    _buildModeOption('BATTLE ROYALE : Survie 10 joueurs', Icons.whatshot_rounded, Colors.deepOrangeAccent, 'BATTLE_ROYALE'),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModeOption(String label, IconData icon, Color couleur, String mode) {
-    final String flagKey = _flagKeyPourMode(mode);
-    final bool ouvert = _flagsService.estOuvert(flagKey);
-    final String launchLabel = _flagsService.labelLancement(flagKey);
-    final bool estSelectionne = _modeActif == mode && ouvert;
-    final String imgPath = _modeAssetPath(mode);
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.pop(context);
-        if (ouvert) {
-          setState(() => _modeActif = mode);
-        } else {
-          _afficherTeaserModeVerrouille(label, flagKey);
-        }
-      },
-      child: Container(
-        height: 68,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: OtakuColors.surface,
-          border: Border.all(
-            color: estSelectionne
-                ? couleur
-                : (ouvert ? couleur.withValues(alpha: 0.45) : OtakuColors.modeEvent.withValues(alpha: 0.35)),
-            width: estSelectionne ? 2 : 1,
-          ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Opacity(
-              opacity: ouvert ? 1.0 : 0.4,
-              child: Image.asset(
-                imgPath,
-                fit: BoxFit.cover,
-                alignment: Alignment.center,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    OtakuColors.background.withValues(alpha: 0.94),
-                    OtakuColors.background.withValues(alpha: 0.72),
-                    couleur.withValues(alpha: ouvert ? 0.25 : 0.1),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: couleur.withValues(alpha: 0.22),
-                      border: Border.all(color: couleur.withValues(alpha: 0.6)),
-                    ),
-                    child: Icon(ouvert ? icon : Icons.lock_rounded, size: 20, color: ouvert ? couleur : OtakuColors.modeEvent),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: OtakuTypo.headlineSmall.copyWith(
-                            fontSize: 13,
-                            color: ouvert ? OtakuColors.textPrimary : OtakuColors.textSecondary,
-                          ),
-                        ),
-                        if (!ouvert)
-                          Text(
-                            launchLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.modeEvent),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (!ouvert)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: OtakuColors.modeEvent.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: OtakuColors.modeEvent.withValues(alpha: 0.6)),
-                      ),
-                      child: Text('BIENTOT', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.modeEvent)),
-                    )
-                  else if (estSelectionne)
-                    Icon(Icons.check_circle_rounded, size: 22, color: couleur)
-                  else
-                    Icon(Icons.chevron_right_rounded, size: 20, color: couleur.withValues(alpha: 0.8)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _lancerModeActif() async {
+    final flagKey = _flagKeyPourMode(_modeActif);
+    if (!_flagsService.estOuvert(flagKey)) {
+      _afficherTeaserModeVerrouille(_libelleMode(_modeActif), flagKey);
+      return;
+    }
+    if (_modeActif == 'SOLO') {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const CombatSetupPage()));
+    } else if (_modeActif == 'DIVISION') {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDivisionPage()));
+    } else if (_modeActif == 'DUEL') {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDuelSetupPage()));
+    } else if (_modeActif == 'COOP') {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCoopPage()));
+    } else if (_modeActif == 'EVENTS') {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseV3HubPage(initialTab: 1)));
+    } else if (_modeActif == 'BATTLE_ROYALE') {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseBattleRoyalePage()));
+    } else if (_modeActif == 'SALONS_LIVE' || _modeActif == 'DONJONS') {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCommunautePage()));
+    }
+    _chargerProfilEtPortefeuille();
+    _chargerTutorielPhaseB();
   }
 
   @override
   Widget build(BuildContext context) {
     final pseudo = _profil?['pseudo']?.toString() ?? 'Joueur';
+    final xpTotale = (_profil?['xp_totale'] as num?)?.toInt() ?? 0;
     final niveau = (_profil?['niveau'] as num?)?.toInt() ?? 1;
     final divisionId = (_profil?['division_id'] as num?)?.toInt() ?? 10;
     final bool guildesOuvertes = _flagsService.estOuvert('mode_guildes');
     final bool eventsOuverts = _flagsService.estOuvert('mode_events_tournois');
+    final bool salonsOuverts = _flagsService.estOuvert('mode_salon_live') || _flagsService.estOuvert('mode_donjons');
+    final skinActif = SkinService.parImageKey(_skinImageKey);
 
     return Stack(
+      fit: StackFit.expand,
       children: [
-        Positioned.fill(child: Container(color: OtakuColors.background)),
-        Positioned.fill(
-          child: SectionTexture(
-            type: TextureType.speedlines,
-            opacity: 0.06,
-            child: const SizedBox.expand(),
-          ),
+        // 1. Decor d'arene immersif plein ecran (Phase A5)
+        Image.asset(
+          'assets/images/backgrounds/lobby_arene_principale.webp',
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(color: OtakuColors.background),
         ),
-
-        // === ARRIERE-PLAN : Skin rotatif plein ecran (UI-01 non coupe) ===
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onPanUpdate: (d) => setState(() => _skinRotation += d.delta.dx * 0.01),
-            child: AnimatedBuilder(
-              animation: _idleRotation,
-              builder: (context, _) {
-                final angle = _skinRotation + (_idleRotation.value * 2 * pi);
-                return _SkinDisplay(rotation: angle, imageKey: _skinImageKey);
-              },
-            ),
-          ),
-        ),
-
-        // Vignette sombre
-        Positioned.fill(
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 0.85,
-                  colors: [
-                    Colors.transparent,
-                    OtakuColors.background.withValues(alpha: 0.72),
-                  ],
-                ),
+        // Voile d'ambiance sombre pour detachage net des widgets glassmorphism
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 0.95,
+                colors: [
+                  Colors.black.withValues(alpha: 0.12),
+                  Colors.black.withValues(alpha: 0.58),
+                  OtakuColors.background.withValues(alpha: 0.85),
+                ],
               ),
             ),
           ),
         ),
 
-        // === TOP BAR V9.2 : Profil + Badge de Rang Permanent + Compteurs OC & VC separes ===
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-              child: Row(
-                children: [
-                  // Profil + Badge de Rang officiel (anti-overflow UI-02)
-                  Flexible(
-                    flex: 5,
-                    child: GestureDetector(
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ProfilePage()),
-                        );
-                        _chargerProfilEtPortefeuille();
-                      },
-                      child: LiquidGlass(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        borderRadius: 18,
+        // === MISE EN PAGE STYLE FREE FIRE 100 % RESPONSIVE (PHASE A2) ===
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: Column(
+              children: [
+                // 1. TOP BAR FINE : Profil (avec cadre + medaille rang) | XP, OC, VC, Pub +OC, Mail, Parametres
+                Row(
+                  children: [
+                    Flexible(
+                      flex: 4,
+                      child: GestureDetector(
+                        onTap: () async {
+                          await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+                          _chargerProfilEtPortefeuille();
+                          _chargerTutorielPhaseB();
+                        },
+                        child: LiquidGlass(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          borderRadius: 16,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SafeAvatarBox(
+                                assetPath: 'assets/images/skins/$_skinImageKey.png',
+                                frameId: _equippedFrameId,
+                                width: 36,
+                                height: 36,
+                                topPadding: 2,
+                                borderRadius: 10,
+                                borderColor: skinActif.accentColor,
+                              ),
+                              const SizedBox(width: 7),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      pseudo,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: OtakuTypo.headlineSmall.copyWith(fontSize: 12),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    OfficialRankBadge(niveau: niveau, divisionId: divisionId, compact: true),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      flex: 6,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        reverse: true,
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            SafeAvatarBox(
-                              assetPath: 'assets/images/skins/$_skinImageKey.png',
-                              width: 36,
-                              height: 36,
-                              topPadding: 3,
-                              borderRadius: 12,
+                            _buildCurrencyChip(
+                              label: '$xpTotale XP',
+                              color: OtakuColors.accent,
+                              icon: Icons.bolt_rounded,
+                              onTap: () async {
+                                await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+                                _chargerProfilEtPortefeuille();
+                              },
                             ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
+                            const SizedBox(width: 6),
+                            _buildCurrencyChip(
+                              label: '${_wallet.ocBalance} OC',
+                              color: const Color(0xFF4CC9F0),
+                              icon: Icons.toll_rounded,
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 2)),
+                                );
+                                _chargerProfilEtPortefeuille();
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            _buildCurrencyChip(
+                              label: '${_wallet.totalVc} VC',
+                              color: Colors.amber,
+                              icon: Icons.diamond_rounded,
+                              showPlus: true,
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 3)),
+                                );
+                                _chargerProfilEtPortefeuille();
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: _pubAccueilEnCours ? null : _regarderPubAccueilOc,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: OtakuColors.pvHaut.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: OtakuColors.pvHaut.withValues(alpha: 0.75)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _pubAccueilEnCours ? Icons.hourglass_top_rounded : Icons.play_circle_filled_rounded,
+                                      size: 14,
+                                      color: OtakuColors.pvHaut,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'PUB +OC',
+                                      style: OtakuTypo.hud.copyWith(fontSize: 10, color: OtakuColors.pvHaut),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () async {
+                                await Navigator.push(context, MaterialPageRoute(builder: (_) => const BoiteLettresPage()));
+                                _chargerMailsNonLus();
+                                _chargerProfilEtPortefeuille();
+                              },
+                              child: Stack(
+                                clipBehavior: Clip.none,
                                 children: [
-                                  Text(
-                                    pseudo,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: OtakuTypo.headlineSmall.copyWith(fontSize: 13),
+                                  const LiquidGlass(
+                                    padding: EdgeInsets.all(7),
+                                    borderRadius: 14,
+                                    child: Icon(Icons.mail_rounded, color: OtakuColors.textSecondary, size: 17),
                                   ),
-                                  const SizedBox(height: 2),
-                                  OfficialRankBadge(
-                                    niveau: niveau,
-                                    divisionId: divisionId,
-                                    compact: true,
-                                  ),
+                                  if (_unreadMails > 0)
+                                    Positioned(
+                                      right: -4,
+                                      top: -4,
+                                      child: Container(
+                                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFF2E4C),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: OtakuColors.background, width: 1.5),
+                                          boxShadow: const [
+                                            BoxShadow(color: Color(0xAAFF2E4C), blurRadius: 6),
+                                          ],
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          '$_unreadMails',
+                                          style: OtakuTypo.label.copyWith(
+                                            fontSize: 8.5,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                 ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ParametresPage(
+                                      profil: _profil,
+                                      onProfilChange: _chargerProfilEtPortefeuille,
+                                    ),
+                                  ),
+                                );
+                                _chargerProfilEtPortefeuille();
+                              },
+                              child: const LiquidGlass(
+                                padding: EdgeInsets.all(7),
+                                borderRadius: 14,
+                                child: Icon(Icons.settings_rounded, color: OtakuColors.textSecondary, size: 17),
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
+                  ],
+                ),
+                const SizedBox(height: 6),
 
-                  // Compteurs OC et VC separes + Boite a lettres (UI-02 Flexible)
-                  Flexible(
-                    flex: 5,
+                // Bandeau propre en cas de perte reseau (Phase B3)
+                if (_reseauHorsLigne)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: OtakuColors.error.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: OtakuColors.error.withValues(alpha: 0.75)),
+                    ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Compteur Otaku Coins (OC)
-                        _buildCurrencyChip(
-                          label: '${_wallet.ocBalance} OC',
-                          color: const Color(0xFF4CC9F0),
-                          icon: Icons.toll_rounded,
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 2)),
-                            );
-                            _chargerProfilEtPortefeuille();
-                          },
-                        ),
+                        const Icon(Icons.wifi_off_rounded, size: 15, color: OtakuColors.error),
                         const SizedBox(width: 8),
-                        // Compteur Verse Coins (VC) + bouton '+'
-                        _buildCurrencyChip(
-                          label: '${_wallet.totalVc} VC',
-                          color: Colors.amber,
-                          icon: Icons.diamond_rounded,
-                          showPlus: true,
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true, initialTab: 3)),
-                            );
-                            _chargerProfilEtPortefeuille();
-                          },
+                        Expanded(
+                          child: Text(
+                            'Connexion perdue. Vérifie ta 4G ou ton Wi-Fi.',
+                            style: OtakuTypo.bodySmall.copyWith(fontSize: 10.5, color: Colors.white),
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        // Boite a lettres avec pastille dynamique (FIX-02)
                         GestureDetector(
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const BoiteLettresPage()),
-                            );
-                            _chargerMailsNonLus();
-                            _chargerProfilEtPortefeuille();
-                          },
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              const LiquidGlass(
-                                padding: EdgeInsets.all(9),
-                                borderRadius: 16,
-                                child: Icon(Icons.mail_rounded, color: OtakuColors.textSecondary, size: 20),
-                              ),
-                              if (_unreadMails > 0)
-                                Positioned(
-                                  right: -4,
-                                  top: -4,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.redAccent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Text(
-                                      '$_unreadMails',
-                                      style: OtakuTypo.label.copyWith(fontSize: 9, color: Colors.white),
-                                    ),
-                                  ),
-                                ),
-                            ],
+                          onTap: _initialiserHub,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: OtakuColors.error,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text('RÉESSAYER', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Colors.white)),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-        ),
 
-        // === COLONNE GAUCHE ===
-        Positioned(
-          left: 16,
-          top: 96,
-          child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSideNavButton('Boutique', Icons.store_rounded, () async {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true)));
-                  _chargerProfilEtPortefeuille();
-                }),
-                const SizedBox(height: 10),
-                _buildSideNavButton('Quetes', Icons.assignment_rounded, () async {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => _QuetePage(profil: _profil)));
-                  _chargerProfilEtPortefeuille();
-                }),
-                const SizedBox(height: 10),
-                _buildSideNavButton(
-                  'Saison',
-                  eventsOuverts ? Icons.emoji_events_rounded : Icons.lock_rounded,
-                  () {
-                    if (eventsOuverts) {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseV3HubPage()));
-                    } else {
-                      _afficherTeaserModeVerrouille('Saisons & Tournois', 'mode_events_tournois');
-                    }
-                  },
-                  locked: !eventsOuverts,
-                ),
-                if (!_phaseBClaimed) ...[
-                  const SizedBox(height: 10),
-                  _buildSideNavButton(
-                    'Init. ${_phaseBSteps.length}/6',
-                    Icons.school_rounded,
-                    _ouvrirParcoursInitiationModal,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-
-        // === COLONNE DROITE ===
-        Positioned(
-          right: 16,
-          top: 96,
-          child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    _buildSideNavButton('Amis', Icons.people_rounded, () async {
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => const AmisScreen()));
-                      _verifierNotifAmis();
-                    }, isRight: true),
-                    if (_notifAmis)
-                      Positioned(
-                        left: -5,
-                        top: -5,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                // 2. CORPS PRINCIPAL FREE FIRE : Colonne Gauche | Scene 3D Centrale | Colonne Droite + CTA bas-droite
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Colonne gauche fine et scrollable
+                      SizedBox(
+                        width: 132,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildSideNavButton('Boutique', Icons.store_rounded, () async {
+                                  AnalyticsService.instance.logShopOpen(0);
+                                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const BoutiqueScreen(showBack: true)));
+                                  _chargerProfilEtPortefeuille();
+                                  _chargerTutorielPhaseB();
+                                }),
+                                const SizedBox(height: 7),
+                                _buildSideNavButton('Classements', Icons.leaderboard_rounded, () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const ClassementScreen(initialSection: 'competitif')),
+                                  );
+                                  _chargerProfilEtPortefeuille();
+                                  _chargerTutorielPhaseB();
+                                }),
+                                const SizedBox(height: 7),
+                                _buildSideNavButton('Quêtes', Icons.assignment_rounded, () async {
+                                  await Navigator.push(context, MaterialPageRoute(builder: (_) => _QuetePage(profil: _profil)));
+                                  _chargerProfilEtPortefeuille();
+                                  _chargerMailsNonLus();
+                                }),
+                                const SizedBox(height: 7),
+                                _buildSideNavButton(
+                                  'Saison',
+                                  eventsOuverts ? Icons.emoji_events_rounded : Icons.lock_rounded,
+                                  () {
+                                    if (eventsOuverts) {
+                                      Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseV3HubPage()));
+                                    } else {
+                                      _afficherTeaserModeVerrouille('Saisons & Tournois', 'mode_events_tournois');
+                                    }
+                                  },
+                                  locked: !eventsOuverts,
+                                ),
+                                if (!_phaseBClaimed) ...[
+                                  const SizedBox(height: 7),
+                                  _buildSideNavButton(
+                                    'Init. ${_phaseBSteps.length}/6',
+                                    Icons.school_rounded,
+                                    _ouvrirParcoursInitiationModal,
+                                    highlight: true,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _buildSideNavButton(
-                  'Guildes',
-                  guildesOuvertes ? Icons.shield_rounded : Icons.lock_rounded,
-                  () {
-                    if (guildesOuvertes) {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseGuildesPage()));
-                    } else {
-                      _afficherTeaserModeVerrouille('Guildes (4 joueurs)', 'mode_guildes');
-                    }
-                  },
-                  isRight: true,
-                  locked: !guildesOuvertes,
-                ),
-                const SizedBox(height: 10),
-                _buildSideNavButton(
-                  'Salons',
-                  (_flagsService.estOuvert('mode_salon_live') || _flagsService.estOuvert('mode_donjons'))
-                      ? Icons.groups_rounded
-                      : Icons.lock_rounded,
-                  () {
-                    if (_flagsService.estOuvert('mode_salon_live') || _flagsService.estOuvert('mode_donjons')) {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCommunautePage()));
-                    } else {
-                      _afficherTeaserModeVerrouille('Salons Live JKLM & Donjons', 'mode_salon_live');
-                    }
-                  },
-                  isRight: true,
-                  locked: !(_flagsService.estOuvert('mode_salon_live') || _flagsService.estOuvert('mode_donjons')),
-                ),
-              ],
-            ),
-          ),
-        ),
 
-        // === BOUTON JOUER ===
-        Positioned(
-          bottom: 20,
-          right: 20,
-          child: SafeArea(
-            child: GestureDetector(
-              onTap: () async {
-                final flagKey = _flagKeyPourMode(_modeActif);
-                if (!_flagsService.estOuvert(flagKey)) {
-                  _afficherTeaserModeVerrouille(_modeActif, flagKey);
-                  return;
-                }
-                if (_modeActif == 'SOLO') {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const CombatSetupPage()));
-                } else if (_modeActif == 'DIVISION') {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDivisionPage()));
-                } else if (_modeActif == 'DUEL') {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseDuelSetupPage()));
-                } else if (_modeActif == 'COOP') {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCoopPage()));
-                } else if (_modeActif == 'EVENTS') {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseV3HubPage(initialTab: 1)));
-                } else if (_modeActif == 'BATTLE_ROYALE') {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseBattleRoyalePage()));
-                }
-                _chargerProfilEtPortefeuille();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: const LinearGradient(
-                    colors: [OtakuColors.accent, OtakuColors.accentDark],
-                  ),
-                  boxShadow: [
-                    BoxShadow(color: OtakuColors.accent.withValues(alpha: 0.55), blurRadius: 22, spreadRadius: 3),
-                  ],
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
-                    const SizedBox(width: 8),
-                    Text(
-                      'JOUER',
-                      style: OtakuTypo.headlineLarge.copyWith(fontSize: 24, color: Colors.white, letterSpacing: 2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // === SELECTEUR DE MODE ===
-        Positioned(
-          bottom: 20,
-          left: 20,
-          child: SafeArea(
-            child: GestureDetector(
-              onTap: () => _showModeDrawer(context),
-              child: LiquidGlass(
-                tintColor: OtakuColors.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                borderRadius: 16,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        _modeAssetPath(_modeActif),
-                        width: 42,
-                        height: 42,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox(width: 42, height: 42),
+                      // Scene centrale large plein ecran : Viewer 3D .glb interactif 360° + repli 2D
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: OtakuSkin3DViewer(
+                            imageKey: _skinImageKey,
+                            accentColor: skinActif.accentColor,
+                            characterName: skinActif.name,
+                            characterSubtitle: skinActif.powerName.isNotEmpty ? skinActif.powerName : skinActif.role,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
+
+                      // Colonne droite : raccourcis sociaux en haut + Selecteur Mode empile sur JOUER en bas (Free Fire)
+                      SizedBox(
+                        width: 196,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text('MODE SELECTIONNE', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.textMuted)),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.expand_less_rounded, color: OtakuColors.textMuted, size: 14),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          _buildSideNavButton('Amis', Icons.people_rounded, () async {
+                                            await Navigator.push(context, MaterialPageRoute(builder: (_) => const AmisScreen()));
+                                            _verifierNotifAmis();
+                                          }, isRight: true),
+                                          if (_notifAmis)
+                                            Positioned(
+                                              left: -4,
+                                              top: -4,
+                                              child: Container(
+                                                width: 11,
+                                                height: 11,
+                                                decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _buildSideNavButton(
+                                        'Guildes',
+                                        guildesOuvertes ? Icons.shield_rounded : Icons.lock_rounded,
+                                        () {
+                                          if (guildesOuvertes) {
+                                            Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseGuildesPage()));
+                                          } else {
+                                            _afficherTeaserModeVerrouille('Guildes (4 joueurs)', 'mode_guildes');
+                                          }
+                                        },
+                                        isRight: true,
+                                        locked: !guildesOuvertes,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _buildSideNavButton(
+                                        'Salons',
+                                        salonsOuverts ? Icons.groups_rounded : Icons.lock_rounded,
+                                        () {
+                                          if (salonsOuverts) {
+                                            Navigator.push(context, MaterialPageRoute(builder: (_) => const VerseCommunautePage()));
+                                          } else {
+                                            _afficherTeaserModeVerrouille('Salons Live JKLM & Donjons', 'mode_salon_live');
+                                          }
+                                        },
+                                        isRight: true,
+                                        locked: !salonsOuverts,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+
+                            // Carte compacte du mode selectionne -> ouvre ModeSelectorPage plein ecran
+                            GestureDetector(
+                              onTap: _ouvrirSelecteurModesPleinEcran,
+                              child: Container(
+                                width: double.infinity,
+                                height: 48,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(13),
+                                  border: Border.all(color: OtakuColors.accent.withValues(alpha: 0.75), width: 1.3),
+                                  color: OtakuColors.surface,
+                                ),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.asset(
+                                      _modeAssetPath(_modeActif),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                                    ),
+                                    DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                          colors: [
+                                            Colors.black.withValues(alpha: 0.88),
+                                            Colors.black.withValues(alpha: 0.45),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'CHANGER DE MODE',
+                                                  style: OtakuTypo.label.copyWith(fontSize: 7.5, color: OtakuColors.accent),
+                                                ),
+                                                Text(
+                                                  _libelleMode(_modeActif),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: OtakuTypo.headlineSmall.copyWith(fontSize: 13, color: Colors.white),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Icon(Icons.grid_view_rounded, color: OtakuColors.accent, size: 18),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+
+                            // Bouton JOUER massif style Free Fire
+                            GestureDetector(
+                              onTap: _lancerModeActif,
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(15),
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFFFB703), Color(0xFFFB8500)],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFFB703).withValues(alpha: 0.45),
+                                      blurRadius: 16,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1.5),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 24),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'JOUER',
+                                      style: OtakuTypo.headlineLarge.copyWith(
+                                        fontSize: 19,
+                                        color: Colors.black,
+                                        letterSpacing: 2,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(_modeActif, style: OtakuTypo.headlineLarge.copyWith(fontSize: 15)),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -969,31 +1243,22 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
     required VoidCallback onTap,
     bool showPlus = false,
   }) {
-    return Flexible(
-      child: GestureDetector(
-        onTap: onTap,
-        child: LiquidGlass(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          borderRadius: 16,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 15),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: OtakuTypo.hud.copyWith(fontSize: 11, color: color),
-                ),
-              ),
-              if (showPlus) ...[
-                const SizedBox(width: 4),
-                Icon(Icons.add_circle_rounded, color: color, size: 14),
-              ],
+    return GestureDetector(
+      onTap: onTap,
+      child: LiquidGlass(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        borderRadius: 14,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 13),
+            const SizedBox(width: 4),
+            Text(label, style: OtakuTypo.hud.copyWith(fontSize: 10, color: color)),
+            if (showPlus) ...[
+              const SizedBox(width: 3),
+              Icon(Icons.add_circle_rounded, color: color, size: 12),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -1005,25 +1270,35 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
     VoidCallback onTap, {
     bool isRight = false,
     bool locked = false,
+    bool highlight = false,
   }) {
-    final iconColor = locked ? OtakuColors.modeEvent : OtakuColors.textSecondary;
+    final iconColor = highlight
+        ? const Color(0xFFFFD700)
+        : (locked ? OtakuColors.modeEvent : OtakuColors.textSecondary);
     return GestureDetector(
       onTap: onTap,
       child: LiquidGlass(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        borderRadius: 14,
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        borderRadius: 12,
+        tintColor: highlight ? const Color(0xFFFFD700) : null,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: isRight
               ? [
-                  Text(label, style: OtakuTypo.headlineSmall.copyWith(fontSize: 13)),
-                  const SizedBox(width: 10),
-                  Icon(icon, color: iconColor, size: 20),
+                  Text(label, style: OtakuTypo.headlineSmall.copyWith(fontSize: 11)),
+                  const SizedBox(width: 7),
+                  Icon(icon, color: iconColor, size: 17),
                 ]
               : [
-                  Icon(icon, color: iconColor, size: 20),
-                  const SizedBox(width: 10),
-                  Text(label, style: OtakuTypo.headlineSmall.copyWith(fontSize: 13)),
+                  Icon(icon, color: iconColor, size: 17),
+                  const SizedBox(width: 7),
+                  Text(
+                    label,
+                    style: OtakuTypo.headlineSmall.copyWith(
+                      fontSize: 11,
+                      color: highlight ? const Color(0xFFFFD700) : OtakuColors.textPrimary,
+                    ),
+                  ),
                 ],
         ),
       ),
@@ -1031,54 +1306,7 @@ class _AccueilPageState extends State<_AccueilPage> with SingleTickerProviderSta
   }
 }
 
-/// Affichage central du Goodies (UI-01 : BoxFit.contain + Alignment.topCenter + padding >= 12px)
-class _SkinDisplay extends StatelessWidget {
-  final double rotation;
-  final String imageKey;
-  const _SkinDisplay({required this.rotation, required this.imageKey});
-
-  @override
-  Widget build(BuildContext context) {
-    final double oscillation = sin(rotation) * 0.22;
-    return Center(
-      child: Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.001)
-          ..rotateY(oscillation),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SafeAvatarBox(
-              assetPath: 'assets/images/skins/$imageKey.png',
-              width: 210,
-              height: 250,
-              topPadding: 14,
-              borderRadius: 24,
-              borderColor: OtakuColors.accent,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: 220,
-              height: 16,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(50),
-                gradient: RadialGradient(
-                  colors: [
-                    OtakuColors.accent.withValues(alpha: 0.55),
-                    OtakuColors.accent.withValues(alpha: 0.0),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Ecran Quetes corrige (FIX-03 : progressions reelles depuis le profil + vrai credit XP)
+/// Ecran Quetes aligne V9.2 + option 3 Defis Bonus (50 OC) (Tests 12, 28, 31)
 class _QuetePage extends StatefulWidget {
   final Map<String, dynamic>? profil;
   const _QuetePage({this.profil});
@@ -1090,7 +1318,9 @@ class _QuetePage extends StatefulWidget {
 class _QuetePageState extends State<_QuetePage> {
   final QueteService _queteService = QueteService();
   final ProgressionService _progressionService = ProgressionService();
+  final MonetisationV4Service _shopService = MonetisationV4Service();
   bool _chargement = true;
+  bool _achatBonusEnCours = false;
   late List<_Quete> _quetes;
 
   @override
@@ -1185,6 +1415,25 @@ class _QuetePageState extends State<_QuetePage> {
     } catch (_) {}
   }
 
+  Future<void> _debloquerDefisBonus() async {
+    if (_achatBonusEnCours) return;
+    setState(() => _achatBonusEnCours = true);
+    try {
+      final msg = await _shopService.debloquerDefisBonusOc();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: OtakuColors.pvHaut),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _achatBonusEnCours = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1196,7 +1445,7 @@ class _QuetePageState extends State<_QuetePage> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('QUETES', style: OtakuTypo.headlineLarge),
+        title: Text('QUÊTES & DÉFIS', style: OtakuTypo.headlineLarge),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -1204,11 +1453,50 @@ class _QuetePageState extends State<_QuetePage> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _chargement
               ? const Center(child: CircularProgressIndicator())
-              : ListView.separated(
-                  padding: const EdgeInsets.only(top: 12, bottom: 16),
-                  itemCount: _quetes.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (_, i) => _buildQueteCard(_quetes[i], i),
+              : ListView(
+                  padding: const EdgeInsets.only(top: 8, bottom: 16),
+                  children: [
+                    ...List.generate(
+                      _quetes.length,
+                      (i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildQueteCard(_quetes[i], i),
+                      ),
+                    ),
+                    // Recharge 3 Defis Bonus (50 OC — Test 31)
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF4CC9F0).withValues(alpha: 0.55)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.assignment_add, color: Color(0xFF4CC9F0), size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('3 DÉFIS BONUS DU JOUR', style: OtakuTypo.headlineSmall.copyWith(fontSize: 13, color: const Color(0xFF4CC9F0))),
+                                Text(
+                                  'Ajoute 3 défis quotidiens supplémentaires (+30 XP par défi réussi) contre 50 OC.',
+                                  style: OtakuTypo.bodySmall.copyWith(fontSize: 10, color: OtakuColors.textMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CC9F0), foregroundColor: Colors.black),
+                            onPressed: _achatBonusEnCours ? null : _debloquerDefisBonus,
+                            child: const Text('50 OC', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ),

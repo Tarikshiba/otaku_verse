@@ -1,0 +1,166 @@
+================================================================================
+OTAKU VERSE — LISTE COMPLETE DES ASSETS VISUELS & 3D A CREER (CHECKLIST TARIQ)
+================================================================================
+Objectif : Obtenir un rendu plein ecran style Free Fire MAX / jeu mobile pro,
+sans alourdir l'application ni faire ramer les smartphones Android modestes.
+
+Coche [x] devant chaque fichier des qu'il est pret et depose dans le bon dossier.
+
+--------------------------------------------------------------------------------
+1. DECORS DE FOND DU LOBBY & PROFIL (16:9 PLEIN ECRAN — PRIORITE HAUTE)
+--------------------------------------------------------------------------------
+Dossier de depot :
+  C:\All-projects\2026\Otaku_verse\app\assets\images\backgrounds\
+
+Specifications techniques :
+  - Format : .webp (ou .jpg haute qualite compresse, < 400 Ko par image)
+  - Resolution : 1920 x 1080 px (orientation horizontale 16:9)
+  - Conseil cadrage : laisser le CENTRE relativement degage et sombre au sol
+    avec un sol/socle lumineux ou un espace d'arene pour que le personnage
+    debout au milieu ressorte parfaitement.
+
+Fichiers a deposer :
+  [ ] lobby_arene_principale.webp   -> Fond du Hub principal (style salle futuriste
+                                       manga / sanctuaire cyberpunk sombre violet/cyan)
+  [ ] profil_podium_bg.webp         -> Fond de l'ecran Profil (podium sombre avec
+                                       projecteurs discrets sur le personnage)
+  [ ] modes_selector_bg.webp        -> Fond sombre subtil pour l'ecran de selection
+                                       des modes plein ecran
+  [ ] boutique_showroom_bg.webp     -> Fond showroom pour la Boutique de Goodies
+
+--------------------------------------------------------------------------------
+2. PERSONNAGES / GOODIES EN 3D (.glb) OU EN 2D DETOURE (.png TRANSPARENT)
+--------------------------------------------------------------------------------
+Deux options possibles (tu peux meme commencer en PNG transparent puis remplacer
+progressivement par des .glb 3D, le code saura gerer les deux !) :
+
+>>> OPTION 3D REELLE (RECOMMANDEE SI TU CREES DES MODELES 3D) <<<
+Dossier de depot :
+  C:\All-projects\2026\Otaku_verse\app\assets\models\skins\
+
+Specifications techniques STRICTES pour mobile (tres important !) :
+  - Format : .glb (glTF binaire avec textures integrees)
+  - Poids max : < 2,5 Mo par personnage (ideal : 800 Ko a 1,8 Mo)
+  - Polygones : 10 000 a 25 000 triangles max (Low/Mid Poly anime style)
+  - Textures : 1024x1024 px max (compressees)
+  - Orientation : personnage DEBOUT face a la camera (+Z), pieds poses sur Y = 0
+  - Animation (bonus) : 1 animation "Idle" (respiration / garde legere) incluse
+    dans le .glb si possible (outils gratuits : Meshy, Tripo3D, Mixamo, Blender)
+
+Fichiers 3D .glb a deposer (noms EXACTS) :
+  [ ] skin_default.glb              -> Guerrier du Verse (gratuit de depart)
+  [ ] skin_ninja.glb                -> Ninja de Konoha (1er Goodies Tuto 300 OC)
+  [ ] skin_pirate.glb               -> Capitaine Pirate (Classique 350 VC)
+  [ ] skin_samourai.glb             -> Ronin de Wano (Classique 400 VC)
+  [ ] skin_ermite.glb               -> Ermite des Cimes (Classique 450 VC)
+  [ ] skin_titan.glb                -> Chasseur de Titans (Classique 500 VC)
+  [ ] skin_demon.glb                -> Pourfendeur Demoniaque (Epique 700 VC)
+  [ ] skin_hokage.glb               -> Ombre du Hokage (Epique 800 VC)
+  [ ] skin_dragon.glb               -> Guerrier Dragon (Epique 850 VC)
+  [ ] skin_roi.glb                  -> Souverain des Ombres (Epique 900 VC)
+  [ ] avatar_soryn_ether_watcher.glb -> Soryn, Gardien de l'Ether (Fondateur 1200 VC)
+  [ ] avatar_nyxara_twin_fangs.glb   -> Nyxara, Crocs Jumeaux (Fondateur 1500 VC)
+
+>>> PORTRAITS / RENDUS 2D TRANSPARENTS (OBLIGATOIRES MEME AVEC LA 3D !) <<<
+Pourquoi obligatoires ? Pour les vignettes rapides (Boutique, Liste Collection,
+Face-Off Combat, Carte Partage 9:16) sans charger 12 modeles 3D en meme temps !
+
+Dossier de depot :
+  C:\All-projects\2026\Otaku_verse\app\assets\images\skins\
+
+Specifications techniques :
+  - Format : .png avec FOND 100 % TRANSPARENT (personnage detoure, plein pied ou
+    buste large, marge libre au-dessus de la tete/cheveux/armes !)
+  - Resolution : 768 x 1024 px (portrait 3:4) ou 1024 x 1024 px
+  - Poids max : < 350 Ko par fichier
+
+Fichiers PNG transparents a deposer (remplacent les anciens carres sombres) :
+  [ ] skin_default.png              -> Deja present (a detourer en fond transparent)
+  [ ] skin_ninja.png                -> Deja present (a detourer en fond transparent)
+  [ ] skin_pirate.png               -> Deja present (a detourer en fond transparent)
+  [ ] skin_samourai.png             -> Deja present (a detourer en fond transparent)
+  [ ] skin_ermite.png               -> Deja present (a detourer en fond transparent)
+  [ ] skin_titan.png                -> Deja present (a detourer en fond transparent)
+  [ ] skin_demon.png                -> Deja present (a detourer en fond transparent)
+  [ ] skin_hokage.png               -> Deja present (a detourer en fond transparent)
+  [ ] skin_dragon.png               -> Deja present (a detourer en fond transparent)
+  [ ] skin_roi.png                  -> Deja present (a detourer en fond transparent)
+  [ ] avatar_soryn_ether_watcher.png -> MANQUANT (Fondateur Legendaire Soryn)
+  [ ] avatar_nyxara_twin_fangs.png   -> MANQUANT (Fondateur Legendaire Nyxara)
+
+--------------------------------------------------------------------------------
+3. CARTES VISUELLES DES MODES (ECRAN SELECTION PLEIN ECRAN FACON FREE FIRE)
+--------------------------------------------------------------------------------
+Dossier de depot :
+  C:\All-projects\2026\Otaku_verse\app\assets\images\modes\
+
+Specifications techniques :
+  - Format : .webp ou .jpg (< 250 Ko par carte)
+  - Cartes phares verticales (gauche de l'ecran modes) : 600 x 800 px (ratio 3:4)
+  - Cartes grille horizontales (droite de l'ecran modes) : 800 x 450 px (ratio 16:9)
+  - IMPORTANT DROITS D'AUTEUR : Illustrations 100 % originales style anime,
+    JAMAIS de captures d'ecran d'animes officiels ni de logos deposes.
+
+Fichiers a verifier / remplacer / ajouter :
+  [ ] mode_division_tall.webp       -> Grande carte phare "DIVISION MONDIALE" (3:4)
+  [ ] mode_solo_tall.webp           -> Grande carte phare "COMBAT SOLO" (3:4)
+  [ ] mode_duel_card.webp           -> Carte "DUEL 1v1 AMIS" (16:9)
+  [ ] mode_coop_card.webp           -> Carte "COOP 2v2 / BOSS" (16:9)
+  [ ] mode_br_card.webp             -> Carte "BATTLE ROYALE 10J" (16:9)
+  [ ] mode_events_card.webp         -> Carte "SAISONS & TOURNOIS" (16:9)
+  [ ] mode_salon_live_card.webp     -> Carte "SALONS LIVE JKLM" (16:9)
+  [ ] mode_donjon_card.webp         -> Carte "DONJONS OTAKU FORGE" (16:9)
+
+--------------------------------------------------------------------------------
+4. ICONES DE RANGS, CADRES D'AVATAR & EFFETS (BONUS FINITION PRO)
+--------------------------------------------------------------------------------
+Dossier de depot :
+  C:\All-projects\2026\Otaku_verse\app\assets\images\ranks\
+
+Specifications : .png fond transparent, 256 x 256 px (< 60 Ko chacun)
+  [ ] rank_1_bronze.png             -> Novice du Verse (Niv. 1-5)
+  [ ] rank_2_acier.png              -> Apprenti Otaku (Niv. 6-15)
+  [ ] rank_3_argent.png             -> Erudit des Arcs (Niv. 16-30)
+  [ ] rank_4_or.png                 -> Maitre de l'Encre (Niv. 31-50)
+  [ ] rank_5_platine.png            -> Seigneur du Verse (Niv. 51-75)
+  [ ] rank_6_legende.png            -> Legende Eternelle (Niv. 76+)
+
+Dossier cadres boutique :
+  C:\All-projects\2026\Otaku_verse\app\assets\images\frames\
+
+Specifications : .png fond transparent (interieur vide pour voir l'avatar), 512 x 512 px
+  [ ] cadre_neon_shonen.png         -> 150 VC
+  [ ] cadre_flamme_astral.png       -> 250 VC
+  [ ] cadre_eclipse_or.png          -> 350 VC
+  [ ] cadre_vip_or_violet.png       -> Exclusif VIP
+
+--------------------------------------------------------------------------------
+5. AUDIO & EFFETS SONORES (POUR DONNER VIE AU JEU)
+--------------------------------------------------------------------------------
+Dossier de depot :
+  C:\All-projects\2026\Otaku_verse\app\assets\audio\
+
+Specifications : .mp3 (128 kbps, court et leger, < 1,5 Mo pour la musique, < 80 Ko par SFX)
+  [ ] bgm_lobby.mp3                 -> Boucle musicale calme/epique du Hub (30-60s)
+  [ ] bgm_combat.mp3                -> Boucle musicale nerveuse de combat (45-60s)
+  [ ] sfx_clic.mp3                  -> Clic bouton interface
+  [ ] sfx_bonne_reponse.mp3         -> Son impact positif
+  [ ] sfx_haya.mp3                  -> Son eclair rapide (< 2s)
+  [ ] sfx_combo.mp3                 -> Son Combo x3 puissant
+  [ ] sfx_erreur.mp3                -> Son erreur / Auto-faute
+  [ ] sfx_ko_kecchaku.mp3           -> Son K.O. final / Victoire
+
+--------------------------------------------------------------------------------
+6. ASSETS OBLIGATOIRES POUR LES FICHES GOOGLE PLAY & APP STORE
+--------------------------------------------------------------------------------
+Dossier de depot (hors app, pour upload sur les consoles Stores) :
+  C:\All-projects\2026\Otaku_verse\store_assets\
+
+  [ ] app_icon_1024.png             -> 1024 x 1024 px (carre sans transparence, base logo_icone.jpg)
+  [ ] feature_graphic_1024x500.png  -> Banniere Google Play 1024 x 500 px
+  [ ] screen_1_lobby.png            -> Capture HD 1920 x 1080 du Hub plein ecran
+  [ ] screen_2_modes.png            -> Capture HD 1920 x 1080 du selecteur de modes
+  [ ] screen_3_combat.png           -> Capture HD 1920 x 1080 en plein combat Haya/Combo
+  [ ] screen_4_boutique.png         -> Capture HD 1920 x 1080 Boutique & Goodies
+  [ ] screen_5_partage.png          -> Capture HD 1920 x 1080 Profil + Carte 9:16
+================================================================================

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../tutorial/tutorial_service.dart';
 
 /// Service qui gere toutes les operations d'authentification.
 /// Utilise Supabase Auth sous le capot.
@@ -24,7 +25,7 @@ class AuthService {
       // Verifier que le pseudo est dispo avant de creer le compte
       final dispo = await pseudoDisponible(pseudo);
       if (!dispo) {
-        return 'Ce pseudo est deja pris, choisis-en un autre';
+        return 'Ce pseudo est déjà pris, choisis-en un autre';
       }
 
       // Creer le compte auth
@@ -41,7 +42,7 @@ class AuthService {
           'country': pays,
           'xp_totale': 0,
           'niveau': 1,
-          'rang': 'Debutant',
+          'rang': 'Novice du Verse',
           'combats_joues': 0,
           'combats_gagnes': 0,
         });
@@ -71,8 +72,21 @@ class AuthService {
     }
   }
 
-  /// Deconnexion
+  /// Envoie un lien de reinitialisation de mot de passe par email (Test 3)
+  Future<String?> reinitialiserMotDePasse(String email) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(email.trim());
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return 'Impossible d\'envoyer l\'email de réinitialisation : $e';
+    }
+  }
+
+  /// Deconnexion + reinitialisation propre de l'etat local du tutoriel (Test 5)
   Future<void> deconnexion() async {
+    await TutorialService().resetLocalStateOnLogout();
     await _supabase.auth.signOut();
   }
 

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
+import '../../shared/audio_manager.dart';
+import '../auth/auth_service.dart';
+import '../skins/skin_3d_cache_service.dart';
 import '../social/friends_service.dart';
+import '../tutorial/tutorial_service.dart';
+import 'legal_pages.dart';
 
 /// Ecran Parametres V9.2 :
 /// Pseudo, Pays, Garde-fous Vie Privee (UI-05), Notifications Depassement Ami (RANK-02), Audio et Deconnexion.
@@ -19,6 +24,9 @@ class _ParametresPageState extends State<ParametresPage> {
   String? _message;
   late bool _allowSharePseudoFriends;
   late bool _notifOvertakeEnabled;
+  bool _musicEnabled = true;
+  bool _sfxEnabled = true;
+  double _cache3DMo = 0;
 
   static const List<String> _pays = [
     'Senegal', 'France', 'Cote d\'Ivoire', 'Cameroun', 'Mali',
@@ -34,6 +42,18 @@ class _ParametresPageState extends State<ParametresPage> {
     super.initState();
     _allowSharePseudoFriends = widget.profil?['allow_share_pseudo_friends'] == true;
     _notifOvertakeEnabled = widget.profil?['notif_overtake_enabled'] != false;
+    _chargerAudioEtCache();
+  }
+
+  Future<void> _chargerAudioEtCache() async {
+    await OtakuAudioManager.instance.chargerPreferences();
+    final cacheMo = await Skin3DCacheService.instance.tailleCacheMo();
+    if (!mounted) return;
+    setState(() {
+      _musicEnabled = OtakuAudioManager.instance.musicEnabled;
+      _sfxEnabled = OtakuAudioManager.instance.sfxEnabled;
+      _cache3DMo = cacheMo;
+    });
   }
 
   Future<void> _sauvegarderPreferencesViePrivee() async {
@@ -179,45 +199,116 @@ class _ParametresPageState extends State<ParametresPage> {
                     ),
                     const SizedBox(height: 18),
 
-                    _buildSectionTitle('GRAPHISMES & AUDIO'),
+                    _buildSectionTitle('GRAPHISMES, 3D & AUDIO'),
                     const SizedBox(height: 8),
-                    _buildItem(
-                      icon: Icons.auto_awesome_rounded,
-                      label: 'Qualite Liquid Glass',
-                      value: 'Haute (60 FPS)',
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: OtakuColors.accent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text('HD', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.accent)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: OtakuColors.border),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        activeThumbColor: OtakuColors.accent,
+                        title: Text('Musiques d\'ambiance (Lobby & Combat)', style: OtakuTypo.headlineSmall.copyWith(fontSize: 12)),
+                        value: _musicEnabled,
+                        onChanged: (v) async {
+                          setState(() => _musicEnabled = v);
+                          await OtakuAudioManager.instance.setMusicEnabled(v);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: OtakuColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: OtakuColors.border),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        activeThumbColor: OtakuColors.accent,
+                        title: Text('Effets sonores (Haya!!, Combo, K.O.)', style: OtakuTypo.headlineSmall.copyWith(fontSize: 12)),
+                        value: _sfxEnabled,
+                        onChanged: (v) async {
+                          setState(() => _sfxEnabled = v);
+                          await OtakuAudioManager.instance.setSfxEnabled(v);
+                        },
                       ),
                     ),
                     const SizedBox(height: 8),
                     _buildItem(
-                      icon: Icons.volume_up_rounded,
-                      label: 'Musique & Effets sonores',
-                      value: 'Actifs',
+                      icon: Icons.view_in_ar_rounded,
+                      label: 'Cache local modèles 3D (.glb)',
+                      value: '${_cache3DMo.toStringAsFixed(1)} Mo téléchargés à la demande',
+                      onTap: () async {
+                        await Skin3DCacheService.instance.viderCache3D();
+                        final mo = await Skin3DCacheService.instance.tailleCacheMo();
+                        if (!mounted) return;
+                        setState(() {
+                          _cache3DMo = mo;
+                          _message = 'Cache des modèles 3D vidé.';
+                        });
+                      },
                       trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: OtakuColors.pvHaut.withValues(alpha: 0.15),
+                          color: OtakuColors.accent.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text('ON', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.pvHaut)),
+                        child: Text('VIDER', style: OtakuTypo.label.copyWith(fontSize: 9, color: OtakuColors.accent)),
                       ),
                     ),
                     const SizedBox(height: 18),
 
-                    _buildSectionTitle('SESSION'),
+                    _buildSectionTitle('SUPPORT & LÉGAL (STORES)'),
+                    const SizedBox(height: 8),
+                    _buildItem(
+                      icon: Icons.privacy_tip_rounded,
+                      label: 'Politique de Confidentialité',
+                      value: 'Données collectées, anonymisation et droits',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LegalDocumentPage(isPrivacyPolicy: true)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildItem(
+                      icon: Icons.description_rounded,
+                      label: 'Conditions Générales d\'Utilisation (CGU)',
+                      value: 'Règles d\'équité, monnaies et propriété',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LegalDocumentPage(isPrivacyPolicy: false)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildItem(
+                      icon: Icons.support_agent_rounded,
+                      label: 'Support & Contact',
+                      value: LegalDocumentPage.supportEmail,
+                      onTap: _afficherModalSupport,
+                    ),
+                    const SizedBox(height: 18),
+
+                    _buildSectionTitle('SESSION & COMPTE'),
                     const SizedBox(height: 8),
                     _buildItem(
                       icon: Icons.logout_rounded,
-                      label: 'Deconnexion',
-                      value: 'Se deconnecter du compte',
+                      label: 'Déconnexion',
+                      value: 'Se déconnecter du compte',
                       couleur: OtakuColors.error,
                       onTap: _deconnexion,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildItem(
+                      icon: Icons.delete_forever_rounded,
+                      label: 'Supprimer définitivement mon compte',
+                      value: 'Efface ton profil, tes stats et tes données (irréversible)',
+                      couleur: OtakuColors.error,
+                      onTap: _confirmerSuppressionCompte,
                     ),
                   ],
                 ),
@@ -387,8 +478,143 @@ class _ParametresPageState extends State<ParametresPage> {
     }
   }
 
+  void _afficherModalSupport() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: OtakuColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('SUPPORT OTAKU VERSE', style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.accent)),
+        content: Text(
+          'Un bug, une question sur ton compte ou une suggestion ?\n\nÉcris-nous à : ${LegalDocumentPage.supportEmail}\n\nPour signaler une question de quiz erronée, utilise directement le bouton « Signaler » après ta réponse en combat.',
+          style: OtakuTypo.bodySmall.copyWith(color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('FERMER'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Suppression definitive du compte in-app (Obligatoire Google Play & Apple — Phase C1)
+  Future<void> _confirmerSuppressionCompte() async {
+    final confirmCtrl = TextEditingController();
+    String? erreur;
+    bool enCours = false;
+
+    final deleted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: OtakuColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: OtakuColors.error.withValues(alpha: 0.7)),
+          ),
+          title: Text(
+            'SUPPRIMER DÉFINITIVEMENT MON COMPTE',
+            style: OtakuTypo.headlineSmall.copyWith(fontSize: 13.5, color: OtakuColors.error),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Cette action est irréversible. Ton profil, ton niveau, tes classements, tes skins et tes soldes OC/VC seront définitivement effacés.',
+                style: OtakuTypo.bodySmall.copyWith(fontSize: 11, color: Colors.white70, height: 1.4),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Tape SUPPRIMER ci-dessous pour confirmer :',
+                style: OtakuTypo.label.copyWith(fontSize: 10, color: OtakuColors.error),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: confirmCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'SUPPRIMER',
+                  hintStyle: const TextStyle(color: OtakuColors.textMuted),
+                  filled: true,
+                  fillColor: OtakuColors.background,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              if (erreur != null) ...[
+                const SizedBox(height: 8),
+                Text(erreur!, style: const TextStyle(color: OtakuColors.error, fontSize: 11)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: enCours ? null : () => Navigator.pop(dialogCtx, false),
+              child: Text('ANNULER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: OtakuColors.error, foregroundColor: Colors.white),
+              onPressed: enCours
+                  ? null
+                  : () async {
+                      if (confirmCtrl.text.trim().toUpperCase() != 'SUPPRIMER') {
+                        setDlgState(() => erreur = 'Tape exactement SUPPRIMER pour continuer.');
+                        return;
+                      }
+                      setDlgState(() {
+                        enCours = true;
+                        erreur = null;
+                      });
+                      try {
+                        final res = await Supabase.instance.client.functions.invoke(
+                          'shop-tutorial-engine',
+                          body: {'action': 'delete_account', 'confirm': 'SUPPRIMER'},
+                        );
+                        final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+                        if (res.status >= 400 || data['error'] != null) {
+                          setDlgState(() {
+                            enCours = false;
+                            erreur = data['error']?.toString() ?? 'Suppression impossible.';
+                          });
+                          return;
+                        }
+                        if (dialogCtx.mounted) Navigator.pop(dialogCtx, true);
+                      } on FunctionException catch (e) {
+                        final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : <String, dynamic>{};
+                        setDlgState(() {
+                          enCours = false;
+                          erreur = details['error']?.toString() ?? 'Erreur serveur (${e.status}).';
+                        });
+                      } catch (e) {
+                        setDlgState(() {
+                          enCours = false;
+                          erreur = e.toString().replaceAll('Exception: ', '');
+                        });
+                      }
+                    },
+              child: enCours
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('SUPPRIMER', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (deleted == true) {
+      await TutorialService().resetLocalStateOnLogout();
+      await AuthService().deconnexion();
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    }
+  }
+
   Future<void> _deconnexion() async {
-    await Supabase.instance.client.auth.signOut();
+    await AuthService().deconnexion();
     if (mounted) {
       Navigator.of(context).popUntil((route) => route.isFirst);
     }

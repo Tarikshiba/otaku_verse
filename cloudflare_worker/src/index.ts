@@ -161,6 +161,25 @@ export default {
       });
     }
 
+    // 1bis. GET /models/<skin_key>.glb : streaming 3D GLB compresse depuis R2 (zero frais egress)
+    if (req.method === "GET" && url.pathname.startsWith("/models/")) {
+      const fileName = url.pathname.slice("/models/".length).trim();
+      if (!/^[a-z0-9_]+\.glb$/i.test(fileName)) {
+        return jsonResp({ error: "Nom de modele invalide" }, 400);
+      }
+      const obj = await env.QUIZ_BUCKET.get(`models/skins/${fileName}`);
+      if (!obj || !obj.body) {
+        return jsonResp({ error: "Modele 3D introuvable dans R2" }, 404);
+      }
+      return new Response(obj.body, {
+        headers: {
+          ...CORS,
+          "Content-Type": "model/gltf-binary",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    }
+
     // 2. POST /draw : tirage de 40 questions sans bonne reponse
     if (req.method === "POST" && url.pathname === "/draw") {
       const body = (await req.json()) as Record<string, any>;

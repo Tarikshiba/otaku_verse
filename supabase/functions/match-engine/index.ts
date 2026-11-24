@@ -70,10 +70,20 @@ function getLevelFromXp(xp: number): number {
 function getRankTitle(level: number): string {
   if (level <= 5) return "Novice du Verse";
   if (level <= 15) return "Apprenti Otaku";
-  if (level <= 30) return "Erudit des Arcs";
-  if (level <= 50) return "Maitre de l'Encre";
+  if (level <= 30) return "Érudit des Arcs";
+  if (level <= 50) return "Maître de l'Encre";
   if (level <= 75) return "Seigneur du Verse";
-  return `Legende Eternelle ★${level - 75}`;
+  return `Légende Éternelle ★${level - 75}`;
+}
+
+function computeCredibleBotLevel(playerLevel: number, mode: string, divisionId: number): number {
+  const jitter = Math.floor(Math.random() * 5) - 2; // -2 a +2 niveaux autour du joueur
+  if (mode === "division") {
+    const divBase = Math.max(1, (11 - divisionId) * 4);
+    const anchor = Math.round((playerLevel + divBase) / 2);
+    return Math.max(1, anchor + jitter);
+  }
+  return Math.max(1, playerLevel + jitter);
 }
 
 function getDivisionFromPoints(pts: number): number {
@@ -132,7 +142,9 @@ async function authenticateUser(req: Request, supabase: SupabaseClient) {
 }
 
 async function resolveExpiredMatches(supabase: SupabaseClient, userId: string) {
-  // Securite Anti-Force-Close (§8.2) : inactif > 45s ou > 5 min max => Abandon (-30 pts, -50 XP)
+  // Securite Anti-Force-Close (§8.2) :
+  // - Division / PvP : inactif > 45s ou > 5 min max => Abandon (-30 pts, -50 XP, cooldown 5 min)
+  // - Solo : uniquement > 5 min max, cloture propre sans cooldown 5 min ni penalite abandon Niv 1-5
   const cutoffActivity = new Date(Date.now() - 45000).toISOString();
   const cutoffMax = new Date(Date.now() - 300000).toISOString();
 
@@ -145,8 +157,18 @@ async function resolveExpiredMatches(supabase: SupabaseClient, userId: string) {
 
   if (!stale || stale.length === 0) return;
 
+  const nowMs = Date.now();
   for (const m of stale) {
-    await closeMatchInternal(supabase, m, userId, 7, false);
+    if (m.mode === "solo") {
+      const startedMs = new Date(m.started_at).getTime();
+      const lastActMs = new Date(m.last_activity_at || m.started_at).getTime();
+      if (nowMs - startedMs >= 300000 || nowMs - lastActMs >= 300000) {
+        const wonByPts = (m.player1_hp || 0) > (m.player2_hp || 0);
+        await closeMatchInternal(supabase, m, userId, wonByPts ? 3 : 6, wonByPts);
+      }
+    } else {
+      await closeMatchInternal(supabase, m, userId, 7, false);
+    }
   }
 }
 
@@ -172,12 +194,14 @@ async function closeMatchInternal(
     .eq("user_id", userId)
     .single();
 
-  const level = prof.niveau || 1;
-  const currentXp = prof.xp_totale || 0;
+  const currentXp = Number(prof.xp_totale || 0);
+  // Calcul autoritaire du niveau depuis l'XP reelle (protege contre un prof.niveau desynchronise)
+  const level = getLevelFromXp(currentXp);
   const currentDivPts = prof.pts_division || 0;
   const currentDivId = prof.division_id || 10;
   const currentOc = wallet?.oc_balance || 0;
 
+  const isSolo = match.mode === "solo";
   const isDivision = match.mode === "division";
   const tierInfo = TIER_REWARDS[match.difficulty] || TIER_REWARDS.moyen;
   const hayaBonusPts = Math.min(5, Math.floor((match.player1_haya_count || 0) / 2));
@@ -188,6 +212,8 @@ async function closeMatchInternal(
   let ocRefund = 0;
   let ocPerfNet = 0;
   let potReturn = 0;
+  let potStatus: "none" | "doubled" | "refunded" | "lost" = (match.confidence_pot_oc || 0) > 0 ? "lost" : "none";
+  let potReason = "";
   let newAbandonStreak = prof.abandon_streak || 0;
   let cooldownUntil: string | null = prof.cooldown_until || null;
 
@@ -202,17 +228,21 @@ async function closeMatchInternal(
   );
 
   if (scenarioCode === 7 && !player1Won) {
-    // Scenario 7 : Abandon / Force-close (TOUS les niveaux, assurance exclue)
+    // Scenario 7 : Abandon volontaire / Force-close PvP
+    // Regle §1.2 : seul l'Abandon retire -50 XP a tous les niveaux (assurance exclue).
+    // Regle terrain Heat : cooldown 5/30 min reserve exclusivement au PvP / Division (JAMAIS en Solo).
     deltaXp = -50;
     if (isDivision) deltaDivPts = -30;
     ocRefund = 0;
     ocPerfNet = 0;
     potReturn = 0;
-    newAbandonStreak += 1;
-    const mins = newAbandonStreak >= 3 ? 30 : 5;
-    cooldownUntil = new Date(Date.now() + mins * 60000).toISOString();
+    if (!isSolo) {
+      newAbandonStreak += 1;
+      const mins = newAbandonStreak >= 3 ? 30 : 5;
+      cooldownUntil = new Date(Date.now() + mins * 60000).toISOString();
+    }
   } else if (scenarioCode === 6) {
-    // Scenario 6 : Double-Faute Totale / Passivite AFK
+    // Scenario 6 : Double-Faute Totale / Passivite AFK (0 perte XP sous Niv. 6, 0 cooldown en Solo)
     deltaXp = level >= 6 ? -25 : 0;
     if (isDivision) deltaDivPts = -12;
     ocRefund = 0;
@@ -235,7 +265,17 @@ async function closeMatchInternal(
     if (isDivision) deltaDivPts = 4;
     ocRefund = match.entry_fee_oc || 0;
     ocPerfNet = rawOcQuestions;
-    potReturn = accuracyPct >= 80 ? (match.confidence_pot_oc || 0) : 0;
+    const pot = match.confidence_pot_oc || 0;
+    if (pot > 0) {
+      if (accuracyPct >= 80) {
+        potReturn = pot;
+        potStatus = "refunded";
+        potReason = `Puits remboursé (+${pot} OC, nul actif ≥ 80 %)`;
+      } else {
+        potStatus = "lost";
+        potReason = `Puits perdu (${Math.round(accuracyPct)} % < 80 % requis)`;
+      }
+    }
     newAbandonStreak = 0;
   } else if (player1Won) {
     // Victoire : Scenario 1 (K.O. franc), 2 (K.O. Clash/Mort subite), 3 (Points) ou 7 (Forfait adverse)
@@ -267,18 +307,31 @@ async function closeMatchInternal(
     ocRefund = match.entry_fee_oc || 0;
     ocPerfNet = totalPerfOc;
 
-    // Puits d'avant-match (§1.4)
+    // Puits de Confiance (§1.4) :
+    // - x2 (30 ou 60 OC) si victoire K.O. avec <= 4 erreurs OU victoire aux points >= 80 %
+    // - Rembourse 1x si abandon adverse Q < 10
     const pot = match.confidence_pot_oc || 0;
+    const p1Errors = Number(match.player1_errors || 0);
     if (pot > 0) {
       if (scenarioCode === 7 && match.questions_played < 10) {
-        potReturn = pot; // Rembourse si abandon adverse avant Q10
-      } else if ((isKo && match.player1_errors <= 4) || (!isKo && accuracyPct >= 80)) {
+        potReturn = pot;
+        potStatus = "refunded";
+        potReason = `Puits remboursé (+${pot} OC, forfait adverse avant Q10)`;
+      } else if ((isKo && p1Errors <= 4) || (!isKo && accuracyPct >= 80)) {
         potReturn = pot * 2;
+        potStatus = "doubled";
+        potReason = `Puits ${pot} OC doublé (×2 = +${potReturn} OC)`;
+      } else {
+        potReturn = 0;
+        potStatus = "lost";
+        potReason = isKo
+          ? `Puits perdu (${p1Errors} erreurs > 4 max en K.O.)`
+          : `Puits perdu (${Math.round(accuracyPct)} % < 80 % requis aux points)`;
       }
     }
     newAbandonStreak = 0;
   } else {
-    // Defaite : Perte Nette Seche d'XP des le Niveau 6 (0 XP de completion ni de bonnes reponses !)
+    // Defaite : Protection absolue Niv. 1-5 (0 perte XP), Perte Nette Seche des Niv. 6
     if (level >= 6) {
       let rawLoss = 0;
       if (isDivision || match.mode === "duel_ami") {
@@ -312,7 +365,16 @@ async function closeMatchInternal(
     ocRefund = 0;
     ocPerfNet = 0;
     potReturn = 0;
+    if ((match.confidence_pot_oc || 0) > 0) {
+      potStatus = "lost";
+      potReason = "Puits perdu sur défaite";
+    }
     newAbandonStreak = 0;
+  }
+
+  // Garde-fou final absolu : sous Niv. 6, aucune issue hors Abandon (7) ne peut faire perdre d'XP
+  if (level <= 5 && scenarioCode !== 7 && deltaXp < 0) {
+    deltaXp = 0;
   }
 
   const newXp = Math.max(0, currentXp + deltaXp);
@@ -443,7 +505,13 @@ async function closeMatchInternal(
     new_division_id: newDivId,
     oc_refund: ocRefund,
     oc_performance_net: ocPerfNet,
+    oc_pot_stake: match.confidence_pot_oc || 0,
     oc_pot_return: potReturn,
+    pot_status: potStatus,
+    pot_reason: potReason,
+    total_oc_added: totalOcAdded,
+    accuracy_pct: Math.round(accuracyPct),
+    player1_errors: Number(match.player1_errors || 0),
     new_oc_balance: newOcBalance,
     can_double_oc: ocPerfNet > 0,
   };
@@ -600,13 +668,27 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: `Mode verrouille : ${flag.launch_label}`, locked: true }, 403);
     }
 
-    // Verifier le cooldown anti-abandon
+    // Verifier le cooldown anti-abandon (reserve au PvP / Division, JAMAIS en Solo)
     const { data: prof } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (!prof) return jsonResp({ error: "Profil introuvable" }, 404);
 
-    if (prof.cooldown_until && new Date(prof.cooldown_until).getTime() > Date.now()) {
+    const playerLevel = getLevelFromXp(Number(prof.xp_totale || 0));
+
+    if (mode !== "solo" && prof.cooldown_until && new Date(prof.cooldown_until).getTime() > Date.now()) {
       const secs = Math.ceil((new Date(prof.cooldown_until).getTime() - Date.now()) / 1000);
-      return jsonResp({ error: "Cooldown anti-abandon actif", cooldown_seconds: secs }, 429);
+      const mins = Math.floor(secs / 60);
+      const remSecs = secs % 60;
+      const countdown = mins > 0 ? `${mins} min ${remSecs.toString().padStart(2, "0")} s` : `${secs} s`;
+      return jsonResp(
+        {
+          error: `Sanction anti-abandon active en Division/PvP. Réessaie dans ${countdown}. (Pénalités d'abandon : -50 XP, -30 pts Division)`,
+          cooldown_seconds: secs,
+          cooldown_until: prof.cooldown_until,
+          penalty_xp: -50,
+          penalty_division_pts: -30,
+        },
+        429,
+      );
     }
 
     // Calcul des frais d'arene OC selon la regle officielle §1.4
@@ -615,7 +697,9 @@ Deno.serve(async (req: Request) => {
       p_game_mode: mode,
     });
     const entryFeeOc = Number(entryFeeData || 0);
-    const insuranceCost = xpInsurance ? 25 : 0;
+    // Assurance XP active uniquement des le Niveau 6 (sous Niv. 6, 0 perte d'XP en defaite)
+    const effectiveXpInsurance = xpInsurance && playerLevel >= 6;
+    const insuranceCost = effectiveXpInsurance ? 25 : 0;
     const totalCostOc = entryFeeOc + insuranceCost + confidencePot;
 
     await supabase.rpc("ensure_wallet_exists", { p_user_id: user.id });
@@ -647,11 +731,13 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", user.id);
     }
 
-    // Calibrage adversaire IA (Mode Division AI_ONLY ou Solo)
+    // Calibrage adversaire IA (Mode Division AI_ONLY ou Solo) avec Niveau + Rang credible (Test 10)
     const divMode = flag?.mode_config?.division_matchmaking_mode || "AI_ONLY";
     const isAi = mode === "solo" || (mode === "division" && divMode === "AI_ONLY");
     const aiTier = mode === "division" ? divisionToAiTier(prof.division_id || 10) : difficulty;
     const aiPseudo = AI_PSEUDOS_DIVISION[Math.floor(Math.random() * AI_PSEUDOS_DIVISION.length)];
+    const aiLevel = computeCredibleBotLevel(playerLevel, mode, prof.division_id || 10);
+    const aiRank = getRankTitle(aiLevel);
 
     const { data: created, error: createErr } = await supabase
       .from("matches")
@@ -668,7 +754,7 @@ Deno.serve(async (req: Request) => {
         player2_hp: INITIAL_HP,
         max_questions: MAX_QUESTIONS,
         entry_fee_oc: entryFeeOc,
-        xp_insurance_active: xpInsurance,
+        xp_insurance_active: effectiveXpInsurance,
         confidence_pot_oc: confidencePot,
       })
       .select()
@@ -701,6 +787,8 @@ Deno.serve(async (req: Request) => {
         is_ai: isAi,
         pseudo: aiPseudo,
         tier: aiTier,
+        level: aiLevel,
+        rank: aiRank,
         division_id: prof.division_id || 10,
       },
     });
@@ -852,9 +940,13 @@ Deno.serve(async (req: Request) => {
       } else {
         newP1Hp = 0; newP2Hp = 0; finishedScenario = 5; player1Won = false; // Double K.O. Ai-uchi
       }
+    } else if (newP1Hp === 0 && newP2Hp > 0 && match.mode === "solo" && !match.second_chance_used) {
+      // Priorite absolue en Mode Solo : pause 5s Seconde Chance (+100 PV) avant toute cloture
+      finishedScenario = null;
     } else if (newConsecutiveTimeouts >= 3) {
       // Coupe-circuit 3 timeouts consecutifs AFK (§7.2)
-      finishedScenario = match.player1_correct === 0 ? 6 : 7;
+      // En Solo : forfait AFK (Scenario 6 -> 0 perte XP sous Niv. 6, 0 cooldown 5 min)
+      finishedScenario = match.mode === "solo" ? 6 : (match.player1_correct === 0 ? 6 : 7);
       player1Won = false;
     } else if (newP1Hp === 0 && newP2Hp === 0) {
       // 0 PV Simultané (§7.2 Correction n°2)
@@ -871,12 +963,7 @@ Deno.serve(async (req: Request) => {
     } else if (newP2Hp === 0) {
       finishedScenario = 1; player1Won = true;
     } else if (newP1Hp === 0) {
-      // En mode Solo, si la Seconde Chance n'a pas encore ete utilisee, on met en pause 5s avant cloture
-      if (match.mode === "solo" && !match.second_chance_used) {
-        finishedScenario = null;
-      } else {
-        finishedScenario = 1; player1Won = false;
-      }
+      finishedScenario = 1; player1Won = false;
     } else if (newElapsedMs >= GLOBAL_TIMER_MS || newQuestionsPlayed >= (match.max_questions || MAX_QUESTIONS)) {
       // Expiration Chrono Global 2 min ou 40e question -> Decision aux Points
       if (newP1Hp > newP2Hp) {
@@ -923,6 +1010,26 @@ Deno.serve(async (req: Request) => {
 
     await supabase.from("matches").update(updatedMatchFields).eq("id", match.id);
 
+    // Enregistrer l'erreur dans le Carnet d'erreurs Verse Analytics (best-effort)
+    if (!p1Correct && typeof body.question_text === "string" && body.question_text.trim().length > 0) {
+      try {
+        await supabase.from("player_question_errors").insert({
+          user_id: user.id,
+          match_id: match.id,
+          question_id: questionId,
+          work_slug: workSlug || "multi_verse",
+          arc_name: typeof body.arc_name === "string" ? body.arc_name : null,
+          difficulty_level: difficultyLevel > 0 ? difficultyLevel : 2,
+          question_text: body.question_text.trim().slice(0, 500),
+          chosen_answer: isTimeout ? "TIMEOUT" : answer,
+          correct_answer: bonneReponseServeur || "?",
+          explanation: explicationServeur,
+        });
+      } catch (_) {
+        // Ne jamais bloquer un match si la table n'est pas encore migree
+      }
+    }
+
     let summary = null;
     if (finishedScenario !== null) {
       summary = await closeMatchInternal(
@@ -945,6 +1052,10 @@ Deno.serve(async (req: Request) => {
       clash_winner: clashWinner,
       degats_infliges: dmgToP2,
       degats_subis: dmgToP1,
+      auto_faute_p1: !p1Correct ? 5 : 0,
+      auto_faute_p2: !aiCorrect ? 5 : 0,
+      consecutive_timeouts: newConsecutiveTimeouts,
+      afk_warning: match.mode === "solo" && newConsecutiveTimeouts === 2,
       player1_hp: newP1Hp,
       player2_hp: newP2Hp,
       player1_combo: p1Combo,
@@ -1154,12 +1265,59 @@ Deno.serve(async (req: Request) => {
       .update({
         status: "in_progress",
         player1_hp: 100,
+        player1_consecutive_timeouts: 0,
         second_chance_used: true,
         last_activity_at: new Date().toISOString(),
       })
       .eq("id", match.id);
 
     return jsonResp({ ok: true, player1_hp: 100 });
+  }
+
+  // =========================================================================
+  // 7. WATCH_HOME_AD_OC : Bouton Accueil "Regarder une pub" (+25 OC, 0 VC, max 5/j)
+  // =========================================================================
+  if (action === "watch_home_ad_oc") {
+    await supabase.rpc("ensure_wallet_exists", { p_user_id: user.id });
+    const { data: wallet } = await supabase
+      .from("economy_wallets")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+
+    const today = new Date().toISOString().slice(0, 10);
+    const countToday = wallet?.daily_home_ad_oc_date === today ? (wallet.daily_home_ad_oc_count || 0) : 0;
+    if (countToday >= 5) {
+      return jsonResp({ error: "Limite de 5 pubs bonus par jour atteinte (reviens demain)." }, 429);
+    }
+
+    const rewardOc = 25;
+    const newOc = (wallet?.oc_balance || 0) + rewardOc;
+    await supabase
+      .from("economy_wallets")
+      .update({
+        oc_balance: newOc,
+        daily_home_ad_oc_count: countToday + 1,
+        daily_home_ad_oc_date: today,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id);
+
+    await supabase.from("economy_ledger").insert({
+      user_id: user.id,
+      currency: "OC",
+      delta: rewardOc,
+      balance_after: newOc,
+      reason: "home_rewarded_ad_oc",
+    });
+
+    return jsonResp({
+      ok: true,
+      added_oc: rewardOc,
+      new_oc_balance: newOc,
+      remaining_today: Math.max(0, 4 - countToday),
+      message: `+${rewardOc} Otaku Coins crédités ! (${4 - countToday} pubs restantes aujourd'hui)`,
+    });
   }
 
   return jsonResp({ error: "Action inconnue" }, 400);

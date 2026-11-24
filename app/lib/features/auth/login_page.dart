@@ -27,9 +27,16 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  static final RegExp _emailRegex = RegExp(r'^[\w\.\-\+]+@([\w\-]+\.)+[\w\-]{2,}$');
+
   Future<void> _seConnecter() async {
-    if (_emailController.text.trim().isEmpty || _motDePasseController.text.isEmpty) {
-      setState(() => _erreur = 'Remplis tous les champs');
+    final email = _emailController.text.trim();
+    if (email.isEmpty || _motDePasseController.text.isEmpty) {
+      setState(() => _erreur = 'Remplis ton email et ton mot de passe.');
+      return;
+    }
+    if (!_emailRegex.hasMatch(email)) {
+      setState(() => _erreur = 'Adresse email invalide (ex. pseudo@domaine.com).');
       return;
     }
 
@@ -39,7 +46,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     final erreur = await _authService.connexion(
-      _emailController.text.trim(),
+      email,
       _motDePasseController.text,
     );
 
@@ -49,6 +56,75 @@ class _LoginPageState extends State<LoginPage> {
     if (erreur != null) {
       setState(() => _erreur = erreur);
     }
+  }
+
+  /// Fenetre "Mot de passe oublie" (Test 3)
+  Future<void> _ouvrirMotDePasseOublie() async {
+    final resetController = TextEditingController(text: _emailController.text.trim());
+    String? feedback;
+    bool envoi = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: OtakuColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('MOT DE PASSE OUBLIÉ', style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.accent)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Saisis l\'adresse email de ton compte pour recevoir un lien de réinitialisation.',
+                style: OtakuTypo.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: resetController,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: OtakuColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'ton@email.com',
+                  filled: true,
+                  fillColor: OtakuColors.background,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              if (feedback != null) ...[
+                const SizedBox(height: 8),
+                Text(feedback!, style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.accent)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('FERMER', style: OtakuTypo.label.copyWith(color: OtakuColors.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: envoi
+                  ? null
+                  : () async {
+                      final mail = resetController.text.trim();
+                      if (!_emailRegex.hasMatch(mail)) {
+                        setDialogState(() => feedback = 'Entre une adresse email valide.');
+                        return;
+                      }
+                      setDialogState(() => envoi = true);
+                      final err = await _authService.reinitialiserMotDePasse(mail);
+                      setDialogState(() {
+                        envoi = false;
+                        feedback = err ?? 'Lien envoyé ! Vérifie ta boîte mail (et tes spams).';
+                      });
+                    },
+              child: Text(envoi ? 'ENVOI...' : 'ENVOYER LE LIEN'),
+            ),
+          ],
+        ),
+      ),
+    );
+    resetController.dispose();
   }
 
   @override
@@ -87,7 +163,17 @@ class _LoginPageState extends State<LoginPage> {
                 hint: '••••••••',
                 obscure: true,
               ),
-              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _ouvrirMotDePasseOublie,
+                  child: Text(
+                    'Mot de passe oublié ?',
+                    style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.accent, fontSize: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
 
               if (_erreur != null)
                 Container(

@@ -79,13 +79,13 @@ class ProgressionService {
       'pseudo': pseudo,
       'xp_totale': 0,
       'niveau': 1,
-      'rang': 'Debutant',
+      'rang': 'Novice du Verse',
       'combats_joues': 0,
       'combats_gagnes': 0,
     });
   }
 
-  /// Met a jour le profil apres un combat (ajoute l'XP, recalcule le niveau/rang)
+  /// Met a jour le profil via la RPC serveur `ajouter_xp` (compatible verrouillage SQL profiles Phase C2)
   Future<Map<String, dynamic>> mettreAJourApresComabat({
     required int xpGagne,
     required bool victoire,
@@ -93,28 +93,27 @@ class ProgressionService {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw Exception('Utilisateur non connecte');
 
-    // Recuperer le profil actuel
     final profil = await recupererProfil();
     if (profil == null) {
       await creerProfilSiAbsent();
       return await mettreAJourApresComabat(xpGagne: xpGagne, victoire: victoire);
     }
 
-    // Calculer les nouvelles valeurs
-    final nouvelleXp = (profil['xp_totale'] as int) + xpGagne;
+    if (xpGagne > 0) {
+      try {
+        await _supabase.rpc('ajouter_xp', params: {
+          'p_user_id': userId,
+          'p_xp': xpGagne,
+        });
+      } catch (_) {}
+    }
+
+    final misAJour = await recupererProfil();
+    final nouvelleXp = (misAJour?['xp_totale'] as num?)?.toInt() ?? ((profil['xp_totale'] as int) + xpGagne);
     final nouveauNiveau = calculerNiveau(nouvelleXp);
     final nouveauRang = rang(nouveauNiveau);
-    final combatsJoues = (profil['combats_joues'] as int) + 1;
-    final combatsGagnes = (profil['combats_gagnes'] as int) + (victoire ? 1 : 0);
-
-    // Mettre a jour dans Supabase
-    await _supabase.from('profiles').update({
-      'xp_totale': nouvelleXp,
-      'niveau': nouveauNiveau,
-      'rang': nouveauRang,
-      'combats_joues': combatsJoues,
-      'combats_gagnes': combatsGagnes,
-    }).eq('id', userId);
+    final combatsJoues = (misAJour?['combats_joues'] as num?)?.toInt() ?? (profil['combats_joues'] as int);
+    final combatsGagnes = (misAJour?['combats_gagnes'] as num?)?.toInt() ?? (profil['combats_gagnes'] as int);
 
     return {
       'xp_totale': nouvelleXp,

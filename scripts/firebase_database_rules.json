@@ -53,10 +53,8 @@
       }
     },
     "economie": {
-      ".read": true,
-      "$userId": {
-        ".write": true
-      }
+      ".read": false,
+      ".write": false
     },
     "battle_royale": {
       ".read": true,

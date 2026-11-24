@@ -43,6 +43,8 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
+  static final RegExp _emailRegex = RegExp(r'^[\w\.\-\+]+@([\w\-]+\.)+[\w\-]{2,}$');
+
   Future<void> _sInscrire() async {
     final pseudo = _pseudoController.text.trim();
     final email = _emailController.text.trim();
@@ -50,21 +52,30 @@ class _RegisterPageState extends State<RegisterPage> {
     final confirm = _confirmController.text;
 
     if (pseudo.isEmpty || email.isEmpty || mdp.isEmpty || confirm.isEmpty || _paysChoisi == null) {
-      setState(() => _erreur = 'Remplis tous les champs (pays inclus)');
+      setState(() => _erreur = 'Remplis tous les champs (pays inclus).');
       return;
     }
     // Pseudo : entre 3 et 20 caracteres, lettres/chiffres/underscore uniquement
     final pseudoRegex = RegExp(r'^[a-zA-Z0-9_]{3,20}$');
     if (!pseudoRegex.hasMatch(pseudo)) {
-      setState(() => _erreur = 'Pseudo : 3-20 caracteres (lettres, chiffres, _)');
+      setState(() => _erreur = 'Pseudo : 3 à 20 caractères (lettres, chiffres, _).');
       return;
     }
-    if (mdp.length < 6) {
-      setState(() => _erreur = 'Le mot de passe doit faire au moins 6 caracteres');
+    // Validation stricte de l'adresse email (Test 3)
+    if (!_emailRegex.hasMatch(email)) {
+      setState(() => _erreur = 'Adresse email invalide (ex. pseudo@domaine.com).');
+      return;
+    }
+    // Regle mot de passe securise : 8+ caracteres, majuscule, minuscule et chiffre (Test 3)
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(mdp);
+    final hasLower = RegExp(r'[a-z]').hasMatch(mdp);
+    final hasDigit = RegExp(r'[0-9]').hasMatch(mdp);
+    if (mdp.length < 8 || !hasUpper || !hasLower || !hasDigit) {
+      setState(() => _erreur = 'Mot de passe sécurisé requis : 8 caractères min., 1 majuscule, 1 minuscule et 1 chiffre.');
       return;
     }
     if (mdp != confirm) {
-      setState(() => _erreur = 'Les mots de passe ne correspondent pas');
+      setState(() => _erreur = 'Les mots de passe ne correspondent pas.');
       return;
     }
 
@@ -163,7 +174,7 @@ class _RegisterPageState extends State<RegisterPage> {
               _buildTextField(
                 controller: _motDePasseController,
                 label: 'MOT DE PASSE',
-                hint: 'Minimum 6 caracteres',
+                hint: '8+ car., 1 majuscule, 1 minuscule, 1 chiffre',
                 obscure: true,
               ),
               const SizedBox(height: 16),

@@ -152,6 +152,7 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
 
       final matchId = startData['match_id']?.toString();
       final opp = startData['opponent'] is Map ? startData['opponent'] as Map : const {};
+      final oppLevel = (opp['level'] as num?)?.toInt() ?? _niveauJoueur;
 
       final params = CombatParams(
         mode: 'solo',
@@ -159,10 +160,12 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
         arc: _arcChoisi,
         difficulte: _difficulteChoisie,
         malusMode: _malusChoisi,
-        xpInsurance: _assuranceXp,
+        xpInsurance: _niveauJoueur >= 6 && _assuranceXp,
         confidencePotOc: _puitsOc,
         matchId: matchId,
         opponentPseudo: opp['pseudo']?.toString() ?? 'A.K.I.N.A',
+        opponentLevel: oppLevel,
+        opponentDivisionId: (opp['division_id'] as num?)?.toInt() ?? _divisionJoueur,
       );
 
       // 2. Tirer les 40 questions depuis Cloudflare R2 (sans bonne reponse)
@@ -187,16 +190,17 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
+          duration: const Duration(seconds: 5),
           action: e.canRescueAd
               ? SnackBarAction(label: '+40 OC (PUB)', onPressed: _activerCoupDePouce)
               : null,
         ),
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() => _lancementCombat = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur de lancement : $e')),
+        const SnackBar(content: Text('Impossible de lancer le combat. Vérifie ta connexion et réessaie.')),
       );
     }
   }
@@ -458,6 +462,24 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
     );
   }
 
+  void _afficherMiniAide(String titre, String corps) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: OtakuColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(titre, style: OtakuTypo.headlineSmall.copyWith(color: OtakuColors.accent)),
+        content: Text(corps, style: OtakuTypo.bodySmall.copyWith(height: 1.45, color: Colors.white)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('COMPRIS', style: TextStyle(color: OtakuColors.accent, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPageDifficulteEtContrat() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -534,7 +556,22 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('CONTRAT MALUS', style: OtakuTypo.headlineLarge.copyWith(fontSize: 15)),
+                  Row(
+                    children: [
+                      Text('CONTRAT MALUS', style: OtakuTypo.headlineLarge.copyWith(fontSize: 15)),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => _afficherMiniAide(
+                          'LES 4 MALUS & CONTRATS',
+                          '• ZEN : aucun malus visuel.\n'
+                          '• NORMAL : malus occasionnels.\n'
+                          '• MALICIEUX : +25 % OC en cas de victoire (-20 XP si moins de 50 % de bonnes réponses, jamais si victoire K.O.).\n\n'
+                          'Les 4 Malus actifs : Texte Inversé, Sans Voyelles (1 voyelle masquée par mot avec •), Brouillard d\'Encre (appuie pour lire) et Éclipse (5 secondes de lecture).',
+                        ),
+                        child: const Icon(Icons.info_outline_rounded, size: 16, color: OtakuColors.accent),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Row(
                     children: _malusOptions.map((m) {
@@ -572,25 +609,59 @@ class _CombatSetupPageState extends State<CombatSetupPage> {
                     style: OtakuTypo.bodySmall.copyWith(fontSize: 10),
                   ),
                   const SizedBox(height: 12),
-                  Text('OPTIONS AVANT-MATCH', style: OtakuTypo.headlineLarge.copyWith(fontSize: 15)),
+                  Row(
+                    children: [
+                      Text('OPTIONS AVANT-MATCH', style: OtakuTypo.headlineLarge.copyWith(fontSize: 15)),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => _afficherMiniAide(
+                          'ASSURANCE XP & PUITS DE CONFIANCE',
+                          '• Assurance XP (25 OC) : active dès le Niveau 6. Divise par 2 ta perte d\'XP en cas de défaite (ex. -12 XP au lieu de -25 XP). Inutile sous le Niveau 6 car tu ne perds 0 XP en défaite du Niveau 1 au Niveau 5 !\n\n'
+                          '• Puits de Confiance (15 ou 30 OC) : mise doublée (×2 = 30 ou 60 OC) si tu gagnes par K.O. avec 4 erreurs max OU aux points avec 80 %+ de précision. Remboursée (×1) sur nul actif ≥ 80 %.',
+                        ),
+                        child: const Icon(Icons.info_outline_rounded, size: 16, color: OtakuColors.accent),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
-                  // Assurance XP (25 OC)
-                  SwitchListTile.adaptive(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                    tileColor: OtakuColors.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: const BorderSide(color: OtakuColors.border),
+                  // Assurance XP (25 OC) : cliquable des Niv. 6, message explicatif clair sous Niv. 6 (Test 30)
+                  GestureDetector(
+                    onTap: _niveauJoueur < 6
+                        ? () => _afficherMiniAide(
+                              'PROTECTION DÉBUTANT ACTIVE',
+                              'Tu es Niveau $_niveauJoueur : du Niveau 1 au Niveau 5, tu ne perds AUCUN XP en cas de défaite !\n\n'
+                              'L\'Assurance XP (25 OC) se débloque automatiquement dès le Niveau 6, quand la perte d\'XP en défaite s\'active.',
+                            )
+                        : null,
+                    child: SwitchListTile.adaptive(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                      tileColor: OtakuColors.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color: _niveauJoueur < 6
+                              ? OtakuColors.pvHaut.withValues(alpha: 0.45)
+                              : OtakuColors.border,
+                        ),
+                      ),
+                      title: Text('Assurance XP (25 OC)', style: OtakuTypo.headlineSmall.copyWith(fontSize: 11)),
+                      subtitle: Text(
+                        _niveauJoueur < 6
+                            ? 'Inutile sous Niv. 6 (0 perte d\'XP en défaite · touche pour + d\'infos)'
+                            : 'Divise par 2 la perte d\'XP si défaite (hors abandon)',
+                        style: OtakuTypo.bodySmall.copyWith(
+                          fontSize: 10,
+                          color: _niveauJoueur < 6 ? OtakuColors.pvHaut : OtakuColors.textMuted,
+                        ),
+                      ),
+                      value: _niveauJoueur >= 6 && _assuranceXp,
+                      onChanged: _niveauJoueur >= 6 ? (v) => setState(() => _assuranceXp = v) : null,
                     ),
-                    title: Text('Assurance XP (25 OC)', style: OtakuTypo.headlineSmall.copyWith(fontSize: 11)),
-                    subtitle: Text('Divise par 2 la perte XP si defaite', style: OtakuTypo.bodySmall.copyWith(fontSize: 10)),
-                    value: _assuranceXp,
-                    onChanged: _niveauJoueur >= 6 ? (v) => setState(() => _assuranceXp = v) : null,
                   ),
                   const SizedBox(height: 8),
                   // Puits de Confiance (0 / 15 / 30 OC)
-                  Text('Puits de Confiance (x2 si victoire solide)', style: OtakuTypo.bodySmall.copyWith(fontSize: 10)),
+                  Text('Puits de Confiance (×2 si K.O. ≤ 4 err. ou Points ≥ 80 %)', style: OtakuTypo.bodySmall.copyWith(fontSize: 10)),
                   const SizedBox(height: 4),
                   Row(
                     children: [0, 15, 30].map((v) {

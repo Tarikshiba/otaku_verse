@@ -498,7 +498,7 @@ class _VerseCoopArenaPageState extends State<VerseCoopArenaPage> {
                     children: [
                       ClipOval(
                         child: Image.asset(
-                          'assets/images/skins/skin_default.png',
+                          'assets/images/skins/skin_kio.png',
                           width: 34,
                           height: 34,
                           fit: BoxFit.cover,
@@ -533,11 +533,11 @@ class _VerseCoopArenaPageState extends State<VerseCoopArenaPage> {
                       const SizedBox(width: 8),
                       ClipOval(
                         child: Image.asset(
-                          'assets/images/skins/boss_gardien.png',
+                          'assets/images/skins/skin_cassio_vey.png',
                           width: 38,
                           height: 38,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
                         ),
                       ),
                     ],

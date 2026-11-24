@@ -1,7 +1,24 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../economy/economy_v92_service.dart';
+
+/// Option de reponse melangee cote client (Double securite V4.0 Partie 5.1) :
+/// - displayLetter : lettre affichee sur le bouton (A, B, C, D dans l'ordre visuel)
+/// - originalKey   : lettre d'origine attendue par le serveur lors de la validation
+class ShuffledChoice {
+  final String displayLetter;
+  final String originalKey;
+  final String text;
+
+  const ShuffledChoice({
+    required this.displayLetter,
+    required this.originalKey,
+    required this.text,
+  });
+}
 
 /// Represente une question de quiz (compatible Supabase V1 et Cloudflare R2 V9.2)
 class Question {
@@ -90,10 +107,12 @@ class Question {
   /// Cree une Question depuis Supabase (format V1)
   factory Question.fromMap(Map<String, dynamic> map) {
     final diff = map['difficulte']?.toString() ?? 'moyen';
+    final rawAnime = map['anime']?.toString() ?? '';
+    final slug = map['work_slug']?.toString();
     return Question(
       id: map['id'].toString(),
-      anime: map['anime']?.toString() ?? '',
-      workSlug: map['work_slug']?.toString(),
+      anime: EconomyV92Service.nomPropreOeuvre(slug ?? rawAnime),
+      workSlug: slug,
       arc: map['arc']?.toString(),
       domain: map['domain']?.toString() ?? 'GLOBAL',
       type: map['type']?.toString() ?? 'general',
@@ -111,13 +130,19 @@ class Question {
     );
   }
 
-  /// Cree une Question depuis le Cloudflare Worker R2 (format V9.2 sans bonne reponse)
+  /// Cree une Question depuis le Cloudflare Worker R2 (format V9.2 / V4.0 sans bonne reponse)
   factory Question.fromR2Map(Map<String, dynamic> map) {
     final lvl = (map['difficulty_level'] as num?)?.toInt() ?? 2;
     final slug = map['work_slug']?.toString() ?? '';
+    final rawWb = map['word_bank'] is List
+        ? (map['word_bank'] as List).map((e) => e.toString()).toList()
+        : null;
+    if (rawWb != null && rawWb.length > 1) {
+      rawWb.shuffle(Random());
+    }
     return Question(
       id: map['id']?.toString() ?? '',
-      anime: slug.replaceAll('_', ' '),
+      anime: EconomyV92Service.nomPropreOeuvre(slug),
       workSlug: slug,
       arc: map['arc_name']?.toString(),
       domain: map['domain']?.toString() ?? 'GLOBAL',
@@ -131,9 +156,7 @@ class Question {
       choixC: map['choix_c']?.toString() ?? '',
       choixD: map['choix_d']?.toString() ?? '',
       bonneReponse: '',
-      wordBank: map['word_bank'] is List
-          ? (map['word_bank'] as List).map((e) => e.toString()).toList()
-          : null,
+      wordBank: rawWb,
       unit: map['unit']?.toString(),
       minSlider: (map['min_slider'] as num?)?.toDouble(),
       maxSlider: (map['max_slider'] as num?)?.toDouble(),
@@ -149,6 +172,25 @@ class Question {
     if (choixC.isNotEmpty) list.add(MapEntry('C', choixC));
     if (choixD.isNotEmpty) list.add(MapEntry('D', choixD));
     return list;
+  }
+
+  /// Retourne les choix dans un ordre aleatoire (Double securite V4.0 : supprime tout biais sur A)
+  /// tout en conservant `originalKey` pour la validation serveur sur R2/Supabase.
+  List<ShuffledChoice> choixMelanges([Random? rng]) {
+    final raw = List<MapEntry<String, String>>.from(choix);
+    // Ne pas melanger Vrai/Faux classique (2.1) pour garder Vrai / Faux naturel
+    if (variantCode != '2.1' && raw.length >= 2) {
+      raw.shuffle(rng ?? Random());
+    }
+    const letters = ['A', 'B', 'C', 'D'];
+    return List.generate(
+      raw.length,
+      (i) => ShuffledChoice(
+        displayLetter: letters[i],
+        originalKey: raw[i].key,
+        text: raw[i].value,
+      ),
+    );
   }
 }
 
