@@ -147,11 +147,16 @@ ON CONFLICT (flag_key) DO NOTHING;
 CREATE OR REPLACE FUNCTION protect_profiles_sensitive_columns()
 RETURNS TRIGGER AS $$
 DECLARE
-  v_jwt_role TEXT := COALESCE(current_setting('request.jwt.claim.role', true), '');
+  v_jwt_role TEXT := COALESCE(
+    NULLIF(current_setting('request.jwt.claim.role', true), ''),
+    NULLIF((NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role'), ''),
+    ''
+  );
 BEGIN
   -- Autoriser les fonctions serveur (service_role) et les fonctions SQL SECURITY DEFINER (postgres)
   IF v_jwt_role = 'service_role'
-     OR current_user IN ('postgres', 'supabase_admin', 'supabase_auth_admin') THEN
+     OR current_user IN ('service_role', 'postgres', 'supabase_admin', 'supabase_auth_admin')
+     OR session_user IN ('service_role', 'postgres', 'supabase_admin') THEN
     RETURN NEW;
   END IF;
 

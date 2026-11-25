@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS force sur Internet ; HTTP autorise uniquement en boucle locale (127.0.0.1 / localhost)
+     pour le serveur interne de model_viewer_plus qui affiche les personnages 3D .glb dans la WebView. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

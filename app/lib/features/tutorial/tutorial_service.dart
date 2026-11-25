@@ -139,9 +139,12 @@ class TutorialService {
     }
   }
 
+  static bool _phaseASyncEnCours = false;
+
   /// Synchronise la recompense Phase A (+300 OC + 100 XP + achat 1er Goodies 300 OC)
   /// des que le joueur est connecte sur le Hub.
   Future<String?> synchroniserPhaseASiEnAttente() async {
+    if (_phaseASyncEnCours) return null;
     final uid = _supabase.auth.currentUser?.id;
     if (uid == null) return null;
 
@@ -150,6 +153,7 @@ class TutorialService {
     final wantsStarter = prefs.getBool(_prefPhaseAPendingStarterBuy) ?? false;
     if (!localDone) return null;
 
+    _phaseASyncEnCours = true;
     try {
       final prof = await _supabase
           .from('profiles')
@@ -165,9 +169,13 @@ class TutorialService {
         'shop-tutorial-engine',
         body: {'action': 'complete_tutorial_phase_a'},
       );
+      if (res.status >= 400) return null;
       final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+      if (data['already_done'] == true || data['error'] != null) {
+        return null;
+      }
 
-      if (wantsStarter && data['already_done'] != true) {
+      if (wantsStarter) {
         await _supabase.functions.invoke(
           'shop-tutorial-engine',
           body: {
@@ -183,6 +191,8 @@ class TutorialService {
       return data['message']?.toString();
     } catch (_) {
       return null;
+    } finally {
+      _phaseASyncEnCours = false;
     }
   }
 

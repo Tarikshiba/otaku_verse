@@ -714,7 +714,9 @@ Deno.serve(async (req: Request) => {
       const level = typeof newLvl === "number" ? newLvl : 2;
       const { data: newRank } = await supabaseAdmin.rpc("get_rank_title", { p_level: level });
 
-      await supabaseAdmin
+      // Verrou atomique : on passe tutorial_phase_a_done de false a true AVANT de crediter les OC.
+      // Si la mise a jour echoue ou a deja ete faite en parallele, on ne credite jamais deux fois.
+      const { data: updatedProfile, error: profileUpdateErr } = await supabaseAdmin
         .from("profiles")
         .update({
           tutorial_phase_a_done: true,
@@ -722,12 +724,32 @@ Deno.serve(async (req: Request) => {
           niveau: level,
           rang: newRank ?? "Novice du Verse",
         })
-        .eq("id", userId);
+        .eq("id", userId)
+        .or("tutorial_phase_a_done.is.null,tutorial_phase_a_done.eq.false")
+        .select("id")
+        .maybeSingle();
 
-      await supabaseAdmin
+      if (profileUpdateErr) {
+        return jsonResponse(
+          { error: `Impossible de valider la Phase A sur le profil : ${profileUpdateErr.message}` },
+          500,
+        );
+      }
+      if (!updatedProfile) {
+        return jsonResponse({ ok: true, already_done: true, message: "Phase A deja validee." });
+      }
+
+      const { error: walletUpdateErr } = await supabaseAdmin
         .from("economy_wallets")
         .update({ oc_balance: newOc, updated_at: new Date().toISOString() })
         .eq("user_id", userId);
+
+      if (walletUpdateErr) {
+        return jsonResponse(
+          { error: `Erreur credit OC Phase A : ${walletUpdateErr.message}` },
+          500,
+        );
+      }
 
       await supabaseAdmin.from("economy_ledger").insert([
         {

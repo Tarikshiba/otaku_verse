@@ -1,7 +1,7 @@
 # PROGRESS : Otaku Verse
 
-Derniere mise a jour : 2026-11-24
-Version en cours : V9.3 Consolidee (Chantiers 1, 2 et 3 livres -> Test Conjoint Tariq & Heat)
+Derniere mise a jour : 2026-11-25
+Version en cours : V9.3.2 Consolidee (Correctifs terrain Samsung : R8/Firebase, 3D WebView, Cases Manga, AuthGate & Trigger SQL service_role)
 Documents de reference : `CAHIER_MODIFICATIONS_DEV_OTAKU_VERSE.docx` (V9.2 Finale), `Les retours après le test de heat/002_cahier_de_test_V9.2_complet.md.docx`, `OTAKU_VERSE_PERSONNAGES.md`, `OTAKU_VERSE_DA_LIQUID_GLASS.md`
 Roadmap vers la sortie Stores : `ROADMAP_PUBLICATION_STORES.md`
 Checklist creation assets & 3D : `ASSETS_A_CREER_VISUEL_3D.txt`
@@ -12,7 +12,7 @@ Ancienne roadmap archivee : `archive/ROADMAP_OTAKU_VERSE.md`
 
 ## 1. ETAT DE LA BASE EXISTANTE & DEPLOIEMENTS ACTIFS
 
-- **Application Flutter (Android)** : `dart analyze` a 0 erreur, `flutter test` passe (11/11), APK Release signe V9.3 compile (`app/build/app/outputs/flutter-apk/app-release.apk`, 65,9 Mo).
+- **Application Flutter (Android)** : `dart analyze` a 0 erreur, `flutter test` passe (11/11), APK Release signe V9.3.2 compile (`app/build/app/outputs/flutter-apk/app-release.apk`, 66,1 Mo) et valide en direct sur Samsung physique (`R58X70WH7SB`).
 - **Supabase Production (`houbjgugzznytilkfwyf`)** : migration SQL V9.2 executee (`scripts/v92_socle_supabase.sql`), 4 Edge Functions deployees (`match-engine`, `shop-tutorial-engine`, `valider-reponse`, `envoyer-notification`), secrets `QUIZ_WORKER_URL` et `WORKER_API_SECRET` actifs.
 - **Cloudflare R2 + Worker (`otaku-verse-quiz`)** : 1 254 803 questions reparties sur 21 oeuvres (105 shards `.json.gz` + `catalog.json` = 133,08 Mo) servies en direct par `https://otaku-verse-quiz-api.otakuverse-221.workers.dev`.
 - **Logos** : 5 logos officiels compresses (376 Ko) integres dans `app/assets/images/logos/` et `admin_dashboard/public/`.
@@ -142,6 +142,17 @@ Source : `Les retours après le test de heat/002_cahier_de_test_V9.2_complet.md.
 - [x] Deployer l'Edge Function mise a jour : `npx supabase functions deploy shop-tutorial-engine`.
 - [x] Publier `scripts/firebase_database_rules.json` (`economie: false`) dans Firebase Console > Realtime Database > Regles.
 - [x] Revoquer l'ancienne cle privee FCM dans Google Cloud Console, mettre la nouvelle dans `FCM_SERVICE_ACCOUNT` sur Supabase et supprimer les fichiers locaux.
+
+#### Correctif Demarrage Release V9.3.1 (25/11/2026 : valide sur Samsung physique)
+- [x] **FIX-R8-01 (AGP 9 / R8 Full Mode + Firebase)** : R8 supprimait les constructeurs `public <init>()` des `ComponentRegistrar` Firebase (`CrashlyticsRegistrar`, `FirebaseMessagingKtxRegistrar`, `FirebaseInstallationsKtxRegistrar`), provoquant `NullPointerException: FirebaseCrashlytics component is not present` sur `Firebase.initializeApp()` en Release (alors que Debug/emulateur passait). Ajout de `app/android/app/proguard-rules.pro` branche dans `app/android/app/build.gradle.kts` (`proguardFiles`).
+- [x] **FIX-BOOT-01 (Demarrage non bloquant & paysage immediat)** : `NotificationService().initialiser()` deplace en arriere-plan apres `runApp()` avec `try/catch` + timeouts dans `app/lib/features/notifications/notification_service.dart`, `Firebase.initializeApp()` et `Supabase.initialize()` securises avec ecran de secours `_StartupErrorApp` dans `app/lib/main.dart`, et `android:screenOrientation="sensorLandscape"` ajoute sur `MainActivity` dans `app/android/app/src/main/AndroidManifest.xml`.
+- [x] **Verification terrain** : `usage.txt` confirme la conservation des constructeurs `ComponentRegistrar`, `flutter test` 11/11 OK, APK Release V9.3.1 (66,1 Mo) installe et lance sur Samsung physique avec ouverture directe, animation `SplashIntroOverlay` et demande de permission notifications propre.
+
+#### Correctifs Terrain Samsung V9.3.2 (25/11/2026 : 4 retours Tariq traites et deployes en prod)
+- [x] **FIX-3D-01 (3D WebView en Release)** : erreur `net::ERR_CLEARTEXT_NOT_PERMITTED` sur `http://127.0.0.1` (`model_viewer_plus`) corrigee proprement via `app/android/app/src/main/res/xml/network_security_config.xml` (HTTPS force sur Internet, HTTP autorise uniquement en boucle locale `127.0.0.1` / `localhost`) reference dans `AndroidManifest.xml`.
+- [x] **FIX-INTRO-01 (Animation d'ouverture Planche & Cases de Manga)** : refonte complete de `app/lib/shared/splash_intro_overlay.dart` avec trace a l'encre de 4 cases de manga asymetriques + hachures de trame + lignes de vitesse radiales `shuchu-sen` + case hero centrale inclinée encadree blanc/orange autour du logo renard et du titre `OTAKU VERSE` (suppression de la barre de chargement generique).
+- [x] **FIX-AUTH-01 (Boucle "J'ai deja un compte")** : remplacement de la verification `signedOut` dans `build()` de `AuthGate` (`app/lib/main.dart`) par un `StreamSubscription<AuthState>` dans `initState()` pour ne reinitialiser `_phaseADone` qu'une seule fois a la deconnexion, plus ajout du bouton `J'ai deja un compte · Se connecter` a l'etape 3 de `tutorial_phase_a_page.dart`.
+- [x] **FIX-SQL-01 (Faille +300 OC en boucle & Trigger `service_role`)** : mise a jour du trigger `protect_profiles_sensitive_columns()` en production Supabase (`scripts/v93_1_fix_trigger_service_role.sql` + `scripts/v93_securite_observabilite.sql`) pour autoriser `service_role` (Edge Functions), verrou atomique + verification d'erreur sur `profiles.update()` dans `supabase/functions/shop-tutorial-engine/index.ts` (redeploye en prod) et garde anti-doublon dans `tutorial_service.dart`.
 
 ### Phases D et E (A VENIR APRES TEST CONJOINT TARIQ & HEAT — detail dans `ROADMAP_PUBLICATION_STORES.md`)
 - [ ] **Phase D (Monetisation reelle)** : Google AdMob (SSV serveur), Google Play Billing & Apple IAP (comptes Stores requis), boutique Web Mobile Money optionnelle.

@@ -266,6 +266,15 @@ class _TutorialPhaseAPageState extends State<TutorialPhaseAPage> {
     widget.onTermineVersInscription();
   }
 
+  /// Ferme la Phase A et renvoie directement vers l'ecran de connexion
+  Future<void> _allerVersConnexion() async {
+    await _tutoService.markPhaseADoneLocally(
+      favoriteAnimeSlug: _animeSlug,
+      wantsStarterGoodie: false,
+    );
+    widget.onDejaUnCompte();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -580,70 +589,80 @@ class _TutorialPhaseAPageState extends State<TutorialPhaseAPage> {
         const SizedBox(width: 20),
         Expanded(
           flex: 5,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: OtakuColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: OtakuColors.border),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: OtakuColors.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: OtakuColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('TON PORTEFEUILLE D\'ACCUEIL', style: OtakuTypo.label.copyWith(fontSize: 10, color: OtakuColors.textMuted)),
+                      const SizedBox(height: 6),
+                      Text('Solde : $_ocVirtuel OC  |  +100 XP (Niveau 2)', style: OtakuTypo.hud.copyWith(fontSize: 14, color: OtakuColors.pvMoyen)),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Dépense tes 300 OC offerts pour équiper ton premier Goodies, puis sauvegarde ton compte pour garder ta progression !',
+                        style: OtakuTypo.bodySmall.copyWith(fontSize: 11, color: OtakuColors.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('TON PORTEFEUILLE D\'ACCUEIL', style: OtakuTypo.label.copyWith(fontSize: 10, color: OtakuColors.textMuted)),
-                    const SizedBox(height: 6),
-                    Text('Solde : $_ocVirtuel OC  |  +100 XP (Niveau 2)', style: OtakuTypo.hud.copyWith(fontSize: 14, color: OtakuColors.pvMoyen)),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Dépense tes 300 OC offerts pour équiper ton premier Goodies, puis sauvegarde ton compte pour garder ta progression !',
-                      style: OtakuTypo.bodySmall.copyWith(fontSize: 11, color: OtakuColors.textSecondary),
+                const SizedBox(height: 12),
+                if (!_goodieAchete)
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFD700),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              if (!_goodieAchete)
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD700),
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    onPressed: () => setState(() {
+                      _ocVirtuel = 0;
+                      _goodieAchete = true;
+                    }),
+                    child: const Text('ACHETER & ÉQUIPER MON 1ER GOODIES (300 OC)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                  )
+                else
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: OtakuColors.pvHaut,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    onPressed: _terminerEtSauvegarder,
+                    child: Text(
+                      widget.dejaConnecte
+                          ? 'RÉCLAMER & ENTRER DANS LE VERSE'
+                          : 'SAUVEGARDER MON COMPTE & ENTRER DANS LE VERSE',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                    ),
                   ),
-                  onPressed: () => setState(() {
-                    _ocVirtuel = 0;
-                    _goodieAchete = true;
-                  }),
-                  child: const Text('ACHETER & ÉQUIPER MON 1ER GOODIES (300 OC)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-                )
-              else
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: OtakuColors.pvHaut,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                const SizedBox(height: 6),
+                if (!_goodieAchete)
+                  TextButton(
+                    onPressed: _terminerEtSauvegarder,
+                    child: Text(
+                      widget.dejaConnecte ? 'Garder mes 300 OC et continuer' : 'Garder mes 300 OC et créer mon compte',
+                      style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted),
+                    ),
                   ),
-                  onPressed: _terminerEtSauvegarder,
-                  child: Text(
-                    widget.dejaConnecte
-                        ? 'RÉCLAMER & ENTRER DANS LE VERSE'
-                        : 'SAUVEGARDER MON COMPTE & ENTRER DANS LE VERSE',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                if (!widget.dejaConnecte)
+                  TextButton(
+                    onPressed: _allerVersConnexion,
+                    child: Text(
+                      'J\'ai déjà un compte · Se connecter',
+                      style: OtakuTypo.label.copyWith(fontSize: 11, color: OtakuColors.accent),
+                    ),
                   ),
-                ),
-              const SizedBox(height: 8),
-              if (!_goodieAchete)
-                TextButton(
-                  onPressed: _terminerEtSauvegarder,
-                  child: Text(
-                    widget.dejaConnecte ? 'Garder mes 300 OC et continuer' : 'Garder mes 300 OC et créer mon compte',
-                    style: OtakuTypo.bodySmall.copyWith(color: OtakuColors.textMuted),
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
